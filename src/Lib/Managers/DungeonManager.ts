@@ -10,6 +10,8 @@ import {
   DungeonAsciiResult,
   getDungeonCell,
   GameState,
+  ContainerState,
+  DoorState,
 } from "../../GameTypes";
 import { StateStore } from "../../GameState"; // update import path as needed
 
@@ -106,23 +108,39 @@ export function createDungeonState(definition: DungeonDefinition, seed = 0): Dun
     throw new Error(`Dungeon "${definition.id}" has no entrance node`);
   }
 
+  const doors: Record<string, DoorState> = {};
+  for (const conn of definition.connections) {
+    if (conn.type === "door" || conn.type === "locked") {
+      doors[conn.id] = {
+        open: false,
+        locked: !!conn.requiredKey, // True if a key is required
+      };
+    }
+  }
+  console.log(doors);
+
+  const containers: Record<string, ContainerState> = {};
+  if (definition.items) {
+    for (const item of definition.items) {
+      const coordKey = `${item.position.x},${item.position.y}`;
+      containers[coordKey] = {
+        opened: false,
+      };
+    }
+  }
+
   return {
     definitionId: definition.id,
     seed,
-
     currentNodeId: startNode.id,
-
     discoveredNodes: [startNode.id],
-
     visitedNodes: [startNode.id],
-
-    doors: {},
-    containers: {},
+    doors, // Now in scope!
+    containers, // Now in scope!
     enemies: {},
   };
 }
 
-// Inside DungeonManager.ts or as a utility function
 export function applyConnectionsToGrid(definition: DungeonDefinition): void {
   for (const conn of definition.connections) {
     if (conn.type === "door" && conn.portal) {

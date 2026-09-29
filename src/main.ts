@@ -3,7 +3,7 @@ import { Engine, DisplayMode, Label, vec, Color, toDegrees, Keys, Axes, Buttons 
 import { createInitialGameState, createStateStore, type StateStore } from "./GameState";
 import { createDungeonCamera, type GameState } from "./GameTypes";
 import { ContentRegistry } from "./Content/ContentRegistry";
-import { testDungeon } from "./Content/Dungeons/testDungeon";
+import { registerTestDungeon, testDungeon } from "./Content/Dungeons/testDungeon";
 import { applyConnectionsToGrid, createDungeonState, Dungeon, DungeonManager } from "./Lib/Managers/DungeonManager";
 import { DungeonViewport } from "./UI/DungeonViewport";
 import { InputMapSystem } from "./Lib/Systems/InputMapper";
@@ -25,15 +25,22 @@ const game = new Engine({
   displayMode: DisplayMode.Fixed,
   pixelArt: true,
 });
-const content = new ContentRegistry();
-content.registerDungeon(testDungeon);
-export const state: StateStore<GameState> = createStateStore(createInitialGameState());
+
+export const content = new ContentRegistry();
+registerTestDungeon(content);
 
 const definition = content.getDungeon("test-dungeon");
 applyConnectionsToGrid(definition);
+
+const initialGameState = createInitialGameState();
+initialGameState.dungeon = createDungeonState(definition);
+
+export const state: StateStore<GameState> = createStateStore(initialGameState);
+
 const dungeon = new Dungeon(definition, state);
-const dungeonManger = new DungeonManager();
-dungeonManger.loadDungeon(definition, state);
+const dungeonManager = new DungeonManager();
+dungeonManager.loadDungeon(definition, state);
+
 game.start();
 
 const camera = createDungeonCamera(2.5, 2.5);
@@ -80,7 +87,7 @@ inputMapper.registerMap({
   },
 });
 
-const interactions = new InteractionSystem(state, dungeonManger);
+const interactions = new InteractionSystem(state, dungeonManager);
 
 const d_Player = new DungeonPlayer(state, dungeon, camera, interactions);
 // Wire up controller directly

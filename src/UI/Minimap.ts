@@ -108,13 +108,13 @@ export class MinimapGraphic extends Graphic {
   private redrawMap(): void {
     const { ctx, tileSize: ts, width, height } = this;
     const grid = this.dungeon.grid;
-    const currentState = this.getState(); // <--- Fetch live runtime state
+    const currentState = this.getState();
 
     // 1. Clear background
     ctx.fillStyle = "rgba(10, 10, 15, 0.85)";
     ctx.fillRect(0, 0, width, height);
 
-    // 2. Render cells & walls
+    // 2. Render cells & doors
     for (const cell of grid.cells) {
       const cx = cell.x * ts;
       const cy = cell.y * ts;
@@ -133,9 +133,34 @@ export class MinimapGraphic extends Graphic {
           this.drawWallLine(cx, cy, ts, dir);
         } else if (wall.type === "door") {
           const doorState = currentState.doors[wall.doorId];
-          ctx.strokeStyle = doorState?.open ? "#33cc66" : "#ccaa33";
+
+          // Locked = Red, Open = Green, Closed/Unlocked = Yellow
+          if (doorState?.locked) {
+            ctx.strokeStyle = "#cc3333";
+          } else if (doorState?.open) {
+            ctx.strokeStyle = "#33cc66";
+          } else {
+            ctx.strokeStyle = "#ccaa33";
+          }
+
           ctx.lineWidth = 3;
           this.drawWallLine(cx, cy, ts, dir);
+        }
+      }
+    }
+
+    // 3. Render Keys / Ground Containers
+    if (this.dungeon.items) {
+      for (const item of this.dungeon.items) {
+        const key = `${item.position.x},${item.position.y}`;
+        const container = currentState.containers[key];
+
+        // Render glowing yellow key dot on minimap if not picked up yet
+        if (!container?.opened) {
+          ctx.fillStyle = "#ffd700";
+          ctx.beginPath();
+          ctx.arc(item.position.x * ts + ts / 2, item.position.y * ts + ts / 2, ts * 0.25, 0, Math.PI * 2);
+          ctx.fill();
         }
       }
     }

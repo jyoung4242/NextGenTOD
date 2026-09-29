@@ -1,8 +1,15 @@
 import { DungeonDefinition, dungeonFromAscii } from "../../GameTypes";
+import { ContentRegistry } from "../ContentRegistry";
 
 export const testDungeon: DungeonDefinition = {
   id: "test-dungeon",
-
+  items: [
+    {
+      id: "alcove-key",
+      keyId: "key_east-to-boss",
+      position: { x: 6, y: 1 }, // Located inside northAlcove
+    },
+  ],
   nodes: {
     start: {
       id: "start",
@@ -87,6 +94,7 @@ export const testDungeon: DungeonDefinition = {
         y: 2,
         direction: "west",
       },
+      requiredKey: "key_east-to-boss",
     },
     {
       id: "hallway-to-alcove",
@@ -127,3 +135,7 @@ export const testDungeon: DungeonDefinition = {
 ################
 `),
 };
+
+export function registerTestDungeon(reg: ContentRegistry) {
+  reg.registerDungeon(testDungeon);
+}
