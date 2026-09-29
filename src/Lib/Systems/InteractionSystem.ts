@@ -1,12 +1,14 @@
-import { Dungeon, DungeonManager } from "../Managers/DungeonManager";
+import { DungeonManager } from "../Managers/DungeonManager";
 import { StateStore } from "../../GameState";
-import { GameState, Direction, WallDefinition, DungeonCellDefinition } from "../../GameTypes";
+import { GameState, Direction } from "../../GameTypes";
 
 export interface InteractionResult {
   handled: boolean;
   type: "door" | "container" | "wall" | "none";
   message: string;
 }
+
+const FACING_TO_DIRECTION: Direction[] = ["east", "south", "west", "north"];
 
 export class InteractionSystem {
   constructor(
@@ -19,31 +21,36 @@ export class InteractionSystem {
    */
   public interact(): InteractionResult {
     const dungeon = this.dungeonManager.current;
-    if (!dungeon) {
-      return { handled: false, type: "none", message: "No active dungeon." };
-    }
+    if (!dungeon) return { handled: false, type: "none", message: "No active dungeon." };
 
     const state = this.store.get();
     const { x, y } = state.player.position;
-    const facingDir = this.angleToDirection(state.player.facing);
 
-    // Discrete cell coordinate the player is currently inside
+    // Directly use facing direction index stored by DungeonPlayer
+    const facingDir = FACING_TO_DIRECTION[state.player.facing];
+
+    // Use Math.round or Math.floor consistently depending on offset
     const cellX = Math.floor(x);
     const cellY = Math.floor(y);
 
-    // 1. Check wall directly in front of the player
+    // 1. First check the CURRENT cell the player is standing on (for floor items like keys)
+    const currentCell = dungeon.getCell(cellX, cellY);
+    if (currentCell) {
+      const currentInteraction = this.handleCellInteraction(cellX, cellY);
+      if (currentInteraction.handled) return currentInteraction;
+    }
+
+    // 2. Check facing wall / adjacent container
     const wall = dungeon.getWall(cellX, cellY, facingDir);
     if (wall.type === "door") {
       return this.handleDoorInteraction(wall.doorId);
     }
 
-    // 2. If no door on facing wall, inspect target cell directly ahead
     const targetCoords = this.getFacingCellCoords(cellX, cellY, facingDir);
     const targetCell = dungeon.getCell(targetCoords.x, targetCoords.y);
 
     if (targetCell) {
-      // Check for containers or objects in the facing cell
-      return this.handleCellInteraction(targetCoords.x, targetCoords.y, dungeon);
+      return this.handleCellInteraction(targetCoords.x, targetCoords.y);
     }
 
     return { handled: false, type: "none", message: "Nothing to interact with." };
@@ -53,17 +60,31 @@ export class InteractionSystem {
    * Toggles doors between open, closed, and locked states directly in the StateStore.
    */
   private handleDoorInteraction(doorId: string): InteractionResult {
-    // Read existing door state or default to closed/unlocked
     const existingDoor = this.store.get().dungeon.doors[doorId];
     const currentOpen = existingDoor?.open ?? false;
     const currentLocked = existingDoor?.locked ?? false;
 
     if (currentLocked) {
-      const inventory = this.store.get("player.inventory");
-      const hasKey = inventory.some(item => item === "master_key" || item === `key_${doorId}`);
+      const player = this.store.get().player;
+
+      // 1. Safe extraction of keyring and inventory arrays
+      const keyring = Array.isArray(player.keyring) ? player.keyring : Array.from(player.keyring ?? []);
+
+      const inventory = Array.isArray(player.inventory) ? player.inventory : [];
+
+      // 2. Fetch connection requirements or default to key_<doorId>
+      const connection = this.dungeonManager.current?.definition.connections.find(c => c.id === doorId);
+      const requiredKey = connection?.requiredKey ?? `key_${doorId}`;
+
+      // 3. Verify key presence in keyring or inventory
+      const hasKey =
+        keyring.includes("master_key") ||
+        keyring.includes(requiredKey) ||
+        inventory.includes("master_key") ||
+        inventory.includes(requiredKey);
 
       if (hasKey) {
-        // Set the complete DoorState object or patch the path safely
+        // Pass full DoorState object matching state store signature
         this.store.set(`dungeon.doors.${doorId}`, {
           open: true,
           locked: false,
@@ -83,7 +104,7 @@ export class InteractionSystem {
       };
     }
 
-    // Toggle open / closed state while preserving locked status
+    // Toggle open/closed state while providing a complete DoorState object
     this.store.set(`dungeon.doors.${doorId}`, {
       open: !currentOpen,
       locked: false,
@@ -97,37 +118,50 @@ export class InteractionSystem {
   }
 
   /**
-   * Handles interactive objects (e.g. chests / containers) in target cells.
+   * Handles interactive items, ground keys, and containers in target cells.
    */
-  private handleCellInteraction(cellX: number, cellY: number, dungeon: Dungeon): InteractionResult {
-    const containerKey = `${cellX},${cellY}`;
-    const containerState = this.store.get().dungeon.containers[containerKey];
+  private handleCellInteraction(cellX: number, cellY: number): InteractionResult {
+    const coordKey = `${cellX},${cellY}`;
+    const state = this.store.get();
 
-    if (containerState) {
-      if (containerState.opened) {
-        return { handled: true, type: "container", message: "The chest is empty." };
-      }
+    // Check existing runtime container state in StateStore
+    const containerState = state.dungeon?.containers?.[coordKey];
 
-      // Update container state with proper ContainerState object signature
-      this.store.batch(ctx => {
-        ctx.set(`dungeon.containers.${containerKey}`, { opened: true });
-        ctx.update("player.inventory", inv => [...inv, "gold_coins"]);
-      });
-
-      return {
-        handled: true,
-        type: "container",
-        message: "Opened chest and found Gold Coins!",
-      };
+    // If container/item at this position was already opened/looted, skip
+    if (containerState?.opened) {
+      return { handled: false, type: "none", message: "Already collected." };
     }
 
-    return { handled: false, type: "none", message: "Nothing here." };
+    // Check static definition items array for key placement at (cellX, cellY)
+    const dungeonDef = this.dungeonManager.current?.definition;
+    const itemPlacement = dungeonDef?.items?.find(item => item.position.x === cellX && item.position.y === cellY);
+
+    // If neither a runtime container state nor a static item definition exists here, fail
+    if (!containerState && !itemPlacement) {
+      return { handled: false, type: "none", message: "Nothing here." };
+    }
+
+    const keyToGrant = itemPlacement?.keyId ?? `key_${coordKey}`;
+
+    // Update state store
+    this.store.batch(ctx => {
+      // Mark container/tile as opened so viewport & minimap stop rendering it
+      ctx.set(`dungeon.containers.${coordKey}`, { opened: true });
+
+      // Add key ID to player's keyring array
+      ctx.update("player.keyring", (keyring = []) => [...keyring, keyToGrant]);
+    });
+
+    return {
+      handled: true,
+      type: "container",
+      message: `Picked up ${keyToGrant}!`,
+    };
   }
 
   // ─── Helpers ───────────────────────────────────────────────────────────────
 
   private angleToDirection(angle: number): Direction {
-    // Normalize angle to 0..2π
     const normalized = ((angle % (2 * Math.PI)) + 2 * Math.PI) % (2 * Math.PI);
 
     if (normalized >= (7 * Math.PI) / 4 || normalized < Math.PI / 4) return "east";

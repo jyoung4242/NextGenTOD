@@ -31,9 +31,8 @@ export interface PlayerState {
   maxStamina: number;
 
   position: EntityPosition;
-
   facing: number;
-
+  keyring: string[];
   inventory: string[];
 
   skills: Record<string, SkillState>;
@@ -120,22 +119,18 @@ export interface DungeonPortal {
 
 export interface DungeonDefinition {
   id: string;
-
   nodes: Record<string, DungeonNodeDefinition>;
-
   connections: DungeonConnectionDefinition[];
-
   grid: DungeonGridDefinition;
+  items?: DungeonItemPlacement[]; // Placed keys/items in the dungeon
 }
 
 export interface DungeonConnectionDefinition {
   id: string;
-
   from: string;
   to: string;
-
   type: "open" | "door" | "stairs" | "locked" | "secret";
-
+  requiredKey?: string; // e.g. "key_east-to-boss"
   portal?: DungeonPortal;
 }
 
@@ -366,4 +361,10 @@ export function createDungeonCamera(x: number, y: number): DungeonCamera {
     angle: 0,
     fov: Math.PI / 3,
   };
+}
+
+export interface DungeonItemPlacement {
+  id: string;
+  keyId: string; // e.g. "key_east-to-boss"
+  position: { x: number; y: number };
 }

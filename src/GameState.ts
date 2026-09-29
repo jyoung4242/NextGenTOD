@@ -359,7 +359,7 @@ export function createInitialGameState(): GameState {
         x: 2.5,
         y: 2.5,
       },
-
+      keyring: [],
       facing: 0,
       inventory: [],
       skills: {},
