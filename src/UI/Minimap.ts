@@ -5,7 +5,7 @@ import { Dungeon } from "../Lib/Managers/DungeonManager";
 export interface MinimapGraphicOptions extends GraphicOptions {
   dungeon: DungeonDefinition;
   dungeonManager: Dungeon;
-  getState: () => DungeonState; // <--- Dynamic getter for dynamic door state
+  getState: () => DungeonState;
   camera: DungeonCamera;
   tileSize?: number;
 }
@@ -13,7 +13,7 @@ export interface MinimapGraphicOptions extends GraphicOptions {
 export interface MinimapOptions {
   dungeon: DungeonDefinition;
   dungeonManager: Dungeon;
-  getState: () => DungeonState; // <--- Dynamic getter
+  getState: () => DungeonState;
   camera: DungeonCamera;
   position?: Vector;
   tileSize?: number;
@@ -47,7 +47,6 @@ export class Minimap extends ScreenElement {
   }
 
   public override onPreUpdate(): void {
-    // Flag graphic dirty each frame so player movement and door states update live
     this.minimapGraphic.flagDirty();
   }
 }
@@ -74,7 +73,6 @@ export class MinimapGraphic extends Graphic {
     this.width = this.dungeon.grid.width * this.tileSize;
     this.height = this.dungeon.grid.height * this.tileSize;
 
-    // Create and configure offscreen canvas owned by this graphic
     this.canvas = document.createElement("canvas");
     this.canvas.width = this.width;
     this.canvas.height = this.height;
@@ -100,7 +98,6 @@ export class MinimapGraphic extends Graphic {
       this.isDirty = false;
     }
 
-    // Draw the internal offscreen canvas onto Excalibur's graphics pipeline
     this.canvas.setAttribute("forceUpload", "true");
     ex.drawImage(this.canvas, x, y, this.width, this.height);
   }
@@ -134,7 +131,6 @@ export class MinimapGraphic extends Graphic {
         } else if (wall.type === "door") {
           const doorState = currentState.doors[wall.doorId];
 
-          // Locked = Red, Open = Green, Closed/Unlocked = Yellow
           if (doorState?.locked) {
             ctx.strokeStyle = "#cc3333";
           } else if (doorState?.open) {
@@ -149,15 +145,19 @@ export class MinimapGraphic extends Graphic {
       }
     }
 
-    // 3. Render Keys / Ground Containers
+    // 3. Render Items / Ground Containers
     if (this.dungeon.items) {
       for (const item of this.dungeon.items) {
         const key = `${item.position.x},${item.position.y}`;
         const container = currentState.containers[key];
 
-        // Render glowing yellow key dot on minimap if not picked up yet
         if (!container?.opened) {
-          ctx.fillStyle = "#ffd700";
+          if (item.itemId?.includes("potion") || item.itemId === "potion_health_minor") {
+            ctx.fillStyle = "#e63946"; // Crimson Red for Potions
+          } else {
+            ctx.fillStyle = "#ffd700"; // Gold for Keys / Defaults
+          }
+
           ctx.beginPath();
           ctx.arc(item.position.x * ts + ts / 2, item.position.y * ts + ts / 2, ts * 0.25, 0, Math.PI * 2);
           ctx.fill();
@@ -165,7 +165,7 @@ export class MinimapGraphic extends Graphic {
       }
     }
 
-    // 3. Render player indicator
+    // 4. Render player indicator
     const px = this.camera.x * ts;
     const py = this.camera.y * ts;
 
@@ -173,7 +173,6 @@ export class MinimapGraphic extends Graphic {
     ctx.translate(px, py);
     ctx.rotate(this.camera.angle);
 
-    // FOV cone
     ctx.fillStyle = "rgba(255, 200, 0, 0.25)";
     ctx.beginPath();
     ctx.moveTo(0, 0);
@@ -181,7 +180,6 @@ export class MinimapGraphic extends Graphic {
     ctx.closePath();
     ctx.fill();
 
-    // Player direction arrow
     ctx.fillStyle = "#ffcc00";
     ctx.beginPath();
     ctx.moveTo(ts * 0.4, 0);

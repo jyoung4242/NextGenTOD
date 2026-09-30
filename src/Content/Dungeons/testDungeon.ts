@@ -5,9 +5,15 @@ export const testDungeon: DungeonDefinition = {
   id: "test-dungeon",
   items: [
     {
-      id: "alcove-key",
+      itemId: "alcove-key",
       keyId: "key_east-to-boss",
       position: { x: 6, y: 1 }, // Located inside northAlcove
+      quantity: 1,
+    },
+    {
+      itemId: "potion_health_minor",
+      position: { x: 12, y: 9 }, // Located in the hallway near entrance
+      quantity: 2,
     },
   ],
   nodes: {

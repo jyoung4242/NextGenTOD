@@ -65,6 +65,12 @@ export class DungeonPlayer {
 
     if (result.handled) {
       console.log(`[Interaction Success]: ${result.message}`);
+      if (result.type == "container") {
+        let inv = this.store.get("player.inventory.items");
+        console.log("player inventory: ", inv);
+        let keys = this.store.get("player.keyring");
+        console.log("player keyring: ", keys);
+      }
     } else {
       console.log(`[Interaction Failed]: ${result.message}`);
     }
@@ -112,6 +118,6 @@ export class DungeonPlayer {
 
   private syncCameraAngle(): void {
     this.camera.angle = CARDINAL_ANGLES[this.currentDirection];
-    this.store.set("player.facing", this.currentDirectionIndex);
+    this.store.set("player.facing", this.currentDirection);
   }
 }

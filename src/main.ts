@@ -11,6 +11,8 @@ import { DungeonPlayer } from "./Actors/DungeonPlayer";
 import { DungeonPlayerController } from "./Lib/Managers/DungeonPlayerController";
 import { Minimap } from "./UI/Minimap";
 import { InteractionSystem } from "./Lib/Systems/InteractionSystem";
+import { InventorySystem } from "./Lib/Systems/InventorySystem";
+import { registerTestItems } from "./Content/Items/test-items";
 
 export const INPUT_CONTEXT = {
   Dungeon: "dungeon",
@@ -28,7 +30,7 @@ const game = new Engine({
 
 export const content = new ContentRegistry();
 registerTestDungeon(content);
-
+registerTestItems(content);
 const definition = content.getDungeon("test-dungeon");
 applyConnectionsToGrid(definition);
 
@@ -87,7 +89,8 @@ inputMapper.registerMap({
   },
 });
 
-const interactions = new InteractionSystem(state, dungeonManager);
+const inventory = new InventorySystem(state, content);
+const interactions = new InteractionSystem(state, dungeonManager, inventory, content);
 
 const d_Player = new DungeonPlayer(state, dungeon, camera, interactions);
 // Wire up controller directly

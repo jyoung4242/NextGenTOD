@@ -1,16 +1,4 @@
-import { DungeonDefinition } from "../GameTypes";
-
-export interface EnemyDefinition {
-  id: string;
-}
-
-export interface ItemDefinition {
-  id: string;
-}
-
-export interface SkillDefinition {
-  id: string;
-}
+import { DungeonDefinition, EnemyDefinition, ItemDefinition, SkillDefinition } from "../GameTypes";
 
 export class ContentRegistry {
   readonly dungeons = new Map<string, DungeonDefinition>();

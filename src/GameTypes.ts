@@ -7,6 +7,14 @@ export interface Rect {
   height: number;
 }
 
+export interface EnemyDefinition {
+  id: string;
+}
+
+export interface SkillDefinition {
+  id: string;
+}
+
 export interface EntityPosition {
   nodeId: string;
   x: number;
@@ -26,15 +34,12 @@ export interface EnemyState {
 export interface PlayerState {
   hp: number;
   maxHp: number;
-
   stamina: number;
   maxStamina: number;
-
   position: EntityPosition;
-  facing: number;
+  facing: Direction;
   keyring: string[];
-  inventory: string[];
-
+  inventory: InventoryState;
   skills: Record<string, SkillState>;
 }
 
@@ -43,8 +48,13 @@ export interface SkillState {
   unlocked: boolean;
 }
 
+// GameTypes.ts
+
 export interface ContainerState {
   opened: boolean;
+  keyId?: string; // e.g., "key_east-to-boss" (routes directly to player.keyring)
+  itemId?: string; // e.g., "potion_health_minor" (routes through InventorySystem)
+  quantity?: number; // Optional stack size (defaults to 1 if omitted)
 }
 
 export interface QuestState {
@@ -364,7 +374,34 @@ export function createDungeonCamera(x: number, y: number): DungeonCamera {
 }
 
 export interface DungeonItemPlacement {
-  id: string;
-  keyId: string; // e.g. "key_east-to-boss"
+  itemId?: string;
+  keyId?: string; // e.g. "key_east-to-boss"
   position: { x: number; y: number };
+  quantity: number;
+}
+
+// --- Static Content Definitions ---
+export type ItemCategory = "consumable" | "equipment" | "material" | "junk";
+
+export interface ItemDefinition {
+  id: string; // Unique ID (e.g., "potion_health_minor")
+  name: string;
+  description: string;
+  category: ItemCategory;
+  stackable: boolean;
+  maxStackSize?: number; // Default: 99 if stackable is true
+  weight: number; // For inventory weight capacity checks
+  icon?: string;
+}
+
+// --- Runtime Inventory State ---
+export interface ItemInstance {
+  instanceId: string; // Unique runtime ID for tracking individual instances
+  definitionId: string; // Reference to ItemDefinition.id
+  quantity: number;
+}
+
+export interface InventoryState {
+  items: ItemInstance[];
+  maxWeight: number;
 }

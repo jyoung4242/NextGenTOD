@@ -1,6 +1,8 @@
 import { DungeonManager } from "../Managers/DungeonManager";
 import { StateStore } from "../../GameState";
 import { GameState, Direction } from "../../GameTypes";
+import { InventorySystem } from "./InventorySystem";
+import { ContentRegistry } from "../../Content/ContentRegistry";
 
 export interface InteractionResult {
   handled: boolean;
@@ -8,83 +10,78 @@ export interface InteractionResult {
   message: string;
 }
 
+// 0: East, 1: South, 2: West, 3: North
 const FACING_TO_DIRECTION: Direction[] = ["east", "south", "west", "north"];
 
 export class InteractionSystem {
   constructor(
     private readonly store: StateStore<GameState>,
     private readonly dungeonManager: DungeonManager,
+    private readonly inventorySystem: InventorySystem,
+    private readonly contentRegistry: ContentRegistry,
   ) {}
 
-  /**
-   * Main entry point when player presses the interaction key ('E').
-   */
   public interact(): InteractionResult {
     const dungeon = this.dungeonManager.current;
     if (!dungeon) return { handled: false, type: "none", message: "No active dungeon." };
 
     const state = this.store.get();
-    const { x, y } = state.player.position;
 
-    // Directly use facing direction index stored by DungeonPlayer
-    const facingDir = FACING_TO_DIRECTION[state.player.facing];
+    // Safe extraction of player position
+    const pos = state.player?.position;
+    if (!pos || typeof pos.x !== "number" || typeof pos.y !== "number") {
+      return { handled: false, type: "none", message: "Invalid player position." };
+    }
 
-    // Use Math.round or Math.floor consistently depending on offset
+    const { x, y } = pos;
+
+    // Convert state.player.facing (number or string) into a valid Direction string
+    const facingRaw = state.player.facing as unknown;
+    const facingDir: Direction =
+      typeof facingRaw === "number" ? (FACING_TO_DIRECTION[facingRaw] ?? "east") : ((facingRaw as Direction) ?? "east");
+
     const cellX = Math.floor(x);
     const cellY = Math.floor(y);
 
-    // 1. First check the CURRENT cell the player is standing on (for floor items like keys)
+    // 1. Check current cell player stands on
     const currentCell = dungeon.getCell(cellX, cellY);
     if (currentCell) {
       const currentInteraction = this.handleCellInteraction(cellX, cellY);
       if (currentInteraction.handled) return currentInteraction;
     }
 
-    // 2. Check facing wall / adjacent container
+    // 2. Check facing wall / door
     const wall = dungeon.getWall(cellX, cellY, facingDir);
-    if (wall.type === "door") {
+    if (wall?.type === "door") {
       return this.handleDoorInteraction(wall.doorId);
     }
 
+    // 3. Check target cell directly ahead
     const targetCoords = this.getFacingCellCoords(cellX, cellY, facingDir);
     const targetCell = dungeon.getCell(targetCoords.x, targetCoords.y);
 
     if (targetCell) {
-      return this.handleCellInteraction(targetCoords.x, targetCoords.y);
+      const targetInteraction = this.handleCellInteraction(targetCoords.x, targetCoords.y);
+      if (targetInteraction.handled) return targetInteraction;
     }
 
     return { handled: false, type: "none", message: "Nothing to interact with." };
   }
 
-  /**
-   * Toggles doors between open, closed, and locked states directly in the StateStore.
-   */
   private handleDoorInteraction(doorId: string): InteractionResult {
     const existingDoor = this.store.get().dungeon.doors[doorId];
     const currentOpen = existingDoor?.open ?? false;
     const currentLocked = existingDoor?.locked ?? false;
 
     if (currentLocked) {
-      const player = this.store.get().player;
+      const keyring = this.store.get().player.keyring ?? [];
 
-      // 1. Safe extraction of keyring and inventory arrays
-      const keyring = Array.isArray(player.keyring) ? player.keyring : Array.from(player.keyring ?? []);
-
-      const inventory = Array.isArray(player.inventory) ? player.inventory : [];
-
-      // 2. Fetch connection requirements or default to key_<doorId>
-      const connection = this.dungeonManager.current?.definition.connections.find(c => c.id === doorId);
+      const connection = this.dungeonManager.current?.definition.connections.find(conn => conn.id === doorId);
       const requiredKey = connection?.requiredKey ?? `key_${doorId}`;
 
-      // 3. Verify key presence in keyring or inventory
-      const hasKey =
-        keyring.includes("master_key") ||
-        keyring.includes(requiredKey) ||
-        inventory.includes("master_key") ||
-        inventory.includes(requiredKey);
+      const hasKey = keyring.includes("master_key") || keyring.includes(requiredKey);
 
       if (hasKey) {
-        // Pass full DoorState object matching state store signature
         this.store.set(`dungeon.doors.${doorId}`, {
           open: true,
           locked: false,
@@ -100,11 +97,10 @@ export class InteractionSystem {
       return {
         handled: false,
         type: "door",
-        message: "The door is locked.",
+        message: "The door is locked. You need a key.",
       };
     }
 
-    // Toggle open/closed state while providing a complete DoorState object
     this.store.set(`dungeon.doors.${doorId}`, {
       open: !currentOpen,
       locked: false,
@@ -117,57 +113,71 @@ export class InteractionSystem {
     };
   }
 
-  /**
-   * Handles interactive items, ground keys, and containers in target cells.
-   */
   private handleCellInteraction(cellX: number, cellY: number): InteractionResult {
     const coordKey = `${cellX},${cellY}`;
     const state = this.store.get();
 
-    // Check existing runtime container state in StateStore
     const containerState = state.dungeon?.containers?.[coordKey];
-
-    // If container/item at this position was already opened/looted, skip
     if (containerState?.opened) {
       return { handled: false, type: "none", message: "Already collected." };
     }
 
-    // Check static definition items array for key placement at (cellX, cellY)
     const dungeonDef = this.dungeonManager.current?.definition;
-    const itemPlacement = dungeonDef?.items?.find(item => item.position.x === cellX && item.position.y === cellY);
+    const itemPlacement = dungeonDef?.items?.find(i => i.position.x === cellX && i.position.y === cellY);
 
-    // If neither a runtime container state nor a static item definition exists here, fail
-    if (!containerState && !itemPlacement) {
-      return { handled: false, type: "none", message: "Nothing here." };
+    const keyId = containerState?.keyId ?? itemPlacement?.keyId;
+    const itemId = containerState?.itemId ?? itemPlacement?.itemId;
+    const quantity = containerState?.quantity ?? itemPlacement?.quantity ?? 1;
+
+    // Keys -> player.keyring
+    if (keyId) {
+      const keyring = this.store.get().player.keyring ?? [];
+
+      this.store.batch(ctx => {
+        if (!keyring.includes(keyId)) {
+          ctx.set("player.keyring", [...keyring, keyId]);
+        }
+        ctx.set(`dungeon.containers.${coordKey}`, {
+          ...containerState,
+          opened: true,
+        });
+      });
+
+      return {
+        handled: true,
+        type: "container",
+        message: `Picked up key: ${keyId}!`,
+      };
     }
 
-    const keyToGrant = itemPlacement?.keyId ?? `key_${coordKey}`;
+    // Items -> InventorySystem
+    if (itemId) {
+      const result = this.inventorySystem.addItem(itemId, quantity);
 
-    // Update state store
-    this.store.batch(ctx => {
-      // Mark container/tile as opened so viewport & minimap stop rendering it
-      ctx.set(`dungeon.containers.${coordKey}`, { opened: true });
+      if (!result.success) {
+        return {
+          handled: true,
+          type: "container",
+          message: "Your inventory is overburdened!",
+        };
+      }
 
-      // Add key ID to player's keyring array
-      ctx.update("player.keyring", (keyring = []) => [...keyring, keyToGrant]);
-    });
+      this.store.batch(ctx => {
+        ctx.set(`dungeon.containers.${coordKey}`, {
+          ...containerState,
+          opened: true,
+        });
+      });
 
-    return {
-      handled: true,
-      type: "container",
-      message: `Picked up ${keyToGrant}!`,
-    };
-  }
+      const itemDef = this.contentRegistry.getItem(itemId);
+      return {
+        handled: true,
+        type: "container",
+        message: `Picked up ${itemDef?.name ?? itemId}!`,
+      };
+    }
 
-  // ─── Helpers ───────────────────────────────────────────────────────────────
-
-  private angleToDirection(angle: number): Direction {
-    const normalized = ((angle % (2 * Math.PI)) + 2 * Math.PI) % (2 * Math.PI);
-
-    if (normalized >= (7 * Math.PI) / 4 || normalized < Math.PI / 4) return "east";
-    if (normalized >= Math.PI / 4 && normalized < (3 * Math.PI) / 4) return "south";
-    if (normalized >= (3 * Math.PI) / 4 && normalized < (5 * Math.PI) / 4) return "west";
-    return "north";
+    return { handled: false, type: "none", message: "Nothing here." };
   }
 
   private getFacingCellCoords(x: number, y: number, dir: Direction): { x: number; y: number } {

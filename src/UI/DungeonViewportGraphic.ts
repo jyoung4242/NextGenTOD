@@ -118,13 +118,27 @@ export class DungeonViewportGraphic extends Graphic {
         const startX = Math.floor(centerScreenX - itemSize / 2);
         const endX = Math.floor(centerScreenX + itemSize / 2);
 
+        // Determine color based on item type
+        // let itemColor = Color.fromHex("#ffd700"); // Default Gold for keys/chests
+        // if (item.itemId?.includes("potion") || item.itemId === "potion_health_minor") {
+        //   itemColor = Color.fromHex("#e63946"); // Crimson Red for Potions
+        // }
+        const itemColor = this.getItemColor(item.itemId, item.keyId);
+
         // Column-by-column depth test against wall distance
         for (let col = startX; col <= endX; col++) {
           if (col >= 0 && col < width && correctedItemDistance < zBuffer[col]) {
-            ex.drawRectangle(new Vector(col, itemTop), 1, itemSize, Color.fromHex("#ffd700"));
+            ex.drawRectangle(new Vector(col, itemTop), 1, itemSize, itemColor);
           }
         }
       }
     }
+  }
+  private getItemColor(itemId?: string, keyId?: string): Color {
+    if (keyId) return Color.fromHex("#ffd700"); // Gold for keys
+    if (itemId?.startsWith("potion_")) return Color.fromHex("#e63946"); // Crimson Red for Potions
+    if (itemId?.startsWith("scroll_")) return Color.fromHex("#a855f7"); // Purple for Scrolls
+
+    return Color.fromHex("#ffffff"); // Default White
   }
 }

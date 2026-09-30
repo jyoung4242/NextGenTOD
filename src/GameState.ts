@@ -353,15 +353,17 @@ export function createInitialGameState(): GameState {
       maxHp: 100,
       stamina: 100,
       maxStamina: 100,
-
       position: {
         nodeId: "start",
         x: 2.5,
         y: 2.5,
       },
+      facing: "east",
       keyring: [],
-      facing: 0,
-      inventory: [],
+      inventory: {
+        items: [],
+        maxWeight: 50,
+      },
       skills: {},
     },
 

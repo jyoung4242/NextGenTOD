@@ -2,12 +2,16 @@
 import { ItemDefinition } from "../../GameTypes";
 import { ContentRegistry } from "../ContentRegistry";
 
-export const bossKeyItem: ItemDefinition = {
-  id: "key_east-to-boss",
-  name: "Boss Key",
-  description: "Unlocks the heavy door leading to the boss chamber.",
+export const healthPotionItem: ItemDefinition = {
+  id: "potion_health_minor",
+  name: "Minor Health Potion",
+  description: "Restores 25 Health.",
+  category: "consumable",
+  stackable: true,
+  maxStackSize: 10,
+  weight: 0.5,
 };
 
 export function registerTestItems(registry: ContentRegistry): void {
-  registry.registerItem(bossKeyItem);
+  registry.registerItem(healthPotionItem);
 }
