@@ -7,16 +7,12 @@ export interface Rect {
   height: number;
 }
 
-export interface EnemyDefinition {
-  id: string;
-}
-
 export interface SkillDefinition {
   id: string;
 }
 
 export interface EntityPosition {
-  nodeId: string;
+  nodeId?: string;
   x: number;
   y: number;
 }
@@ -28,7 +24,8 @@ export interface EnemyState {
   nodeId: string;
   alive: boolean;
   position: EntityPosition;
-  facing: number;
+  facing: Direction;
+  state: "idle" | "alert" | "dead";
 }
 
 export interface PlayerState {
@@ -127,12 +124,26 @@ export interface DungeonPortal {
   direction: Direction;
 }
 
+export interface DungeonItemPlacement {
+  id: string;
+  keyId?: string;
+  position: { x: number; y: number };
+  quantity: number;
+}
+
+export interface DungeonEnemyPlacement {
+  id: string; // Unique instance ID (e.g., "enemy-alcove-1")
+  definitionId: string; // References EnemyDefinition.id registered in ContentRegistry
+  position: { x: number; y: number };
+}
+
 export interface DungeonDefinition {
   id: string;
   nodes: Record<string, DungeonNodeDefinition>;
   connections: DungeonConnectionDefinition[];
   grid: DungeonGridDefinition;
-  items?: DungeonItemPlacement[]; // Placed keys/items in the dungeon
+  items?: DungeonItemPlacement[]; // Placed keys/items in the dungeon[cite: 3]
+  enemies?: DungeonEnemyPlacement[]; // Placed static enemies in the dungeon
 }
 
 export interface DungeonConnectionDefinition {
@@ -357,12 +368,6 @@ export interface DungeonViewportGraphicOptions {
   width: number;
   height: number;
 }
-export interface DungeonCamera {
-  x: number;
-  y: number;
-  angle: number;
-  fov: number;
-}
 
 export function createDungeonCamera(x: number, y: number): DungeonCamera {
   return {
@@ -371,13 +376,6 @@ export function createDungeonCamera(x: number, y: number): DungeonCamera {
     angle: 0,
     fov: Math.PI / 3,
   };
-}
-
-export interface DungeonItemPlacement {
-  itemId?: string;
-  keyId?: string; // e.g. "key_east-to-boss"
-  position: { x: number; y: number };
-  quantity: number;
 }
 
 // --- Static Content Definitions ---
@@ -404,4 +402,17 @@ export interface ItemInstance {
 export interface InventoryState {
   items: ItemInstance[];
   maxWeight: number;
+}
+
+// Enemies
+// GameTypes.ts
+
+export interface EnemyDefinition {
+  id: string;
+  name: string;
+  spriteUrl: string; // Asset path for rendering
+  health: number;
+  attack: number;
+  defense: number;
+  detectionRadius: number; // Distance in tiles to trigger alert/encounter
 }

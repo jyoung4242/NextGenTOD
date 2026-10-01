@@ -12,6 +12,7 @@ import {
   GameState,
   ContainerState,
   DoorState,
+  EnemyState,
 } from "../../GameTypes";
 import { StateStore } from "../../GameState"; // update import path as needed
 
@@ -103,22 +104,22 @@ export class DungeonGrid {
 
 export function createDungeonState(definition: DungeonDefinition, seed = 0): DungeonState {
   const startNode = Object.values(definition.nodes).find(node => node.type === "entrance");
-
   if (!startNode) {
     throw new Error(`Dungeon "${definition.id}" has no entrance node`);
   }
 
+  // 1. Automatically build door states from connections
   const doors: Record<string, DoorState> = {};
   for (const conn of definition.connections) {
     if (conn.type === "door" || conn.type === "locked") {
       doors[conn.id] = {
         open: false,
-        locked: !!conn.requiredKey, // True if a key is required
+        locked: !!conn.requiredKey,
       };
     }
   }
-  console.log(doors);
 
+  // 2. Automatically build container states from definition items
   const containers: Record<string, ContainerState> = {};
   if (definition.items) {
     for (const item of definition.items) {
@@ -129,15 +130,36 @@ export function createDungeonState(definition: DungeonDefinition, seed = 0): Dun
     }
   }
 
+  // 3. Populate runtime enemy instances from dungeon definition
+  const enemies: Record<string, EnemyState> = {};
+  if (definition.enemies) {
+    for (const spawn of definition.enemies) {
+      enemies[spawn.id] = {
+        definitionId: spawn.definitionId,
+        hp: 100,
+        maxHp: 100,
+        nodeId: startNode.id,
+        alive: true,
+        facing: "east",
+        position: {
+          nodeId: startNode.id,
+          x: spawn.position.x,
+          y: spawn.position.y,
+        },
+        state: "idle",
+      };
+    }
+  }
+
   return {
     definitionId: definition.id,
     seed,
     currentNodeId: startNode.id,
     discoveredNodes: [startNode.id],
     visitedNodes: [startNode.id],
-    doors, // Now in scope!
-    containers, // Now in scope!
-    enemies: {},
+    doors,
+    containers,
+    enemies,
   };
 }
 
