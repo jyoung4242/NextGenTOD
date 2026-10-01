@@ -126,7 +126,7 @@ export class InteractionSystem {
     const itemPlacement = dungeonDef?.items?.find(i => i.position.x === cellX && i.position.y === cellY);
 
     const keyId = containerState?.keyId ?? itemPlacement?.keyId;
-    const itemId = containerState?.itemId ?? itemPlacement?.itemId;
+    const itemId = containerState?.itemId ?? itemPlacement?.id;
     const quantity = containerState?.quantity ?? itemPlacement?.quantity ?? 1;
 
     // Keys -> player.keyring

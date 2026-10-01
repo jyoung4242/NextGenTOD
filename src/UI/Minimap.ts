@@ -8,6 +8,7 @@ export interface MinimapGraphicOptions extends GraphicOptions {
   getState: () => DungeonState;
   camera: DungeonCamera;
   tileSize?: number;
+  showMarkers?: boolean;
 }
 
 export interface MinimapOptions {
@@ -17,6 +18,7 @@ export interface MinimapOptions {
   camera: DungeonCamera;
   position?: Vector;
   tileSize?: number;
+  showMarkers?: boolean;
 }
 
 export class Minimap extends ScreenElement {
@@ -41,6 +43,7 @@ export class Minimap extends ScreenElement {
       getState: options.getState,
       camera: options.camera,
       tileSize: options.tileSize ?? 12,
+      showMarkers: options.showMarkers ?? true,
     });
 
     this.graphics.use(this.minimapGraphic);
@@ -48,6 +51,23 @@ export class Minimap extends ScreenElement {
 
   public override onPreUpdate(): void {
     this.minimapGraphic.flagDirty();
+  }
+
+  /**
+   * Toggle showing items, keys, and enemies on the minimap
+   */
+  public toggleMarkers(): void {
+    this.minimapGraphic.showMarkers = !this.minimapGraphic.showMarkers;
+    this.minimapGraphic.flagDirty();
+  }
+
+  public setShowMarkers(show: boolean): void {
+    this.minimapGraphic.showMarkers = show;
+    this.minimapGraphic.flagDirty();
+  }
+
+  public getShowMarkers(): boolean {
+    return this.minimapGraphic.showMarkers;
   }
 }
 
@@ -57,6 +77,8 @@ export class MinimapGraphic extends Graphic {
   private readonly getState: () => DungeonState;
   private readonly camera: DungeonCamera;
   private readonly tileSize: number;
+
+  public showMarkers: boolean;
 
   private canvas: HTMLCanvasElement;
   private ctx: CanvasRenderingContext2D;
@@ -69,6 +91,7 @@ export class MinimapGraphic extends Graphic {
     this.getState = options.getState;
     this.camera = options.camera;
     this.tileSize = options.tileSize ?? 12;
+    this.showMarkers = options.showMarkers ?? true;
 
     this.width = this.dungeon.grid.width * this.tileSize;
     this.height = this.dungeon.grid.height * this.tileSize;
@@ -89,7 +112,10 @@ export class MinimapGraphic extends Graphic {
   }
 
   public clone(): MinimapGraphic {
-    return new MinimapGraphic(this.options);
+    return new MinimapGraphic({
+      ...this.options,
+      showMarkers: this.showMarkers,
+    });
   }
 
   protected _drawImage(ex: ExcaliburGraphicsContext, x: number, y: number): void {
@@ -145,27 +171,55 @@ export class MinimapGraphic extends Graphic {
       }
     }
 
-    // 3. Render Items / Ground Containers
-    if (this.dungeon.items) {
-      for (const item of this.dungeon.items) {
-        const key = `${item.position.x},${item.position.y}`;
-        const container = currentState.containers[key];
+    // Render markers (Items, Keys, Enemies) if enabled
+    if (this.showMarkers) {
+      // 3. Render Items / Ground Containers
+      if (this.dungeon.items) {
+        for (const item of this.dungeon.items) {
+          const key = `${item.position.x},${item.position.y}`;
+          const container = currentState.containers[key];
 
-        if (!container?.opened) {
-          if (item.itemId?.includes("potion") || item.itemId === "potion_health_minor") {
-            ctx.fillStyle = "#e63946"; // Crimson Red for Potions
-          } else {
-            ctx.fillStyle = "#ffd700"; // Gold for Keys / Defaults
+          if (!container?.opened) {
+            if (item.id?.includes("potion") || item.id === "potion_health_minor") {
+              ctx.fillStyle = "#e63946"; // Crimson Red for Potions
+            } else {
+              ctx.fillStyle = "#ffd700"; // Gold for Keys / Defaults
+            }
+
+            ctx.beginPath();
+            ctx.arc(item.position.x * ts + ts / 2, item.position.y * ts + ts / 2, ts * 0.25, 0, Math.PI * 2);
+            ctx.fill();
           }
+        }
+      }
+
+      // 4. Render Enemies
+      if (currentState.enemies) {
+        for (const enemy of Object.values(currentState.enemies)) {
+          if (!enemy.alive && enemy.state === "dead") continue;
+
+          // Color based on alert/idle state
+          ctx.fillStyle = enemy.state === "alert" ? "#ef4444" : "#a855f7";
 
           ctx.beginPath();
-          ctx.arc(item.position.x * ts + ts / 2, item.position.y * ts + ts / 2, ts * 0.25, 0, Math.PI * 2);
+          ctx.arc(
+            enemy.position.x * ts + ts / 2,
+            enemy.position.y * ts + ts / 2,
+            ts * 0.3, // Slightly larger dot for enemies
+            0,
+            Math.PI * 2,
+          );
           ctx.fill();
+
+          // Stroke border for contrast
+          ctx.strokeStyle = "#ffffff";
+          ctx.lineWidth = 1;
+          ctx.stroke();
         }
       }
     }
 
-    // 4. Render player indicator
+    // 5. Render player indicator
     const px = this.camera.x * ts;
     const py = this.camera.y * ts;
 

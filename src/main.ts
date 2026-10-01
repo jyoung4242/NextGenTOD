@@ -13,6 +13,7 @@ import { Minimap } from "./UI/Minimap";
 import { InteractionSystem } from "./Lib/Systems/InteractionSystem";
 import { InventorySystem } from "./Lib/Systems/InventorySystem";
 import { registerTestItems } from "./Content/Items/test-items";
+import { registerTestEnemies } from "./Content/Enemies/test-enemies";
 
 export const INPUT_CONTEXT = {
   Dungeon: "dungeon",
@@ -31,6 +32,8 @@ const game = new Engine({
 export const content = new ContentRegistry();
 registerTestDungeon(content);
 registerTestItems(content);
+registerTestEnemies(content);
+
 const definition = content.getDungeon("test-dungeon");
 applyConnectionsToGrid(definition);
 

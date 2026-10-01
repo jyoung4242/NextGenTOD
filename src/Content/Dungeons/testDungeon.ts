@@ -5,16 +5,28 @@ export const testDungeon: DungeonDefinition = {
   id: "test-dungeon",
   items: [
     {
-      itemId: "alcove-key",
+      id: "alcove-key",
       keyId: "key_east-to-boss",
       position: { x: 6, y: 1 }, // Located inside northAlcove
       quantity: 1,
     },
     {
-      itemId: "potion_health_minor",
+      id: "potion_health_minor",
       position: { x: 12, y: 9 }, // Located in the hallway near entrance
       quantity: 2,
     },
+  ],
+  enemies: [
+    {
+      id: "enemy_hallway_1",
+      definitionId: "goblin_scout",
+      position: { x: 12, y: 2 },
+    },
+    // {
+    //   id: "enemy_east_room_1",
+    //   definitionId: "skeleton_warrior",
+    //   position: { x: 11, y: 2 },
+    // },
   ],
   nodes: {
     start: {
