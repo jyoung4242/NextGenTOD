@@ -9,6 +9,7 @@ import { registerTestEnemies } from "./Content/Enemies/test-enemies";
 import { applyConnectionsToGrid, createDungeonState } from "./Lib/Managers/DungeonManager";
 import { InputMapSystem } from "./Lib/Systems/InputMapper";
 import { DungeonScene } from "./Scenes/DungeonScene";
+import { EncounterScene } from "./Scenes/EncounterScene";
 
 export const INPUT_CONTEXT = {
   Dungeon: "dungeon",
@@ -19,8 +20,21 @@ export const INPUT_CONTEXT = {
 
 export const SCENES = {
   Dungeon: "dungeon",
+  Encounter: "encounter",
 } as const;
 
+export const content = new ContentRegistry();
+registerTestDungeon(content);
+registerTestItems(content);
+registerTestEnemies(content);
+
+const definition = content.getDungeon("test-dungeon");
+applyConnectionsToGrid(definition);
+
+const initialGameState = createInitialGameState();
+initialGameState.dungeon = createDungeonState(definition);
+
+export const state: StateStore<GameState> = createStateStore(initialGameState);
 const game = new Engine({
   width: 960,
   height: 540,
@@ -28,25 +42,20 @@ const game = new Engine({
   pixelArt: true,
 });
 
-export const content = new ContentRegistry();
-registerTestDungeon(content);
-registerTestItems(content);
-registerTestEnemies(content);
-
-// 1. Prepare dungeon definition & connection grid
-const definition = content.getDungeon("test-dungeon");
-applyConnectionsToGrid(definition);
-
-// 2. Hydrate initial state (Exact original setup)
-const initialGameState = createInitialGameState();
-initialGameState.dungeon = createDungeonState(definition);
-
-export const state: StateStore<GameState> = createStateStore(initialGameState);
-
 export const inputMapper = new InputMapSystem(game);
 
 // 3. Register scenes
 game.addScene(SCENES.Dungeon, new DungeonScene(state, content, inputMapper));
+game.addScene(SCENES.Encounter, new EncounterScene(state, content, inputMapper));
 
 game.goToScene(SCENES.Dungeon);
 game.start();
+
+// main.ts
+state.subscribe("game.mode", payload => {
+  if (payload.value === "encounter") {
+    game.goToScene(SCENES.Encounter);
+  } else if (payload.value === "playing") {
+    game.goToScene(SCENES.Dungeon);
+  }
+});
