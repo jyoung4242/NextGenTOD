@@ -1,4 +1,4 @@
-//GameTypes.ts
+// GameTypes.ts
 
 export interface Rect {
   x: number;
@@ -24,7 +24,7 @@ export interface EnemyState {
   nodeId: string;
   alive: boolean;
   position: EntityPosition;
-  facing: Direction;
+  facing: Direction | number;
   state: "idle" | "alert" | "dead";
 }
 
@@ -45,19 +45,16 @@ export interface SkillState {
   unlocked: boolean;
 }
 
-// GameTypes.ts
-
 export interface ContainerState {
   opened: boolean;
-  keyId?: string; // e.g., "key_east-to-boss" (routes directly to player.keyring)
-  itemId?: string; // e.g., "potion_health_minor" (routes through InventorySystem)
-  quantity?: number; // Optional stack size (defaults to 1 if omitted)
+  keyId?: string;
+  itemId?: string;
+  quantity?: number;
 }
 
 export interface QuestState {
   started: boolean;
   completed: boolean;
-
   objectives: Record<string, ObjectiveState>;
 }
 
@@ -72,11 +69,30 @@ export interface ProgressionState {
   skillPoints: number;
 }
 
-export type GameMode = "playing" | "paused" | "dead" | "victory";
+// Added "encounter" to GameMode
+export type GameMode = "playing" | "encounter" | "paused" | "dead" | "victory";
+
+// Combat & Encounter State Types
+export interface ArenaBounds {
+  minX: number;
+  maxX: number;
+  minY: number;
+  maxY: number;
+}
+
+export interface EncounterState {
+  activeEnemyInstanceId: string;
+  currentTurn: "player" | "enemy";
+  turnCount: number;
+  arenaBounds: ArenaBounds;
+  combatLog: string[];
+  isResolved: boolean;
+}
 
 export interface GameSessionState {
   mode: GameMode;
   time: number;
+  encounter?: EncounterState; // Payload used by EncounterTriggerSystem
 }
 
 export interface GameState {
@@ -90,17 +106,14 @@ export interface GameState {
   progression: ProgressionState;
 }
 
-// Dungeon Types & Interfaces
+// --- Dungeon Types & Interfaces ---
 
 export interface DungeonState {
   definitionId: string;
   seed: number;
-
   currentNodeId: string;
-
   discoveredNodes: string[];
   visitedNodes: string[];
-
   doors: Record<string, DoorState>;
   containers: Record<string, ContainerState>;
   enemies: Record<string, EnemyState>;
@@ -108,11 +121,8 @@ export interface DungeonState {
 
 export interface DungeonNodeDefinition {
   id: string;
-
   type: "room" | "corridor" | "stairs" | "entrance" | "special";
-
   bounds: Rect;
-
   exits: string[];
 }
 
@@ -142,8 +152,8 @@ export interface DungeonDefinition {
   nodes: Record<string, DungeonNodeDefinition>;
   connections: DungeonConnectionDefinition[];
   grid: DungeonGridDefinition;
-  items?: DungeonItemPlacement[]; // Placed keys/items in the dungeon[cite: 3]
-  enemies?: DungeonEnemyPlacement[]; // Placed static enemies in the dungeon
+  items?: DungeonItemPlacement[];
+  enemies?: DungeonEnemyPlacement[];
 }
 
 export interface DungeonConnectionDefinition {
@@ -151,14 +161,13 @@ export interface DungeonConnectionDefinition {
   from: string;
   to: string;
   type: "open" | "door" | "stairs" | "locked" | "secret";
-  requiredKey?: string; // e.g. "key_east-to-boss"
+  requiredKey?: string;
   portal?: DungeonPortal;
 }
 
 export interface DungeonCellDefinition {
   x: number;
   y: number;
-
   floor: FloorType;
   north: WallDefinition;
   east: WallDefinition;
@@ -171,18 +180,7 @@ export interface DoorState {
   locked: boolean;
 }
 
-export type WallDefinition =
-  | {
-      type: "none";
-    }
-  | {
-      type: "wall";
-      materialId: string;
-    }
-  | {
-      type: "door";
-      doorId: string;
-    };
+export type WallDefinition = { type: "none" } | { type: "wall"; materialId: string } | { type: "door"; doorId: string };
 
 export interface GridPosition {
   x: number;
@@ -216,6 +214,7 @@ export interface DungeonPosition {
 export interface DungeonAsciiOptions {
   wall?: string;
   floor?: string;
+  wallMaterialId?: string;
 }
 
 export interface DungeonAsciiResult {
@@ -230,9 +229,6 @@ export interface DungeonAsciiMarker {
   type: DungeonAsciiMarkerType;
   x: number;
   y: number;
-}
-export interface DungeonAsciiOptions {
-  wallMaterialId?: string;
 }
 
 export function dungeonFromAscii(ascii: string, options: DungeonAsciiOptions = {}): DungeonGridDefinition {
@@ -262,23 +258,15 @@ export function dungeonFromAscii(ascii: string, options: DungeonAsciiOptions = {
         x,
         y,
         floor: "floor",
-
         north: createWall(lines, x, y - 1, width, wall, floor, wallMaterialId),
-
         east: createWall(lines, x + 1, y, width, wall, floor, wallMaterialId),
-
         south: createWall(lines, x, y + 1, width, wall, floor, wallMaterialId),
-
         west: createWall(lines, x - 1, y, width, wall, floor, wallMaterialId),
       });
     }
   }
 
-  return {
-    width,
-    height,
-    cells,
-  };
+  return { width, height, cells };
 }
 
 function createWall(
@@ -291,15 +279,10 @@ function createWall(
   materialId: string,
 ): DungeonCellDefinition["north"] {
   if (isFloor(lines, x, y, width, wall, floor)) {
-    return {
-      type: "none",
-    };
+    return { type: "none" };
   }
 
-  return {
-    type: "wall",
-    materialId,
-  };
+  return { type: "wall", materialId };
 }
 
 function isFloor(lines: string[], x: number, y: number, width: number, wall: string, floor: string): boolean {
@@ -316,29 +299,17 @@ export interface DungeonCamera {
   x: number;
   y: number;
   angle: number;
-
   fov: number;
 }
 
-export const camera: DungeonCamera = {
-  x: 3.5,
-  y: 3.5,
-  angle: 0,
-  fov: Math.PI / 3,
-};
 export interface RaycastHit {
   distance: number;
-
   x: number;
   y: number;
-
   cellX: number;
   cellY: number;
-
   side: "north" | "east" | "south" | "west";
-
   wallOffset: number;
-
   wall: WallDefinition;
 }
 
@@ -364,7 +335,6 @@ export function getDungeonCell(grid: DungeonGridDefinition, x: number, y: number
 export interface DungeonViewportGraphicOptions {
   dungeon: DungeonDefinition;
   camera: DungeonCamera;
-
   width: number;
   height: number;
 }
@@ -382,20 +352,20 @@ export function createDungeonCamera(x: number, y: number): DungeonCamera {
 export type ItemCategory = "consumable" | "equipment" | "material" | "junk";
 
 export interface ItemDefinition {
-  id: string; // Unique ID (e.g., "potion_health_minor")
+  id: string;
   name: string;
   description: string;
   category: ItemCategory;
   stackable: boolean;
-  maxStackSize?: number; // Default: 99 if stackable is true
-  weight: number; // For inventory weight capacity checks
+  maxStackSize?: number;
+  weight: number;
   icon?: string;
 }
 
 // --- Runtime Inventory State ---
 export interface ItemInstance {
-  instanceId: string; // Unique runtime ID for tracking individual instances
-  definitionId: string; // Reference to ItemDefinition.id
+  instanceId: string;
+  definitionId: string;
   quantity: number;
 }
 
@@ -404,15 +374,13 @@ export interface InventoryState {
   maxWeight: number;
 }
 
-// Enemies
-// GameTypes.ts
-
+// Enemies Definition
 export interface EnemyDefinition {
   id: string;
   name: string;
-  spriteUrl: string; // Asset path for rendering
+  spriteUrl: string;
   health: number;
   attack: number;
   defense: number;
-  detectionRadius: number; // Distance in tiles to trigger alert/encounter
+  detectionRadius: number;
 }
