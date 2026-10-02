@@ -22,6 +22,7 @@ const DIRECTIONS: Direction[] = ["east", "south", "west", "north"];
 
 export class DungeonPlayer {
   private currentDirectionIndex = 0;
+  public onStepOrTurn?: () => void; // Hook for Proximity System check
 
   constructor(
     private readonly store: StateStore<GameState>,
@@ -41,20 +42,24 @@ export class DungeonPlayer {
 
   public moveForward(): void {
     this.attemptMove(1);
+    this.onStepOrTurn?.();
   }
 
   public moveBackward(): void {
     this.attemptMove(-1);
+    this.onStepOrTurn?.();
   }
 
   public turnLeft(): void {
     this.currentDirectionIndex = (this.currentDirectionIndex + 3) % 4;
     this.syncCameraAngle();
+    this.onStepOrTurn?.();
   }
 
   public turnRight(): void {
     this.currentDirectionIndex = (this.currentDirectionIndex + 1) % 4;
     this.syncCameraAngle();
+    this.onStepOrTurn?.();
   }
 
   /**
