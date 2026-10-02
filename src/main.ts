@@ -1,25 +1,24 @@
 import "./style.css";
-import { Engine, DisplayMode, Label, vec, Color, toDegrees, Keys, Axes, Buttons } from "excalibur";
+import { Engine, DisplayMode } from "excalibur";
 import { createInitialGameState, createStateStore, type StateStore } from "./GameState";
-import { createDungeonCamera, type GameState } from "./GameTypes";
+import { type GameState } from "./GameTypes";
 import { ContentRegistry } from "./Content/ContentRegistry";
-import { registerTestDungeon, testDungeon } from "./Content/Dungeons/testDungeon";
-import { applyConnectionsToGrid, createDungeonState, Dungeon, DungeonManager } from "./Lib/Managers/DungeonManager";
-import { DungeonViewport } from "./UI/DungeonViewport";
-import { InputMapSystem } from "./Lib/Systems/InputMapper";
-import { DungeonPlayer } from "./Actors/DungeonPlayer";
-import { DungeonPlayerController } from "./Lib/Managers/DungeonPlayerController";
-import { Minimap } from "./UI/Minimap";
-import { InteractionSystem } from "./Lib/Systems/InteractionSystem";
-import { InventorySystem } from "./Lib/Systems/InventorySystem";
+import { registerTestDungeon } from "./Content/Dungeons/testDungeon";
 import { registerTestItems } from "./Content/Items/test-items";
 import { registerTestEnemies } from "./Content/Enemies/test-enemies";
+import { applyConnectionsToGrid, createDungeonState } from "./Lib/Managers/DungeonManager";
+import { InputMapSystem } from "./Lib/Systems/InputMapper";
+import { DungeonScene } from "./Scenes/DungeonScene";
 
 export const INPUT_CONTEXT = {
   Dungeon: "dungeon",
   Encounter: "encounter",
   Menu: "menu",
   Pause: "pause",
+} as const;
+
+export const SCENES = {
+  Dungeon: "dungeon",
 } as const;
 
 const game = new Engine({
@@ -34,69 +33,20 @@ registerTestDungeon(content);
 registerTestItems(content);
 registerTestEnemies(content);
 
+// 1. Prepare dungeon definition & connection grid
 const definition = content.getDungeon("test-dungeon");
 applyConnectionsToGrid(definition);
 
+// 2. Hydrate initial state (Exact original setup)
 const initialGameState = createInitialGameState();
 initialGameState.dungeon = createDungeonState(definition);
 
 export const state: StateStore<GameState> = createStateStore(initialGameState);
 
-const dungeon = new Dungeon(definition, state);
-const dungeonManager = new DungeonManager();
-dungeonManager.loadDungeon(definition, state);
+export const inputMapper = new InputMapSystem(game);
 
+// 3. Register scenes
+game.addScene(SCENES.Dungeon, new DungeonScene(state, content, inputMapper));
+
+game.goToScene(SCENES.Dungeon);
 game.start();
-
-const camera = createDungeonCamera(2.5, 2.5);
-const vp = new DungeonViewport({
-  dungeon: definition,
-  getState: () => state.get("dungeon"),
-  camera,
-  width: 960,
-  height: 540,
-});
-game.add(vp);
-
-const minimap = new Minimap({
-  dungeon: definition,
-  dungeonManager: dungeon,
-  getState: () => state.get("dungeon"), // Dynamically feeds live door states
-  camera,
-  position: vec(16, 16),
-  tileSize: 12,
-});
-
-game.add(minimap);
-game.add(vp);
-game.on("preupdate", _event => {
-  debugText.text = `POS ${camera.x.toFixed(2)}, ${camera.y.toFixed(2)}\n` + `ANGLE ${toDegrees(camera.angle)}`;
-});
-
-const debugText = new Label({
-  text: "",
-  pos: vec(10, 10),
-  color: Color.White,
-});
-
-game.add(debugText);
-
-const inputMapper = new InputMapSystem(game);
-
-inputMapper.registerMap({
-  name: INPUT_CONTEXT.Dungeon,
-  inputMap: {
-    KeyPresses: new Set([Keys.W, Keys.S, Keys.A, Keys.D, Keys.E]),
-    GamepadButtonsTriggers: new Set([Buttons.Face1, Buttons.Face2]),
-    GamepadAxesTriggers: new Set([Axes.LeftStickX, Axes.LeftStickY]),
-  },
-});
-
-const inventory = new InventorySystem(state, content);
-const interactions = new InteractionSystem(state, dungeonManager, inventory, content);
-
-const d_Player = new DungeonPlayer(state, dungeon, camera, interactions);
-// Wire up controller directly
-const playerController = new DungeonPlayerController(inputMapper, d_Player);
-playerController.initialize();
-inputMapper.switchContext(INPUT_CONTEXT.Dungeon);
