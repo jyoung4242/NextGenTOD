@@ -24,6 +24,8 @@ export class DungeonPlayerController {
 
     switch (event.key) {
       case Keys.W:
+        console.log("key: W");
+
         this.player.moveForward();
         break;
 

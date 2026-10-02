@@ -1,6 +1,7 @@
 import { Graphic, GraphicOptions, ExcaliburGraphicsContext, Vector, ScreenElement, vec } from "excalibur";
 import { DungeonDefinition, DungeonCamera, Direction, DungeonState } from "../GameTypes";
 import { Dungeon } from "../Lib/Managers/DungeonManager";
+import { Signal } from "../Lib/Signals";
 
 export interface MinimapGraphicOptions extends GraphicOptions {
   dungeon: DungeonDefinition;
@@ -22,6 +23,7 @@ export interface MinimapOptions {
 }
 
 export class Minimap extends ScreenElement {
+  dirtySignal: Signal = new Signal("minimap:dirty");
   private minimapGraphic: MinimapGraphic;
 
   constructor(options: MinimapOptions) {
@@ -47,10 +49,9 @@ export class Minimap extends ScreenElement {
     });
 
     this.graphics.use(this.minimapGraphic);
-  }
-
-  public override onPreUpdate(): void {
-    this.minimapGraphic.flagDirty();
+    this.dirtySignal.listen(() => {
+      this.minimapGraphic.flagDirty();
+    });
   }
 
   /**
@@ -129,6 +130,8 @@ export class MinimapGraphic extends Graphic {
   }
 
   private redrawMap(): void {
+    console.log("redraw map");
+
     const { ctx, tileSize: ts, width, height } = this;
     const grid = this.dungeon.grid;
     const currentState = this.getState();

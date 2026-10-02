@@ -42,6 +42,7 @@ export interface PlayerState {
 
 export interface SkillState {
   level: number;
+  xp: number;
   unlocked: boolean;
 }
 
@@ -72,11 +73,12 @@ export interface ProgressionState {
   skillPoints: number;
 }
 
-export type GameMode = "playing" | "paused" | "dead" | "victory";
+export type GameMode = "playing" | "encounter" | "game_over" | "paused" | "dead" | "victory";
 
 export interface GameSessionState {
   mode: GameMode;
   time: number;
+  encounter?: EncounterState;
 }
 
 export interface GameState {
@@ -415,4 +417,41 @@ export interface EnemyDefinition {
   attack: number;
   defense: number;
   detectionRadius: number; // Distance in tiles to trigger alert/encounter
+}
+
+// Encounters
+
+export type TurnParticipant = "player" | "enemy";
+
+export interface TacticalPosition {
+  x: number;
+  y: number;
+}
+
+export interface CombatAction {
+  type: "attack" | "skill" | "item" | "defend" | "flee";
+  targetId?: string;
+  skillId?: string;
+  itemId?: string;
+  targetTile?: TacticalPosition;
+}
+
+export interface EncounterState {
+  activeEnemyInstanceId: string;
+  currentTurn: TurnParticipant;
+  turnCount: number;
+  arenaBounds: {
+    minX: number;
+    maxX: number;
+    minY: number;
+    maxY: number;
+  };
+  combatLog: string[];
+  isResolved: boolean;
+}
+
+export interface GameSessionState {
+  mode: GameMode;
+  time: number;
+  encounter?: EncounterState; // Attached to active game session
 }
