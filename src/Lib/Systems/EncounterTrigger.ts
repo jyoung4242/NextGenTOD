@@ -39,3 +39,4 @@ export class EncounterTriggerSystem {
     return true;
   }
 }
+// random comment
