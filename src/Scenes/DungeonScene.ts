@@ -2,7 +2,7 @@ import { Scene, Label, vec, Color, toDegrees, Keys, Axes, Buttons, Engine } from
 import { StateStore } from "../GameState";
 import { createDungeonCamera, GameState } from "../GameTypes";
 import { ContentRegistry } from "../Content/ContentRegistry";
-import { applyConnectionsToGrid, createDungeonState, Dungeon, DungeonManager } from "../Lib/Managers/DungeonManager";
+import { Dungeon, DungeonManager } from "../Lib/Managers/DungeonManager";
 import { DungeonViewport } from "../UI/DungeonViewport";
 import { InputMapSystem } from "../Lib/Systems/InputMapper";
 import { DungeonPlayer } from "../Actors/DungeonPlayer";
@@ -10,13 +10,7 @@ import { DungeonPlayerController } from "../Lib/Managers/DungeonPlayerController
 import { Minimap } from "../UI/Minimap";
 import { InteractionSystem } from "../Lib/Systems/InteractionSystem";
 import { InventorySystem } from "../Lib/Systems/InventorySystem";
-
-export const INPUT_CONTEXT = {
-  Dungeon: "dungeon",
-  Encounter: "encounter",
-  Menu: "menu",
-  Pause: "pause",
-} as const;
+import { INPUT_CONTEXT } from "../main";
 
 export class DungeonScene extends Scene {
   private debugText!: Label;
@@ -31,12 +25,6 @@ export class DungeonScene extends Scene {
 
   public onInitialize(engine: Engine): void {
     const definition = this.content.getDungeon("test-dungeon");
-    applyConnectionsToGrid(definition);
-
-    // Initialize state
-    this.state.update(s => {
-      s.dungeon = createDungeonState(definition);
-    });
 
     const dungeon = new Dungeon(definition, this.state);
     const dungeonManager = new DungeonManager();
@@ -44,7 +32,6 @@ export class DungeonScene extends Scene {
 
     const camera = createDungeonCamera(2.5, 2.5);
 
-    // Viewport & Minimap
     const vp = new DungeonViewport({
       dungeon: definition,
       getState: () => this.state.get("dungeon"),
@@ -64,7 +51,6 @@ export class DungeonScene extends Scene {
     });
     this.add(minimap);
 
-    // Debug Label
     this.debugText = new Label({
       text: "",
       pos: vec(10, 10),
@@ -72,7 +58,6 @@ export class DungeonScene extends Scene {
     });
     this.add(this.debugText);
 
-    // Register Dungeon Input Context on the shared InputMapSystem
     this.inputMapper.registerMap({
       name: INPUT_CONTEXT.Dungeon,
       inputMap: {
@@ -82,7 +67,6 @@ export class DungeonScene extends Scene {
       },
     });
 
-    // Subsystems & Player
     const inventory = new InventorySystem(this.state, this.content);
     const interactions = new InteractionSystem(this.state, dungeonManager, inventory, this.content);
 
@@ -96,7 +80,6 @@ export class DungeonScene extends Scene {
   }
 
   public onActivate(): void {
-    // When transitioning into DungeonScene, switch active input context
     this.inputMapper.switchContext(INPUT_CONTEXT.Dungeon);
   }
 }
