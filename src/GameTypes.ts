@@ -12,7 +12,7 @@ export interface SkillDefinition {
 }
 
 export interface EntityPosition {
-  nodeId?: string;
+  nodeId?: string; // Optional if position uses continuous grid coordinates
   x: number;
   y: number;
 }
@@ -42,6 +42,7 @@ export interface PlayerState {
 
 export interface SkillState {
   level: number;
+  xp: number;
   unlocked: boolean;
 }
 
@@ -69,8 +70,24 @@ export interface ProgressionState {
   skillPoints: number;
 }
 
-// Added "encounter" to GameMode
-export type GameMode = "playing" | "encounter" | "paused" | "dead" | "victory";
+// Game Modes & Combat Participants
+export type GameMode = "playing" | "encounter" | "paused" | "dead" | "victory" | "game_over";
+
+export type TurnParticipant = "player" | "enemy";
+
+// Tactical Grid & Combat Actions
+export interface TacticalPosition {
+  x: number;
+  y: number;
+}
+
+export interface CombatAction {
+  type: "attack" | "skill" | "item" | "defend" | "flee";
+  targetId?: string;
+  skillId?: string;
+  itemId?: string;
+  targetTile?: TacticalPosition;
+}
 
 // Combat & Encounter State Types
 export interface ArenaBounds {
@@ -82,7 +99,7 @@ export interface ArenaBounds {
 
 export interface EncounterState {
   activeEnemyInstanceId: string;
-  currentTurn: "player" | "enemy";
+  currentTurn: TurnParticipant;
   turnCount: number;
   arenaBounds: ArenaBounds;
   combatLog: string[];
@@ -92,7 +109,7 @@ export interface EncounterState {
 export interface GameSessionState {
   mode: GameMode;
   time: number;
-  encounter?: EncounterState; // Payload used by EncounterTriggerSystem
+  encounter?: EncounterState;
 }
 
 export interface GameState {
@@ -141,10 +158,15 @@ export interface DungeonItemPlacement {
   quantity: number;
 }
 
+export interface DungeonPosition {
+  x: number;
+  y: number;
+}
+
 export interface DungeonEnemyPlacement {
-  id: string; // Unique instance ID (e.g., "enemy-alcove-1")
-  definitionId: string; // References EnemyDefinition.id registered in ContentRegistry
-  position: { x: number; y: number };
+  id: string;
+  definitionId: string;
+  position: DungeonPosition;
 }
 
 export interface DungeonDefinition {
@@ -204,11 +226,6 @@ export interface DungeonGridDefinition {
   width: number;
   height: number;
   cells: DungeonCellDefinition[];
-}
-
-export interface DungeonPosition {
-  x: number;
-  y: number;
 }
 
 export interface DungeonAsciiOptions {

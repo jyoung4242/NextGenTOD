@@ -1,9 +1,11 @@
 // Scenes/EncounterScene.ts
-import { Scene, Actor, Color, vec } from "excalibur";
+import { Scene, Actor, Color, vec, Axes, Buttons, Keys } from "excalibur";
 import { StateStore } from "../GameState";
 import { GameState } from "../GameTypes";
 import { ContentRegistry } from "../Content/ContentRegistry";
 import { DungeonGridRenderer } from "../UI/DungeonGridRenderer";
+import { INPUT_CONTEXT } from "../main";
+import { InputMapSystem } from "../Lib/Systems/InputMapper";
 
 export class EncounterScene extends Scene {
   private gridRenderer?: DungeonGridRenderer;
@@ -12,8 +14,20 @@ export class EncounterScene extends Scene {
   constructor(
     private readonly store: StateStore<GameState>,
     private readonly contentRegistry: ContentRegistry,
+    private readonly inputMapper: InputMapSystem,
   ) {
     super();
+  }
+
+  onInitialize(): void {
+    this.inputMapper.registerMap({
+      name: INPUT_CONTEXT.Encounter,
+      inputMap: {
+        KeyPresses: new Set([Keys.W, Keys.S, Keys.A, Keys.D, Keys.E]),
+        GamepadButtonsTriggers: new Set([Buttons.Face1, Buttons.Face2]),
+        GamepadAxesTriggers: new Set([Axes.LeftStickX, Axes.LeftStickY]),
+      },
+    });
   }
 
   public onActivate(): void {
