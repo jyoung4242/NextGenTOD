@@ -31,7 +31,14 @@ export class EncounterTriggerSystem {
         currentTurn: "player",
         turnCount: 1,
         arenaBounds,
-        combatLog: [`Encounter initiated with enemy (${enemy.definitionId})!`],
+        playerPosition: { x: px, y: py }, // Track tactical position here
+        enemyPositions: {
+          [triggeredEnemyInstanceId]: {
+            x: Math.floor(enemy.position.x),
+            y: Math.floor(enemy.position.y),
+          },
+        },
+        combatLog: [`Encounter initiated!`],
         isResolved: false,
       });
     });

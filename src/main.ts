@@ -10,6 +10,7 @@ import { applyConnectionsToGrid, createDungeonState } from "./Lib/Managers/Dunge
 import { InputMapSystem } from "./Lib/Systems/InputMapper";
 import { DungeonScene } from "./Scenes/DungeonScene";
 import { EncounterScene } from "./Scenes/EncounterScene";
+import { GameOverScene } from "./Scenes/GameOver";
 
 export const INPUT_CONTEXT = {
   Dungeon: "dungeon",
@@ -21,6 +22,7 @@ export const INPUT_CONTEXT = {
 export const SCENES = {
   Dungeon: "dungeon",
   Encounter: "encounter",
+  GameOver: "gameover",
 } as const;
 
 export const content = new ContentRegistry();
@@ -47,6 +49,7 @@ export const inputMapper = new InputMapSystem(game);
 // 3. Register scenes
 game.addScene(SCENES.Dungeon, new DungeonScene(state, content, inputMapper));
 game.addScene(SCENES.Encounter, new EncounterScene(state, content, inputMapper));
+game.addScene(SCENES.GameOver, new GameOverScene(state, content));
 
 game.goToScene(SCENES.Dungeon);
 game.start();
@@ -57,5 +60,7 @@ state.subscribe("game.mode", payload => {
     game.goToScene(SCENES.Encounter);
   } else if (payload.value === "playing") {
     game.goToScene(SCENES.Dungeon);
+  } else if (payload.value === "game_over") {
+    game.goToScene(SCENES.GameOver);
   }
 });

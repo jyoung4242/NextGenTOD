@@ -36,7 +36,7 @@ export class ProximitySystem {
         const distance = Math.sqrt(dx * dx + dy * dy);
 
         // Immediate tile contact check
-        if (distance <= 1.0 && !triggeredEncounter) {
+        if (distance <= 3.0 && !triggeredEncounter) {
           triggeredEncounter = instanceId;
         }
 

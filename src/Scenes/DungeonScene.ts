@@ -1,4 +1,4 @@
-import { Scene, Label, vec, Color, toDegrees, Keys, Axes, Buttons, Engine } from "excalibur";
+import { Scene, Label, vec, Color, toDegrees, Keys, Axes, Buttons, Engine, SceneActivationContext } from "excalibur";
 import { StateStore } from "../GameState";
 import { createDungeonCamera, DungeonCamera, GameState } from "../GameTypes";
 import { ContentRegistry } from "../Content/ContentRegistry";
@@ -33,12 +33,62 @@ export class DungeonScene extends Scene {
   }
 
   public onInitialize(engine: Engine): void {
+    this.inputMapper.registerMap({
+      name: INPUT_CONTEXT.Dungeon,
+      inputMap: {
+        KeyPresses: new Set([Keys.W, Keys.S, Keys.A, Keys.D, Keys.E]),
+        GamepadButtonsTriggers: new Set([Buttons.Face1, Buttons.Face2]),
+        GamepadAxesTriggers: new Set([Axes.LeftStickX, Axes.LeftStickY]),
+      },
+    });
+
     const definition = this.content.getDungeon("test-dungeon");
 
     const dungeon = new Dungeon(definition, this.state);
     const dungeonManager = new DungeonManager();
     dungeonManager.loadDungeon(definition, this.state);
 
+    const vp = new DungeonViewport({
+      dungeon: definition,
+      getState: () => this.state.get("dungeon"),
+      camera: this.dCamera!,
+      width: 960,
+      height: 540,
+    });
+    // this.add(vp);
+
+    const minimap = new Minimap({
+      dungeon: definition,
+      dungeonManager: dungeon,
+      getState: () => this.state.get("dungeon"),
+      camera: this.dCamera!,
+      position: vec(16, 16),
+      tileSize: 12,
+    });
+    // this.add(minimap);
+
+    this.inventory = new InventorySystem(this.state, this.content);
+    this.interactions = new InteractionSystem(this.state, dungeonManager, this.inventory, this.content);
+
+    this.d_Player = new DungeonPlayer(this.state, dungeon, this.dCamera!, this.interactions);
+    // 2. Attach turn/step callback to evaluate enemy proximity & trigger encounters
+    this.d_Player.onStepOrTurn = () => {
+      this.handleTurnTick();
+    };
+    this.playerController = new DungeonPlayerController(this.inputMapper, this.d_Player);
+    this.playerController.initialize();
+
+    this.proximitySystem = new ProximitySystem(this.state, this.content);
+    this.encounterTriggerSystem = new EncounterTriggerSystem(this.state);
+  }
+
+  public onActivate(): void {
+    this.inputMapper.switchContext(INPUT_CONTEXT.Dungeon);
+    const definition = this.content.getDungeon("test-dungeon");
+
+    const dungeon = new Dungeon(definition, this.state);
+    const dungeonManager = new DungeonManager();
+    dungeonManager.loadDungeon(definition, this.state);
     const vp = new DungeonViewport({
       dungeon: definition,
       getState: () => this.state.get("dungeon"),
@@ -58,15 +108,6 @@ export class DungeonScene extends Scene {
     });
     this.add(minimap);
 
-    this.inputMapper.registerMap({
-      name: INPUT_CONTEXT.Dungeon,
-      inputMap: {
-        KeyPresses: new Set([Keys.W, Keys.S, Keys.A, Keys.D, Keys.E]),
-        GamepadButtonsTriggers: new Set([Buttons.Face1, Buttons.Face2]),
-        GamepadAxesTriggers: new Set([Axes.LeftStickX, Axes.LeftStickY]),
-      },
-    });
-
     this.inventory = new InventorySystem(this.state, this.content);
     this.interactions = new InteractionSystem(this.state, dungeonManager, this.inventory, this.content);
 
@@ -75,15 +116,17 @@ export class DungeonScene extends Scene {
     this.d_Player.onStepOrTurn = () => {
       this.handleTurnTick();
     };
-    this.playerController = new DungeonPlayerController(this.inputMapper, this.d_Player);
-    this.playerController.initialize();
+    if (!this.playerController) {
+      this.playerController = new DungeonPlayerController(this.inputMapper, this.d_Player);
+      this.playerController.initialize();
+    }
 
     this.proximitySystem = new ProximitySystem(this.state, this.content);
     this.encounterTriggerSystem = new EncounterTriggerSystem(this.state);
   }
 
-  public onActivate(): void {
-    this.inputMapper.switchContext(INPUT_CONTEXT.Dungeon);
+  public onDeactivate(context: SceneActivationContext) {
+    this.clear();
   }
 
   private handleTurnTick(): void {

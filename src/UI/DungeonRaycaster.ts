@@ -1,12 +1,5 @@
-import {
-  DungeonGridDefinition,
-  DungeonCamera,
-  RaycastHit,
-  DungeonCellDefinition,
-  WallDefinition,
-  getDungeonCell,
-  DungeonState,
-} from "../GameTypes";
+// DungeonRaycaster.ts
+import { DungeonGridDefinition, DungeonCamera, RaycastHit, WallDefinition, getDungeonCell, DungeonState } from "../GameTypes";
 
 type WallSide = "north" | "east" | "south" | "west";
 
@@ -78,7 +71,7 @@ export class DungeonRaycaster {
       if (!owner) return undefined;
 
       // ─── DOOR CHECK ───────────────────────────────────────────────────────
-      // If the wall is a door and it is open, do not hit it — pass through!
+      // If the wall is a door and it is OPEN, skip this collision and keep casting!
       if (wall.type === "door") {
         const doorState = state.doors[wall.doorId];
         if (doorState?.open === true) {
@@ -86,16 +79,29 @@ export class DungeonRaycaster {
         }
       }
 
+      // Calculate hit distance
       const distance =
         wallSide === "west" || wallSide === "east"
           ? (mapX - camera.x + (1 - stepX) / 2) / rayDirX
           : (mapY - camera.y + (1 - stepY) / 2) / rayDirY;
 
+      // Calculate intersection world coordinates x & y
       const hitX = camera.x + rayDirX * distance;
       const hitY = camera.y + rayDirY * distance;
+
+      // Calculate wallOffset for texture alignment (0.0 to 1.0 across wall face)
       const wallOffset = wallSide === "west" || wallSide === "east" ? hitY - Math.floor(hitY) : hitX - Math.floor(hitX);
 
-      return { distance, x: hitX, y: hitY, cellX: owner.x, cellY: owner.y, side: wallSide, wallOffset, wall };
+      return {
+        distance,
+        x: hitX,
+        y: hitY,
+        cellX: owner.x,
+        cellY: owner.y,
+        side: wallSide,
+        wallOffset,
+        wall,
+      };
     }
   }
 }

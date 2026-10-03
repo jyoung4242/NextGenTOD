@@ -82,7 +82,7 @@ export interface TacticalPosition {
 }
 
 export interface CombatAction {
-  type: "attack" | "skill" | "item" | "defend" | "flee";
+  type: "attack" | "skill" | "item" | "defend" | "flee" | "throw" | "spell" | "move";
   targetId?: string;
   skillId?: string;
   itemId?: string;
@@ -97,11 +97,22 @@ export interface ArenaBounds {
   maxY: number;
 }
 
+// GameTypes.ts
+
 export interface EncounterState {
   activeEnemyInstanceId: string;
+  enemyInstanceIds?: string[];
   currentTurn: TurnParticipant;
   turnCount: number;
-  arenaBounds: ArenaBounds;
+  arenaBounds: {
+    minX: number;
+    maxX: number;
+    minY: number;
+    maxY: number;
+  };
+  // Store local tactical positions separately
+  playerPosition: { x: number; y: number };
+  enemyPositions: Record<string, { x: number; y: number }>;
   combatLog: string[];
   isResolved: boolean;
 }
