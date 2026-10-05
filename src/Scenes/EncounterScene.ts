@@ -118,7 +118,7 @@ export class EncounterScene extends Scene {
       }
     });
   }
-
+  // activate
   public onActivate(): void {
     this.inputMapper.switchContext("encounter");
 
