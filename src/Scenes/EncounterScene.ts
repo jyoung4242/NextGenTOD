@@ -11,7 +11,8 @@ import { CombatStateMachine } from "../Lib/Systems/CombatStateMachine";
 
 export class EncounterScene extends Scene {
   private playerActor?: Actor;
-  private gridRenderer?: DungeonGridRenderer;
+  private enemyActors: Map<string, Actor> = new Map(); // ✅ Track enemy actors by ID
+  public gridRenderer?: DungeonGridRenderer;
   private readonly TILE_SIZE = 48;
 
   // Re-instantiated on every activation
@@ -31,7 +32,7 @@ export class EncounterScene extends Scene {
     this.inputMapper.registerMap({
       name: INPUT_CONTEXT.Encounter,
       inputMap: {
-        KeyPresses: new Set([Keys.W, Keys.S, Keys.A, Keys.D, Keys.E, Keys.F, Keys.Digit1, Keys.Digit2]),
+        KeyPresses: new Set([Keys.W, Keys.S, Keys.A, Keys.D, Keys.E, Keys.F, Keys.Key1, Keys.Key2]),
         GamepadButtonsTriggers: new Set([Buttons.Face1, Buttons.Face2]),
         GamepadAxesTriggers: new Set([Axes.LeftStickX, Axes.LeftStickY]),
       },
@@ -40,6 +41,7 @@ export class EncounterScene extends Scene {
     // 2. Process input events routed from InputMapSystem
     this.inputMapper.inputMapEmitter.on("keyPress", (data: any) => {
       const keyName = typeof data === "object" && data?.key ? data.key : data;
+      console.log("keypress", keyName);
 
       const state = this.store.get();
       const encounter = state.game.encounter;
@@ -88,8 +90,8 @@ export class EncounterScene extends Scene {
           break;
 
         // --- COMBAT ACTIONS ---
-        case Keys.Digit1:
-        case "Digit1":
+        case Keys.Key1:
+          console.log("[EncounterScene] Player chose to attack target:", targetId);
           if (targetId) {
             this.handlePlayerAction({
               type: "attack",
@@ -98,10 +100,9 @@ export class EncounterScene extends Scene {
           }
           return;
 
-        case Keys.Digit2:
+        case Keys.Key2:
         case Keys.F:
-        case "KeyF":
-        case "Digit2":
+          console.log("[EncounterScene] Player chose to flee");
           this.handlePlayerAction({
             type: "flee",
           });
@@ -117,9 +118,9 @@ export class EncounterScene extends Scene {
       }
     });
   }
-
+  // activate
   public onActivate(): void {
-    this.inputMapper.switchContext(INPUT_CONTEXT.Encounter);
+    this.inputMapper.switchContext("encounter");
 
     const state = this.store.get();
     const encounter = state.game.encounter;
@@ -128,11 +129,6 @@ export class EncounterScene extends Scene {
       console.warn("[EncounterScene] Activated without active encounter state!");
       return;
     }
-
-    // Fallback to activeEnemyInstanceId if enemyInstanceIds array is not populated yet
-    const enemyIds = encounter.enemyInstanceIds ?? (encounter.activeEnemyInstanceId ? [encounter.activeEnemyInstanceId] : []);
-
-    console.log(`[EncounterScene] Activated combat against ${enemyIds.length} enemies:`, enemyIds);
 
     this.stateMachine = new CombatStateMachine(this.store, this.contentRegistry);
     this.queueManager = new ActionQueueManager(this.stateMachine, this);
@@ -160,9 +156,9 @@ export class EncounterScene extends Scene {
   }
 
   private setupCombatEntities(encounter: NonNullable<GameState["game"]["encounter"]>): void {
+    this.enemyActors.clear();
     const state = this.store.get();
     const { minX, maxX, minY, maxY } = encounter.arenaBounds;
-    const playerPos = state.player?.position;
 
     const canvasWidth = 960;
     const canvasHeight = 540;
@@ -179,6 +175,7 @@ export class EncounterScene extends Scene {
     };
 
     // 1. Spawn Player Token
+    const playerPos = encounter.playerPosition ?? state.player?.position;
     if (playerPos) {
       const pTileX = Math.floor(playerPos.x);
       const pTileY = Math.floor(playerPos.y);
@@ -192,21 +189,24 @@ export class EncounterScene extends Scene {
       this.add(this.playerActor);
     }
 
-    // 2. Resolve target list cleanly
+    // 2. Spawn Enemy Tokens
     const enemyIds = encounter.enemyInstanceIds ?? (encounter.activeEnemyInstanceId ? [encounter.activeEnemyInstanceId] : []);
 
-    // 3. Spawn Enemy Tokens
     for (const enemyId of enemyIds) {
       const enemyState: EnemyState | undefined = state.dungeon?.enemies?.[enemyId];
 
       if (enemyState && enemyState.alive) {
-        const eTileX = Math.floor(enemyState.position.x);
-        const eTileY = Math.floor(enemyState.position.y);
+        const ePos = encounter.enemyPositions?.[enemyId] ?? enemyState.position;
+        const eTileX = Math.floor(ePos.x);
+        const eTileY = Math.floor(ePos.y);
+
         const enemyActor = new Actor({
           pos: getTileCenter(eTileX, eTileY),
           radius: this.TILE_SIZE / 3,
           color: Color.fromHex("#ef4444"),
         });
+
+        this.enemyActors.set(enemyId, enemyActor);
         this.add(enemyActor);
       }
     }
@@ -217,11 +217,7 @@ export class EncounterScene extends Scene {
   public updateActorPositions(): void {
     const state = this.store.get();
     const encounter = state.game.encounter;
-    if (!encounter || !this.playerActor) return;
-
-    // ✅ Read position from encounter
-    const pos = encounter.playerPosition ?? state.player?.position;
-    if (!pos) return;
+    if (!encounter) return;
 
     const { minX, maxX, minY, maxY } = encounter.arenaBounds;
     const canvasWidth = 960;
@@ -231,13 +227,28 @@ export class EncounterScene extends Scene {
     const offsetX = (canvasWidth - gridWidth) / 2;
     const offsetY = (canvasHeight - gridHeight) / 2;
 
-    const pX = Math.floor(pos.x);
-    const pY = Math.floor(pos.y);
+    const getTileCenter = (x: number, y: number) =>
+      vec(offsetX + (x - minX) * this.TILE_SIZE + this.TILE_SIZE / 2, offsetY + (y - minY) * this.TILE_SIZE + this.TILE_SIZE / 2);
 
-    this.playerActor.pos = vec(
-      offsetX + (pX - minX) * this.TILE_SIZE + this.TILE_SIZE / 2,
-      offsetY + (pY - minY) * this.TILE_SIZE + this.TILE_SIZE / 2,
-    );
+    // 1. Re-position Player
+    const playerPos = encounter.playerPosition ?? state.player?.position;
+    if (this.playerActor && playerPos) {
+      this.playerActor.pos = getTileCenter(Math.floor(playerPos.x), Math.floor(playerPos.y));
+    }
+
+    // 2. Re-position & Clean up Enemies
+    this.enemyActors.forEach((enemyActor, enemyId) => {
+      const enemyState = state.dungeon?.enemies?.[enemyId];
+
+      if (!enemyState || !enemyState.alive || enemyState.state === "dead") {
+        enemyActor.kill(); // Remove dead/fled enemy actors from Excalibur scene
+        this.enemyActors.delete(enemyId);
+        return;
+      }
+
+      const ePos = encounter.enemyPositions?.[enemyId] ?? enemyState.position;
+      enemyActor.pos = getTileCenter(Math.floor(ePos.x), Math.floor(ePos.y));
+    });
   }
 
   public onDeactivate(): void {

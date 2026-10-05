@@ -411,4 +411,5 @@ export interface EnemyDefinition {
   attack: number;
   defense: number;
   detectionRadius: number;
+  abilities?: string[];
 }
