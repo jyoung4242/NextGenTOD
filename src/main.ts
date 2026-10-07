@@ -11,6 +11,7 @@ import { InputMapSystem } from "./Lib/Systems/InputMapper";
 import { DungeonScene } from "./Scenes/DungeonScene";
 import { EncounterScene } from "./Scenes/EncounterScene";
 import { GameOverScene } from "./Scenes/GameOver";
+import { loader } from "./resources";
 
 export const INPUT_CONTEXT = {
   Dungeon: "dungeon",
@@ -52,7 +53,7 @@ game.addScene(SCENES.Encounter, new EncounterScene(state, content, inputMapper))
 game.addScene(SCENES.GameOver, new GameOverScene(state, content));
 
 game.goToScene(SCENES.Dungeon);
-game.start();
+await game.start(loader);
 
 // main.ts
 state.subscribe("game.mode", payload => {

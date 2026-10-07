@@ -1,0 +1,20 @@
+{
+  "id": "fairy-default",
+  "startNodeId": "greet",
+  "nodes": {
+    "greet": {
+      "speaker": "Fairy",
+      "portrait": "fairy",
+      "text": "THERE ARE SECRETS WHERE FAIRIES DON'T LIVE.",
+      "choices": [
+        { "label": "Can you heal me?", "nextNodeId": null },
+        { "label": "Goodbye.", "nextNodeId": null }
+      ]
+    }
+  },
+  "Can you heal me?": {
+    "speaker": "Link",
+    "portrait": "link",
+    "text": "I need your help to heal my wounds."
+  }
+}
