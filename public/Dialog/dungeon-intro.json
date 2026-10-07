@@ -1,0 +1,18 @@
+{
+  "id": "dungeon-introduction",
+  "startNodeId": "welcome",
+  "nodes": {
+    "welcome": {
+      "speaker": "Narrator",
+      "portrait": "none",
+      "text": "The ancient dungeon lies before you, silent and forgotten. Welcome, adventurer. Whatever waits below has been waiting a long time.",
+      "autoNextNodeId": "enter"
+    },
+    "enter": {
+      "speaker": "Narrator",
+      "portrait": "none",
+      "text": "Gather your courage, keep your wits about you, and step into the darkness.",
+      "autoNextNodeId": null
+    }
+  }
+}

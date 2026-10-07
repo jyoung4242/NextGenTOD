@@ -1,0 +1,130 @@
+{
+  "id": "link-lake-fairy",
+  "startNodeId": "greet",
+  "nodes": {
+    "greet": {
+      "speaker": "Fairy",
+      "portrait": "fairy",
+      "text": "A traveler... it has been so long since anyone found this pool.",
+      "setsFlag": "met-lake-fairy",
+      "choices": [
+        { "label": "Who are you?", "nextNodeId": "who-are-you" },
+        { "label": "I'm looking for a way into the mountains.", "nextNodeId": "ask-mountains" },
+        { "label": "Sorry to intrude. I'll go.", "nextNodeId": "leave-early" }
+      ]
+    },
+
+    "who-are-you": {
+      "speaker": "Fairy",
+      "portrait": "fairy",
+      "text": "I am the spirit of this spring. I have watched over it since before your grandfather's grandfather.",
+      "autoNextNodeId": "who-are-you-2"
+    },
+
+    "who-are-you-2": {
+      "speaker": "Fairy",
+      "portrait": "fairy",
+      "text": "Few travelers pass this way anymore. Tell me, why have you come?",
+      "choices": [
+        { "label": "I'm looking for a way into the mountains.", "nextNodeId": "ask-mountains" },
+        { "label": "Just exploring.", "nextNodeId": "just-exploring" }
+      ]
+    },
+
+    "just-exploring": {
+      "speaker": "Link",
+      "portrait": "link",
+      "text": "Just exploring, honestly.",
+      "autoNextNodeId": "fairy-amused"
+    },
+
+    "fairy-amused": {
+      "speaker": "Fairy",
+      "portrait": "fairy",
+      "text": "A wanderer's heart. I respect that. But should you ever need my help, you know where to find me.",
+      "choices": [
+        { "label": "Actually, I do need something.", "nextNodeId": "ask-mountains" },
+        { "label": "Farewell.", "nextNodeId": null }
+      ]
+    },
+
+    "ask-mountains": {
+      "speaker": "Link",
+      "portrait": "link",
+      "text": "I'm trying to find a path through the mountains, but the old bridge is broken.",
+      "autoNextNodeId": "fairy-considers"
+    },
+
+    "fairy-considers": {
+      "speaker": "Fairy",
+      "portrait": "fairy",
+      "text": "The bridge fell an age ago. But there is another way, if you're willing to earn it.",
+      "choices": [
+        {
+          "label": "I'm willing. What do you need?",
+          "nextNodeId": "quest-offer",
+          "setsFlag": "heard-about-bridge"
+        },
+        { "label": "Never mind, I'll find another way.", "nextNodeId": "leave-early" }
+      ]
+    },
+
+    "quest-offer": {
+      "speaker": "Fairy",
+      "portrait": "fairy",
+      "text": "Bring me three silver scales from the river pike, and I will raise a bridge of light across the chasm.",
+      "choices": [
+        {
+          "label": "I'll bring you the scales.",
+          "nextNodeId": "quest-accepted",
+          "setsFlag": "accepted-scale-quest",
+          "startsQuest": "silver-scales"
+        },
+        { "label": "That sounds like too much trouble.", "nextNodeId": "quest-declined" }
+      ]
+    },
+
+    "quest-accepted": {
+      "speaker": "Fairy",
+      "portrait": "fairy",
+      "text": "Good. Return to me when you have them, and do not tarry — the pike grow bolder after dusk.",
+      "choices": [
+        {
+          "label": "Here are the scales.",
+          "nextNodeId": "quest-turn-in",
+          "requiresFlag": "has-silver-scales",
+          "completesQuest": "silver-scales"
+        },
+        { "label": "I'll be back.", "nextNodeId": null }
+      ]
+    },
+
+    "quest-turn-in": {
+      "speaker": "Fairy",
+      "portrait": "fairy",
+      "text": "Three scales, gleaming and true. You have more than earned your passage, traveler.",
+      "autoNextNodeId": "bridge-rises"
+    },
+
+    "bridge-rises": {
+      "speaker": "Narrator",
+      "portrait": "none",
+      "text": "The water churns and a bridge of pale light arcs across the chasm, humming softly in the dark.",
+      "setsFlag": "bridge-of-light-raised",
+      "autoNextNodeId": null
+    },
+
+    "quest-declined": {
+      "speaker": "Fairy",
+      "portrait": "fairy",
+      "text": "As you wish. The offer will keep, should you change your mind.",
+      "autoNextNodeId": null
+    },
+
+    "leave-early": {
+      "speaker": "Link",
+      "portrait": "link",
+      "text": "Sorry to intrude. I'll leave you in peace."
+    }
+  }
+}

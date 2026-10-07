@@ -13,6 +13,9 @@ import { InventorySystem } from "../Lib/Systems/InventorySystem";
 import { INPUT_CONTEXT } from "../main";
 import { EncounterTriggerSystem } from "../Lib/Systems/EncounterTrigger";
 import { ProximitySystem } from "../Lib/Systems/ProxSystem";
+import { DialogRunner } from "../Lib/Managers/DialogRunner";
+import { DialogUI } from "../UI/DialogUI";
+import { DialogLoader } from "../Lib/Managers/DialogLoader";
 
 export class DungeonScene extends Scene {
   dCamera?: DungeonCamera;
@@ -22,6 +25,10 @@ export class DungeonScene extends Scene {
   playerController?: DungeonPlayerController;
   proximitySystem!: ProximitySystem;
   encounterTriggerSystem!: EncounterTriggerSystem;
+  dialogUI: DialogUI | null = null;
+  dialogRunner: DialogRunner | null = null;
+  tmpDialogLock: string = "idle";
+  tmpTriggeredEncounter: any = null;
 
   constructor(
     private readonly state: StateStore<GameState>,
@@ -41,7 +48,8 @@ export class DungeonScene extends Scene {
         GamepadAxesTriggers: new Set([Axes.LeftStickX, Axes.LeftStickY]),
       },
     });
-
+    this.dialogUI = new DialogUI();
+    this.dialogRunner = new DialogRunner(this.dialogUI, new DialogLoader("/public/Dialog/dungeon-intro.json")); //public\Dialog\testDialog.json
     const definition = this.content.getDungeon("test-dungeon");
 
     const dungeon = new Dungeon(definition, this.state);
@@ -55,7 +63,6 @@ export class DungeonScene extends Scene {
       width: 960,
       height: 540,
     });
-    // this.add(vp);
 
     const minimap = new Minimap({
       dungeon: definition,
@@ -65,7 +72,6 @@ export class DungeonScene extends Scene {
       position: vec(16, 16),
       tileSize: 12,
     });
-    // this.add(minimap);
 
     this.inventory = new InventorySystem(this.state, this.content);
     this.interactions = new InteractionSystem(this.state, dungeonManager, this.inventory, this.content);
@@ -123,6 +129,11 @@ export class DungeonScene extends Scene {
 
     this.proximitySystem = new ProximitySystem(this.state, this.content);
     this.encounterTriggerSystem = new EncounterTriggerSystem(this.state);
+    if (this.dialogUI) {
+      this.add(this.dialogUI);
+      this.dialogRunner?.start();
+      console.log("Dialog UI added and started.", this.dialogUI);
+    }
   }
 
   public onDeactivate(context: SceneActivationContext) {
@@ -138,7 +149,14 @@ export class DungeonScene extends Scene {
     console.log("alertedEnemies:", alertedEnemies, "triggeredEncounter:", triggeredEncounter);
     // If an enemy is in immediate contact range, initiate combat encounter
     if (triggeredEncounter) {
-      this.encounterTriggerSystem.checkAndTriggerEncounter(triggeredEncounter);
+      // fire dialog
+      if (this.dialogUI) {
+        this.dialogRunner = new DialogRunner(this.dialogUI, new DialogLoader("/public/Dialog/goblin.json"));
+        this.dialogRunner?.start();
+        this.tmpDialogLock = "active";
+        this.tmpTriggeredEncounter = triggeredEncounter;
+      }
+      // this.encounterTriggerSystem.checkAndTriggerEncounter(triggeredEncounter);
     }
   }
 
@@ -152,6 +170,11 @@ export class DungeonScene extends Scene {
 
     if (encounter) {
       statusMsg += `\n[ENCOUNTER]: Target ${encounter.activeEnemyInstanceId} | Turn: ${encounter.currentTurn}`;
+    }
+
+    if (this.tmpDialogLock === "active" && this.dialogRunner?.isConversationFinished()) {
+      this.tmpDialogLock = "idle";
+      this.encounterTriggerSystem.checkAndTriggerEncounter(this.tmpTriggeredEncounter);
     }
   }
 }

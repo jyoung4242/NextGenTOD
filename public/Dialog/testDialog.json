@@ -1,0 +1,71 @@
+{
+  "id": "new-conversation-id",
+  "startNodeId": "start-node",
+  "worldState": {
+    "flags": ["met-npc", "has-item"]
+  },
+  "nodes": {
+    "start-node": {
+      "speaker": "Narrator",
+      "portrait": "none",
+      "text": "You approach a dusty terminal embedded within the ancient stone structures.",
+      "choices": [
+        {
+          "label": "Examine the console.",
+          "nextNodeId": "examine-console"
+        },
+        {
+          "label": "Walk away.",
+          "nextNodeId": null
+        }
+      ],
+      "editorMetadata": {
+        "x": 150,
+        "y": 200
+      }
+    },
+    "examine-console": {
+      "speaker": "Terminal AI",
+      "portrait": "terminal",
+      "text": "SYSTEM REBOOT IN PROGRESS... Identify yourself, traveler.",
+      "setsFlag": "met-npc",
+      "conditions": [
+        {
+          "requiresFlag": "has-item",
+          "nextNodeId": "special-override"
+        }
+      ],
+      "choices": [
+        {
+          "label": "State your name.",
+          "nextNodeId": "success-node",
+          "setsFlag": "told-name"
+        }
+      ],
+      "editorMetadata": {
+        "x": 550,
+        "y": 100
+      }
+    },
+    "special-override": {
+      "speaker": "Terminal AI",
+      "portrait": "terminal",
+      "text": "Artifact signature detected. Master override authorized.",
+      "autoNextNodeId": "success-node",
+      "editorMetadata": {
+        "x": 958,
+        "y": 433
+      }
+    },
+    "success-node": {
+      "speaker": "Terminal AI",
+      "portrait": "terminal",
+      "text": "Access granted. Welcome to the core repository.",
+      "autoNextNodeId": null,
+      "editorMetadata": {
+        "x": 1364,
+        "y": 193
+      }
+    }
+  }
+}

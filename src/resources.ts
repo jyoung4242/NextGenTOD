@@ -1,13 +1,13 @@
 // resources.ts
 import { ImageSource, Loader } from "excalibur";
-import myImageResource from './Assets/myImage.png' // replace this
+import goblin from "./Assets/goblinsmall.png"; // replace this
 
 export const Resources = {
-   myImage: new ImageSource(myImageResource),
+  goblin: new ImageSource(goblin),
 };
 
 export const loader = new Loader();
 
 for (let res of Object.values(Resources)) {
-   loader.addResource(res);
+  loader.addResource(res);
 }

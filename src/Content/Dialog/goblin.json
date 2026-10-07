@@ -1,0 +1,27 @@
+{
+  "id": "goblin-encounter",
+  "startNodeId": "goblin-warning",
+  "nodes": {
+    "goblin-warning": {
+      "speaker": "Goblin",
+      "portrait": "goblin",
+      "text": "Halt! You don't belong here, surface-dweller. Turn around while you still can.",
+      "choices": [
+        {
+          "label": "I'm not afraid of you.",
+          "nextNodeId": "goblin-attack"
+        },
+        {
+          "label": "I'll leave.",
+          "nextNodeId": "goblin-attack"
+        }
+      ]
+    },
+    "goblin-attack": {
+      "speaker": "Goblin",
+      "portrait": "goblin",
+      "text": "Then you'll have to fight your way through!",
+      "autoNextNodeId": null
+    }
+  }
+}

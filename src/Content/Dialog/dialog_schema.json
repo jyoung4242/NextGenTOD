@@ -1,0 +1,193 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://skyrelda/schemas/dialogue-tree.json",
+  "title": "DialogueTree",
+  "description": "A Skyrelda dialogue tree. One file per conversation, served from /data/dialogue/<id>.json. The id field must match the filename without extension.",
+
+  "type": "object",
+  "required": ["id", "startNodeId", "nodes"],
+  "additionalProperties": false,
+
+  "properties": {
+    "id": {
+      "type": "string",
+      "description": "Unique identifier. Must match the filename without .json extension. Use kebab-case.",
+      "pattern": "^[a-z0-9]+(-[a-z0-9]+)*$",
+      "examples": ["guild-master-first-meeting", "blacksmith-default"]
+    },
+
+    "startNodeId": {
+      "type": "string",
+      "description": "Key of the first node to display. Must exist in the nodes map."
+    },
+
+    "nodes": {
+      "type": "object",
+      "description": "All nodes in this tree, keyed by node ID (kebab-case string).",
+      "additionalProperties": { "$ref": "#/$defs/DialogueNode" },
+      "minProperties": 1
+    }
+  },
+
+  "$defs": {
+    "DialogueNode": {
+      "type": "object",
+      "description": "A single beat of dialogue. Either presents choices for the player or auto-advances to the next node.",
+      "required": ["speaker", "portrait", "text"],
+      "additionalProperties": false,
+
+      "properties": {
+        "speaker": {
+          "type": "string",
+          "description": "Display name shown in the nameplate. Use the NPC's in-world name, not their ID.",
+          "examples": ["Guild Master", "Blacksmith", "Narrator"]
+        },
+
+        "portrait": {
+          "type": "string",
+          "description": "Key for the portrait sprite. Resolved via DialogueUI.registerPortrait(). Use kebab-case. Use 'none' for narration nodes with no portrait.",
+          "examples": ["guild-master", "blacksmith", "none"]
+        },
+
+        "text": {
+          "type": "string",
+          "description": "Dialogue text rendered by the TypeWriter. Supports line breaks via \\n. Keep under ~200 characters per node for comfortable reading speed."
+        },
+
+        "choices": {
+          "type": "array",
+          "description": "Player response options. If omitted or empty, the node auto-advances using autoNextNodeId. Do not mix choices with autoNextNodeId — choices take precedence.",
+          "items": { "$ref": "#/$defs/DialogueChoice" },
+          "minItems": 1,
+          "maxItems": 4
+        },
+
+        "autoNextNodeId": {
+          "type": ["string", "null"],
+          "description": "Node to advance to automatically 600ms after typing completes, when no choices are present. null explicitly ends the conversation. Omit entirely for nodes that have choices.",
+          "examples": ["follow-up", null]
+        },
+
+        "setsFlag": {
+          "type": "string",
+          "description": "World flag set immediately when this node is first displayed (before the player reads it). Use kebab-case. Fires before any choice side effects.",
+          "pattern": "^[a-z0-9]+(-[a-z0-9]+)*$",
+          "examples": ["met-guild-master", "heard-about-workshop"]
+        }
+      },
+
+      "oneOf": [
+        {
+          "description": "Choice node — presents options to the player.",
+          "required": ["choices"],
+          "properties": {
+            "autoNextNodeId": { "not": {} }
+          }
+        },
+        {
+          "description": "Auto-advance node — chains to the next node (or ends) without player input.",
+          "required": ["autoNextNodeId"],
+          "properties": {
+            "choices": { "not": {} }
+          }
+        },
+        {
+          "description": "Dead-end node — no choices, no autoNextNodeId. Confirm press closes the conversation.",
+          "properties": {
+            "choices": { "not": {} },
+            "autoNextNodeId": { "not": {} }
+          }
+        }
+      ]
+    },
+
+    "DialogueChoice": {
+      "type": "object",
+      "description": "A single player response option. Side effects fire in order: setsFlag → startsQuest → completesQuest.",
+      "required": ["label", "nextNodeId"],
+      "additionalProperties": false,
+
+      "properties": {
+        "label": {
+          "type": "string",
+          "description": "Display text shown in the choice list. Write in first person from the player's perspective. Keep under ~60 characters.",
+          "examples": ["Tell me about the Guild.", "I'll do it.", "Goodbye."]
+        },
+
+        "nextNodeId": {
+          "type": ["string", "null"],
+          "description": "Node to navigate to when this choice is selected. null ends the conversation immediately.",
+          "examples": ["about-guild", "quests", null]
+        },
+
+        "requiresFlag": {
+          "type": "string",
+          "description": "This choice is hidden unless the named world flag is set. CURRENTLY STUBBED — all choices are always visible until WorldState (#16) is implemented. Use kebab-case.",
+          "pattern": "^[a-z0-9]+(-[a-z0-9]+)*$",
+          "examples": ["met-guild-master", "accepted-quest"]
+        },
+
+        "setsFlag": {
+          "type": "string",
+          "description": "World flag set when this choice is selected. Fires before startsQuest / completesQuest.",
+          "pattern": "^[a-z0-9]+(-[a-z0-9]+)*$",
+          "examples": ["said-goodbye", "accepted-help"]
+        },
+
+        "startsQuest": {
+          "type": "string",
+          "description": "Quest ID to start when this choice is selected. Fires after setsFlag, before completesQuest. The quest system must have this ID registered.",
+          "pattern": "^[a-z0-9]+(-[a-z0-9]+)*$",
+          "examples": ["clear_workshop", "deliver-supplies"]
+        },
+
+        "completesQuest": {
+          "type": "string",
+          "description": "Quest ID to complete when this choice is selected. Fires last. The quest must already be active.",
+          "pattern": "^[a-z0-9]+(-[a-z0-9]+)*$",
+          "examples": ["deliver-supplies"]
+        }
+      }
+    }
+  },
+
+  "examples": [
+    {
+      "id": "guild-master-first-meeting",
+      "startNodeId": "greet",
+      "nodes": {
+        "greet": {
+          "speaker": "Guild Master",
+          "portrait": "guild-master",
+          "text": "Ah, a new face. Welcome to the Tinker's Guild.",
+          "setsFlag": "met-guild-master",
+          "choices": [
+            { "label": "Tell me about the Guild.", "nextNodeId": "about-guild" },
+            { "label": "I heard there's work.", "nextNodeId": "quests" },
+            { "label": "Goodbye.", "nextNodeId": null }
+          ]
+        },
+        "about-guild": {
+          "speaker": "Guild Master",
+          "portrait": "guild-master",
+          "text": "We repair the old machines. The Workshop has been dark for years.",
+          "autoNextNodeId": "quests"
+        },
+        "quests": {
+          "speaker": "Guild Master",
+          "portrait": "guild-master",
+          "text": "Clear the Forgotten Workshop and I'll see you're well rewarded.",
+          "choices": [
+            {
+              "label": "I'll do it.",
+              "nextNodeId": null,
+              "setsFlag": "accepted-quest",
+              "startsQuest": "clear_workshop"
+            },
+            { "label": "Not yet.", "nextNodeId": null }
+          ]
+        }
+      }
+    }
+  ]
+}
