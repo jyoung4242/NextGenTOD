@@ -1,0 +1,13 @@
+{
+  "id": "goblin-encounter-cutscene",
+  "commands": [
+    {
+      "type": "cameraShake",
+      "args": { "magnitudeX": 5, "magnitudeY": 5, "duration": 300 }
+    },
+    {
+      "type": "dialog",
+      "args": { "path": "/public/Dialog/goblin.json" }
+    }
+  ]
+}

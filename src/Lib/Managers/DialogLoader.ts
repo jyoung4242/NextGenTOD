@@ -1,4 +1,4 @@
-import dialogSchema from "../../../public/Dialog/dialog_schema.json";
+import dialogSchema from "../../Content/Dialog/dialog_schema.json";
 
 type DialogSchema = {
   required?: string[];
