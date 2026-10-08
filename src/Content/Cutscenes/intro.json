@@ -1,0 +1,9 @@
+{
+  "id": "dungeon-intro-cutscene",
+  "commands": [
+    {
+      "type": "dialog",
+      "args": { "path": "/public/Dialog/dungeon-intro.json" }
+    }
+  ]
+}

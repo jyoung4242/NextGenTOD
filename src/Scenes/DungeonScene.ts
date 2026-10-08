@@ -16,6 +16,7 @@ import { ProximitySystem } from "../Lib/Systems/ProxSystem";
 import { DialogRunner } from "../Lib/Managers/DialogRunner";
 import { DialogUI } from "../UI/DialogUI";
 import { DialogLoader } from "../Lib/Managers/DialogLoader";
+import { CutSceneSystem } from "../Lib/Managers/CutScenes";
 
 export class DungeonScene extends Scene {
   dCamera?: DungeonCamera;
@@ -29,6 +30,7 @@ export class DungeonScene extends Scene {
   dialogRunner: DialogRunner | null = null;
   tmpDialogLock: string = "idle";
   tmpTriggeredEncounter: any = null;
+  private cutSceneSystem!: CutSceneSystem;
 
   constructor(
     private readonly state: StateStore<GameState>,
@@ -49,7 +51,40 @@ export class DungeonScene extends Scene {
       },
     });
     this.dialogUI = new DialogUI();
-    this.dialogRunner = new DialogRunner(this.dialogUI, new DialogLoader("/public/Dialog/dungeon-intro.json")); //public\Dialog\testDialog.json
+    this.encounterTriggerSystem = new EncounterTriggerSystem(this.state);
+    // Initialize CutSceneSystem
+    this.cutSceneSystem = new CutSceneSystem(this.world);
+    this.world.add(this.cutSceneSystem);
+    this.cutSceneSystem.setDialogUI(this.dialogUI);
+    this.cutSceneSystem.setEncounterTriggerSystem(this.encounterTriggerSystem);
+    // Register Cutscenes
+    this.cutSceneSystem.registerCutScene("dungeon-intro", {
+      id: "dungeon-intro",
+      commands: [
+        {
+          type: "dialog",
+          args: { path: "/public/Dialog/dungeon-intro.json", scene: this, dialog: this.dialogUI },
+        },
+      ],
+    });
+    // Inside DungeonScene.ts -> onInitialize()
+
+    this.cutSceneSystem.registerCutScene("goblin-encounter", {
+      id: "goblin-encounter",
+      commands: [
+        {
+          type: "dialog",
+          args: { path: "/public/Dialog/goblin.json" },
+        },
+        {
+          type: "encounter",
+          args: { enemyInstanceId: "goblin-1" }, // Or dynamic argument passed at runtime
+        },
+      ],
+    });
+    // this.dialogRunner = new DialogRunner(this.dialogUI, new DialogLoader("/public/Dialog/dungeon-intro.json")); //public\Dialog\testDialog.json
+    this.cutSceneSystem.startCutScene("dungeon-intro");
+
     const definition = this.content.getDungeon("test-dungeon");
 
     const dungeon = new Dungeon(definition, this.state);
@@ -85,7 +120,6 @@ export class DungeonScene extends Scene {
     this.playerController.initialize();
 
     this.proximitySystem = new ProximitySystem(this.state, this.content);
-    this.encounterTriggerSystem = new EncounterTriggerSystem(this.state);
   }
 
   public onActivate(): void {
@@ -149,14 +183,22 @@ export class DungeonScene extends Scene {
     console.log("alertedEnemies:", alertedEnemies, "triggeredEncounter:", triggeredEncounter);
     // If an enemy is in immediate contact range, initiate combat encounter
     if (triggeredEncounter) {
-      // fire dialog
-      if (this.dialogUI) {
-        this.dialogRunner = new DialogRunner(this.dialogUI, new DialogLoader("/public/Dialog/goblin.json"));
-        this.dialogRunner?.start();
-        this.tmpDialogLock = "active";
-        this.tmpTriggeredEncounter = triggeredEncounter;
-      }
-      // this.encounterTriggerSystem.checkAndTriggerEncounter(triggeredEncounter);
+      // Dynamic Cutscene Registration with Dialogue & Encounter Actions
+      this.cutSceneSystem.registerCutScene("goblin-encounter", {
+        id: "goblin-encounter",
+        commands: [
+          {
+            type: "dialog",
+            args: { path: "/public/Dialog/goblin.json", scene: this, dialog: this.dialogUI },
+          },
+          {
+            type: "encounter",
+            args: { enemyInstanceId: triggeredEncounter },
+          },
+        ],
+      });
+
+      this.cutSceneSystem.startCutScene("goblin-encounter");
     }
   }
 
@@ -170,11 +212,6 @@ export class DungeonScene extends Scene {
 
     if (encounter) {
       statusMsg += `\n[ENCOUNTER]: Target ${encounter.activeEnemyInstanceId} | Turn: ${encounter.currentTurn}`;
-    }
-
-    if (this.tmpDialogLock === "active" && this.dialogRunner?.isConversationFinished()) {
-      this.tmpDialogLock = "idle";
-      this.encounterTriggerSystem.checkAndTriggerEncounter(this.tmpTriggeredEncounter);
     }
   }
 }
