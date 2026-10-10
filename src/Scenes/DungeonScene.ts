@@ -17,6 +17,7 @@ import { DialogRunner } from "../Lib/Managers/DialogRunner";
 import { DialogUI } from "../UI/DialogUI";
 import { DialogLoader } from "../Lib/Managers/DialogLoader";
 import { CutSceneSystem } from "../Lib/Managers/CutScenes";
+import { QuestManager } from "../Lib/Managers/QuestManager";
 
 export class DungeonScene extends Scene {
   dCamera?: DungeonCamera;
@@ -31,6 +32,7 @@ export class DungeonScene extends Scene {
   tmpDialogLock: string = "idle";
   tmpTriggeredEncounter: any = null;
   private cutSceneSystem!: CutSceneSystem;
+  questManager!: QuestManager;
 
   constructor(
     private readonly state: StateStore<GameState>,
@@ -85,6 +87,10 @@ export class DungeonScene extends Scene {
     // this.dialogRunner = new DialogRunner(this.dialogUI, new DialogLoader("/public/Dialog/dungeon-intro.json")); //public\Dialog\testDialog.json
     this.cutSceneSystem.startCutScene("dungeon-intro");
 
+    this.questManager = new QuestManager(this.state);
+    const potionQuest = this.content.getQuest("find-potion");
+    this.questManager.registerQuestData(potionQuest);
+
     const definition = this.content.getDungeon("test-dungeon");
 
     const dungeon = new Dungeon(definition, this.state);
@@ -99,18 +105,8 @@ export class DungeonScene extends Scene {
       height: 540,
     });
 
-    const minimap = new Minimap({
-      dungeon: definition,
-      dungeonManager: dungeon,
-      getState: () => this.state.get("dungeon"),
-      camera: this.dCamera!,
-      position: vec(16, 16),
-      tileSize: 12,
-    });
-
     this.inventory = new InventorySystem(this.state, this.content);
-    this.interactions = new InteractionSystem(this.state, dungeonManager, this.inventory, this.content);
-
+    this.interactions = new InteractionSystem(this.state, dungeonManager, this.inventory, this.content, this.questManager);
     this.d_Player = new DungeonPlayer(this.state, dungeon, this.dCamera!, this.interactions);
     // 2. Attach turn/step callback to evaluate enemy proximity & trigger encounters
     this.d_Player.onStepOrTurn = () => {
@@ -168,6 +164,8 @@ export class DungeonScene extends Scene {
       this.dialogRunner?.start();
       console.log("Dialog UI added and started.", this.dialogUI);
     }
+    this.questManager.startQuest("find-potion");
+    console.log("Active Quests:", this.state.get("quests.active"));
   }
 
   public onDeactivate(context: SceneActivationContext) {
@@ -180,7 +178,6 @@ export class DungeonScene extends Scene {
 
     // Evaluate enemy distances and alert states
     const { alertedEnemies, triggeredEncounter } = this.proximitySystem.updateProximity();
-    console.log("alertedEnemies:", alertedEnemies, "triggeredEncounter:", triggeredEncounter);
     // If an enemy is in immediate contact range, initiate combat encounter
     if (triggeredEncounter) {
       // Dynamic Cutscene Registration with Dialogue & Encounter Actions

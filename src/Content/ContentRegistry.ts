@@ -1,10 +1,11 @@
-import { DungeonDefinition, EnemyDefinition, ItemDefinition, SkillDefinition } from "../GameTypes";
+import { DungeonDefinition, EnemyDefinition, ItemDefinition, SkillDefinition, QuestDefinitionData } from "../GameTypes";
 
 export class ContentRegistry {
   readonly dungeons = new Map<string, DungeonDefinition>();
   readonly enemies = new Map<string, EnemyDefinition>();
   readonly items = new Map<string, ItemDefinition>();
   readonly skills = new Map<string, SkillDefinition>();
+  readonly quests = new Map<string, QuestDefinitionData>(); // Add quest map
 
   private register<T extends { id: string }>(registry: Map<string, T>, definition: T, type: string): void {
     if (registry.has(definition.id)) {
@@ -28,6 +29,11 @@ export class ContentRegistry {
 
   registerSkill(definition: SkillDefinition): void {
     this.register(this.skills, definition, "skill");
+  }
+
+  // Add registerQuest
+  registerQuest(definition: QuestDefinitionData): void {
+    this.register(this.quests, definition, "quest");
   }
 
   getDungeon(id: string): DungeonDefinition {
@@ -65,6 +71,17 @@ export class ContentRegistry {
 
     if (!definition) {
       throw new Error(`Unknown skill: ${id}`);
+    }
+
+    return definition;
+  }
+
+  // Add getQuest
+  getQuest(id: string): QuestDefinitionData {
+    const definition = this.quests.get(id);
+
+    if (!definition) {
+      throw new Error(`Unknown quest: ${id}`);
     }
 
     return definition;

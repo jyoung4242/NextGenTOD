@@ -18,8 +18,6 @@ export class DungeonPlayerController {
   }
 
   private handleKeyPress = (event: { ctx: string; key: Keys }): void => {
-    console.log("keypress: ", event.key);
-
     if (event.ctx !== INPUT_CONTEXT.Dungeon) {
       return;
     }

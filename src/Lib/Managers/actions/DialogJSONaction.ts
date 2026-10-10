@@ -23,7 +23,6 @@ export class DialogAction implements Action {
 
   update(elapsed: number): void {
     if (!this._started) {
-      console.log(`Starting DialogAction with path: ${this.dialogPath}`);
       this.runner = new DialogRunner(this.dialogUI, new DialogLoader(this.dialogPath));
       this.runner.start();
       this._started = true;
@@ -31,7 +30,6 @@ export class DialogAction implements Action {
     }
 
     if (this.isComplete()) {
-      console.log(`DialogAction with path: ${this.dialogPath} is complete.`);
       this.stop();
     }
   }

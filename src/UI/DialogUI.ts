@@ -77,7 +77,6 @@ export class DialogUI extends ScreenElement {
   }
 
   setPortrait(portrait: Sprite | null) {
-    console.log("Setting portrait", portrait);
     if (!this.portrait) return;
     this.removeChild(this.portrait);
     this.portrait = null;
@@ -89,7 +88,6 @@ export class DialogUI extends ScreenElement {
   }
 
   private clearInteractiveContent() {
-    console.log("Clearing interactive content");
     if (this.choices) {
       this.removeChild(this.choices);
       this.choices.kill();
@@ -113,7 +111,6 @@ export class DialogUI extends ScreenElement {
     }
 
     this.choices = new DialogChoices(choices, onChoiceSelected);
-    console.log("Adding choices", this.choices);
     this.scene!.add(this.choices);
   }
 
@@ -125,10 +122,7 @@ export class DialogUI extends ScreenElement {
   };
 
   setAdvanceButton(mode: "next" | "close" | null, onAdvance?: () => void) {
-    console.log("set advanceMode:", mode);
-
     if (this.advanceButton) {
-      console.log("removing advance button");
       this.removeChild(this.advanceButton);
       this.advanceButton = null;
     }
@@ -138,13 +132,11 @@ export class DialogUI extends ScreenElement {
     }
 
     this.advanceButton = new DialogControlButton(mode === "close" ? "Close" : "Next", onAdvance);
-    console.log("adding advance button");
     this.addChild(this.advanceButton);
   }
 
   removeFastForwardButton() {
     if (this.fastForwardButton) {
-      console.log("Removing fast forward button");
       this.removeChild(this.fastForwardButton);
       this.fastForwardButton = null;
     }
@@ -152,7 +144,6 @@ export class DialogUI extends ScreenElement {
 
   setFastForwardButton(onFastForward?: () => void) {
     if (this.fastForwardButton) {
-      console.log("Removing fast forward button");
       this.removeChild(this.fastForwardButton);
       this.fastForwardButton = null;
     }
@@ -162,7 +153,6 @@ export class DialogUI extends ScreenElement {
     }
 
     this.fastForwardButton = new DialogControlButton("Fast Fwd", onFastForward);
-    console.log("Adding fast forward button", this.fastForwardButton);
     this.addChild(this.fastForwardButton);
   }
 

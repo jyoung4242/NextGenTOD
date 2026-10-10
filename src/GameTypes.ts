@@ -53,12 +53,6 @@ export interface ContainerState {
   quantity?: number;
 }
 
-export interface QuestState {
-  started: boolean;
-  completed: boolean;
-  objectives: Record<string, ObjectiveState>;
-}
-
 export interface ObjectiveState {
   completed: boolean;
   progress: number;
@@ -128,8 +122,9 @@ export interface GameState {
   player: PlayerState;
   dungeon: DungeonState;
   quests: {
-    active: Record<string, QuestState>;
+    active: Record<string, QuestProgress>;
     completed: string[];
+    flags: Record<string, boolean>; // Global flags toggled by quest triggers
   };
   progression: ProgressionState;
 }
@@ -413,3 +408,71 @@ export interface EnemyDefinition {
   detectionRadius: number;
   abilities?: string[];
 }
+
+// GameTypes.ts
+
+// ─── Quest Static Definitions (Content Registry Data) ────────────────────────
+
+export type ObjectiveType = "talk" | "kill" | "collect" | "reach" | "interact";
+
+export interface QuestObjectiveData {
+  id: string;
+  description: string;
+  type: ObjectiveType;
+  /** npcId | enemyId | itemId | regionId | objectId */
+  target: string;
+  count: number;
+}
+
+export interface QuestMetadata {
+  title: string;
+  description: string;
+  faction?: string;
+  giverNpc?: string;
+}
+
+export interface QuestRewards {
+  reputation?: number;
+  items?: string[];
+  equipment?: string[];
+}
+
+export interface QuestTriggerActions {
+  setsFlag?: string[];
+}
+
+export interface QuestTriggers {
+  onStart?: QuestTriggerActions;
+  onComplete?: QuestTriggerActions;
+}
+
+export interface QuestWorldFlags {
+  sets?: string[];
+  requires?: string[];
+}
+
+export interface QuestDefinitionData {
+  id: string;
+  metadata: QuestMetadata;
+  objectives: QuestObjectiveData[];
+  rewards?: QuestRewards;
+  triggers?: QuestTriggers;
+  worldFlags?: QuestWorldFlags;
+}
+
+// ─── Quest Runtime State (GameState Data) ───────────────────────────────────
+
+export interface ObjectiveProgress {
+  id: string;
+  current: number;
+  target: number;
+  complete: boolean;
+}
+
+export interface QuestProgress {
+  questId: string;
+  state: "active" | "complete";
+  objectives: ObjectiveProgress[];
+}
+
+export type QuestState = "not_started" | "active" | "complete";
