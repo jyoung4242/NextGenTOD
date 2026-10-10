@@ -20,6 +20,7 @@ export const INPUT_CONTEXT = {
   Encounter: "encounter",
   Menu: "menu",
   Pause: "pause",
+  Dialog: "dialog",
 } as const;
 
 export const SCENES = {

@@ -11,11 +11,10 @@ import { CombatStateMachine } from "../Lib/Systems/CombatStateMachine";
 
 export class EncounterScene extends Scene {
   private playerActor?: Actor;
-  private enemyActors: Map<string, Actor> = new Map(); // ✅ Track enemy actors by ID
+  private enemyActors: Map<string, Actor> = new Map();
   public gridRenderer?: DungeonGridRenderer;
   private readonly TILE_SIZE = 48;
 
-  // Re-instantiated on every activation
   private stateMachine!: CombatStateMachine;
   public queueManager!: ActionQueueManager;
 
@@ -28,99 +27,46 @@ export class EncounterScene extends Scene {
   }
 
   public onInitialize(): void {
-    // 1. Register input context map once
+    // 1. Register complete Encounter input mapping including D-Pad
     this.inputMapper.registerMap({
       name: INPUT_CONTEXT.Encounter,
       inputMap: {
-        KeyPresses: new Set([Keys.W, Keys.S, Keys.A, Keys.D, Keys.E, Keys.F, Keys.Key1, Keys.Key2]),
-        GamepadButtonsTriggers: new Set([Buttons.Face1, Buttons.Face2]),
+        KeyPresses: new Set([Keys.W, Keys.S, Keys.A, Keys.D, Keys.E, Keys.F, Keys.Digit1, Keys.Digit2]),
+        GamepadButtonsTriggers: new Set([
+          Buttons.Face1,
+          Buttons.Face2,
+          Buttons.DpadUp,
+          Buttons.DpadDown,
+          Buttons.DpadLeft,
+          Buttons.DpadRight,
+        ]),
         GamepadAxesTriggers: new Set([Axes.LeftStickX, Axes.LeftStickY]),
       },
     });
 
-    // 2. Process input events routed from InputMapSystem
+    // 2. Unify event processing for Keyboard
     this.inputMapper.inputMapEmitter.on("keyPress", (data: any) => {
-      const keyName = typeof data === "object" && data?.key ? data.key : data;
-      console.log("keypress", keyName);
+      if (data.ctx !== INPUT_CONTEXT.Encounter) return;
+      this.processKeyboardInput(data.key);
+    });
 
-      const state = this.store.get();
-      const encounter = state.game.encounter;
+    // 3. Process Gamepad Button Input
+    this.inputMapper.inputMapEmitter.on("gamepadButton", (data: any) => {
+      if (data.ctx !== INPUT_CONTEXT.Encounter) return;
+      this.processGamepadButton(data.button);
+    });
 
-      // Guard checks: ensure encounter is active and it's the player's turn
-      if (!encounter || encounter.isResolved) return;
-      if (encounter.currentTurn !== "player") {
-        console.warn(`[EncounterScene] Input ignored: waiting for turn '${encounter.currentTurn}'`);
-        return;
-      }
-
-      // Resolve target enemy (active target or first living enemy)
-      const enemyIds = encounter.enemyInstanceIds ?? (encounter.activeEnemyInstanceId ? [encounter.activeEnemyInstanceId] : []);
-      const targetId = encounter.activeEnemyInstanceId ?? enemyIds.find(id => state.dungeon?.enemies?.[id]?.alive);
-
-      // Read tactical player position (fallback to dungeon position)
-      const playerPos = encounter.playerPosition ?? state.player?.position;
-      if (!playerPos) return;
-      const currentX = Math.floor(playerPos.x);
-      const currentY = Math.floor(playerPos.y);
-      const { minX, maxX, minY, maxY } = encounter.arenaBounds;
-
-      let targetX = currentX;
-      let targetY = currentY;
-
-      switch (keyName) {
-        // --- MOVEMENT ACTIONS ---
-        case Keys.W:
-        case "KeyW":
-          targetY = Math.max(minY, currentY - 1);
-          break;
-
-        case Keys.S:
-        case "KeyS":
-          targetY = Math.min(maxY, currentY + 1);
-          break;
-
-        case Keys.A:
-        case "KeyA":
-          targetX = Math.max(minX, currentX - 1);
-          break;
-
-        case Keys.D:
-        case "KeyD":
-          targetX = Math.min(maxX, currentX + 1);
-          break;
-
-        // --- COMBAT ACTIONS ---
-        case Keys.Key1:
-          console.log("[EncounterScene] Player chose to attack target:", targetId);
-          if (targetId) {
-            this.handlePlayerAction({
-              type: "attack",
-              targetId: targetId,
-            });
-          }
-          return;
-
-        case Keys.Key2:
-        case Keys.F:
-          console.log("[EncounterScene] Player chose to flee");
-          this.handlePlayerAction({
-            type: "flee",
-          });
-          return;
-      }
-
-      // --- DISPATCH MOVE IF POSITION CHANGED ---
-      if (targetX !== currentX || targetY !== currentY) {
-        this.handlePlayerAction({
-          type: "move" as any,
-          targetTile: { x: targetX, y: targetY },
-        });
+    // 4. Process Gamepad Analog Stick Input
+    this.inputMapper.inputMapEmitter.on("gamepadStick", (data: any) => {
+      if (data.ctx !== INPUT_CONTEXT.Encounter) return;
+      if (data.event === "leftStick") {
+        this.processStickDirection(data.direction);
       }
     });
   }
-  // activate
+
   public onActivate(): void {
-    this.inputMapper.switchContext("encounter");
+    this.inputMapper.switchContext(INPUT_CONTEXT.Encounter);
 
     const state = this.store.get();
     const encounter = state.game.encounter;
@@ -142,17 +88,142 @@ export class EncounterScene extends Scene {
     this.setupCombatEntities(encounter);
   }
 
+  // --- INPUT DISPATCH HELPERS ---
+
+  private isPlayerTurnValid(): boolean {
+    const encounter = this.store.get().game.encounter;
+    if (!encounter || encounter.isResolved) return false;
+    if (encounter.currentTurn !== "player") {
+      console.warn(`[EncounterScene] Input ignored: waiting for turn '${encounter?.currentTurn}'`);
+      return false;
+    }
+    return true;
+  }
+
+  private processKeyboardInput(key: Keys): void {
+    if (!this.isPlayerTurnValid()) return;
+
+    switch (key) {
+      case Keys.W:
+        this.attemptGridMove(0, -1);
+        break;
+      case Keys.S:
+        this.attemptGridMove(0, 1);
+        break;
+      case Keys.A:
+        this.attemptGridMove(-1, 0);
+        break;
+      case Keys.D:
+        this.attemptGridMove(1, 0);
+        break;
+      case Keys.Digit1:
+        this.triggerPrimaryAttack();
+        break;
+      case Keys.Digit2:
+      case Keys.F:
+        this.triggerFlee();
+        break;
+    }
+  }
+
+  private processGamepadButton(button: Buttons): void {
+    if (!this.isPlayerTurnValid()) return;
+
+    switch (button) {
+      case Buttons.DpadUp:
+        this.attemptGridMove(0, -1);
+        break;
+      case Buttons.DpadDown:
+        this.attemptGridMove(0, 1);
+        break;
+      case Buttons.DpadLeft:
+        this.attemptGridMove(-1, 0);
+        break;
+      case Buttons.DpadRight:
+        this.attemptGridMove(1, 0);
+        break;
+      case Buttons.Face1: // A / Cross -> Primary Attack
+        this.triggerPrimaryAttack();
+        break;
+      case Buttons.Face2: // B / Circle -> Flee
+        this.triggerFlee();
+        break;
+    }
+  }
+
+  private processStickDirection(direction: string): void {
+    if (!this.isPlayerTurnValid()) return;
+
+    switch (direction) {
+      case "up":
+        this.attemptGridMove(0, -1);
+        break;
+      case "down":
+        this.attemptGridMove(0, 1);
+        break;
+      case "left":
+        this.attemptGridMove(-1, 0);
+        break;
+      case "right":
+        this.attemptGridMove(1, 0);
+        break;
+    }
+  }
+
+  // --- GRID ACTIONS ---
+
+  private attemptGridMove(deltaX: number, deltaY: number): void {
+    const state = this.store.get();
+    const encounter = state.game.encounter;
+    if (!encounter) return;
+
+    const playerPos = encounter.playerPosition ?? state.player?.position;
+    if (!playerPos) return;
+
+    const currentX = Math.floor(playerPos.x);
+    const currentY = Math.floor(playerPos.y);
+    const { minX, maxX, minY, maxY } = encounter.arenaBounds;
+
+    const targetX = Math.max(minX, Math.min(maxX, currentX + deltaX));
+    const targetY = Math.max(minY, Math.min(maxY, currentY + deltaY));
+
+    if (targetX !== currentX || targetY !== currentY) {
+      this.handlePlayerAction({
+        type: "move" as any,
+        targetTile: { x: targetX, y: targetY },
+      });
+    }
+  }
+
+  private triggerPrimaryAttack(): void {
+    const state = this.store.get();
+    const encounter = state.game.encounter;
+    if (!encounter) return;
+
+    const enemyIds = encounter.enemyInstanceIds ?? (encounter.activeEnemyInstanceId ? [encounter.activeEnemyInstanceId] : []);
+    const targetId = encounter.activeEnemyInstanceId ?? enemyIds.find(id => state.dungeon?.enemies?.[id]?.alive);
+
+    if (targetId) {
+      this.handlePlayerAction({
+        type: "attack",
+        targetId: targetId,
+      });
+    }
+  }
+
+  private triggerFlee(): void {
+    this.handlePlayerAction({
+      type: "flee",
+    });
+  }
+
   public handlePlayerAction(action: CombatAction): void {
     const encounter = this.store.get().game.encounter;
     if (!encounter || encounter.isResolved) return;
 
     const targetId = action.targetId ?? encounter.activeEnemyInstanceId;
-    if (!targetId) {
-      console.warn("[EncounterScene] No valid target for player action:", action);
-      return;
-    }
     console.log("[EncounterScene] Dispatching player action to queueManager:", action);
-    this.queueManager.enqueuePlayerAction(action, targetId);
+    this.queueManager.enqueuePlayerAction(action, targetId ?? "");
   }
 
   private setupCombatEntities(encounter: NonNullable<GameState["game"]["encounter"]>): void {
@@ -212,8 +283,6 @@ export class EncounterScene extends Scene {
     }
   }
 
-  // Inside EncounterScene.ts -> updateActorPositions()
-
   public updateActorPositions(): void {
     const state = this.store.get();
     const encounter = state.game.encounter;
@@ -241,7 +310,7 @@ export class EncounterScene extends Scene {
       const enemyState = state.dungeon?.enemies?.[enemyId];
 
       if (!enemyState || !enemyState.alive || enemyState.state === "dead") {
-        enemyActor.kill(); // Remove dead/fled enemy actors from Excalibur scene
+        enemyActor.kill();
         this.enemyActors.delete(enemyId);
         return;
       }

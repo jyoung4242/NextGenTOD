@@ -48,11 +48,18 @@ export class DungeonScene extends Scene {
       name: INPUT_CONTEXT.Dungeon,
       inputMap: {
         KeyPresses: new Set([Keys.W, Keys.S, Keys.A, Keys.D, Keys.E]),
-        GamepadButtonsTriggers: new Set([Buttons.Face1, Buttons.Face2]),
+        GamepadButtonsTriggers: new Set([
+          Buttons.Face1,
+          Buttons.Face2,
+          Buttons.DpadUp,
+          Buttons.DpadDown,
+          Buttons.DpadLeft,
+          Buttons.DpadRight,
+        ]),
         GamepadAxesTriggers: new Set([Axes.LeftStickX, Axes.LeftStickY]),
       },
     });
-    this.dialogUI = new DialogUI();
+    this.dialogUI = new DialogUI(this.inputMapper);
     this.encounterTriggerSystem = new EncounterTriggerSystem(this.state);
     // Initialize CutSceneSystem
     this.cutSceneSystem = new CutSceneSystem(this.world);
@@ -155,6 +162,8 @@ export class DungeonScene extends Scene {
     if (!this.playerController) {
       this.playerController = new DungeonPlayerController(this.inputMapper, this.d_Player);
       this.playerController.initialize();
+    } else {
+      this.playerController.setPlayer(this.d_Player);
     }
 
     this.proximitySystem = new ProximitySystem(this.state, this.content);
