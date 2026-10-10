@@ -3,6 +3,7 @@ import { StateStore } from "../../GameState";
 import { GameState, Direction } from "../../GameTypes";
 import { InventorySystem } from "./InventorySystem";
 import { ContentRegistry } from "../../Content/ContentRegistry";
+import { QuestManager } from "../Managers/QuestManager"; // 1. Import QuestManager
 
 export interface InteractionResult {
   handled: boolean;
@@ -19,6 +20,7 @@ export class InteractionSystem {
     private readonly dungeonManager: DungeonManager,
     private readonly inventorySystem: InventorySystem,
     private readonly contentRegistry: ContentRegistry,
+    private readonly questManager?: QuestManager, // 2. Add QuestManager (optional)
   ) {}
 
   public interact(): InteractionResult {
@@ -143,6 +145,9 @@ export class InteractionSystem {
         });
       });
 
+      // Notify quest system if keys count as quest objectives
+      this.questManager?.progressObjectives("collect", keyId, 1);
+
       return {
         handled: true,
         type: "container",
@@ -168,6 +173,9 @@ export class InteractionSystem {
           opened: true,
         });
       });
+
+      // 3. Notify QuestManager of item pickup
+      this.questManager?.progressObjectives("collect", itemId, quantity);
 
       const itemDef = this.contentRegistry.getItem(itemId);
       return {

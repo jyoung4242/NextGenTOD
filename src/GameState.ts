@@ -341,13 +341,14 @@ export function createStateStore<State extends object>(initialState: State): Sta
 
 import type { GameState } from "./GameTypes";
 
+// GameState.ts
+
 export function createInitialGameState(): GameState {
   return {
     game: {
       mode: "playing",
       time: 0,
     },
-
     player: {
       hp: 100,
       maxHp: 100,
@@ -366,23 +367,21 @@ export function createInitialGameState(): GameState {
       },
       skills: {},
     },
-
     dungeon: {
       definitionId: "test-dungeon",
       seed: 0,
       currentNodeId: "start",
-      discoveredNodes: [],
-      visitedNodes: [],
+      discoveredNodes: ["start"],
+      visitedNodes: ["start"],
       doors: {},
       containers: {},
       enemies: {},
     },
-
     quests: {
       active: {},
       completed: [],
+      flags: {},
     },
-
     progression: {
       experience: 0,
       level: 1,

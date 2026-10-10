@@ -6,12 +6,14 @@ import { ContentRegistry } from "./Content/ContentRegistry";
 import { registerTestDungeon } from "./Content/Dungeons/testDungeon";
 import { registerTestItems } from "./Content/Items/test-items";
 import { registerTestEnemies } from "./Content/Enemies/test-enemies";
+
 import { applyConnectionsToGrid, createDungeonState } from "./Lib/Managers/DungeonManager";
 import { InputMapSystem } from "./Lib/Systems/InputMapper";
 import { DungeonScene } from "./Scenes/DungeonScene";
 import { EncounterScene } from "./Scenes/EncounterScene";
 import { GameOverScene } from "./Scenes/GameOver";
 import { loader } from "./resources";
+import { registerQuest } from "./Content/Quests/testQuest";
 
 export const INPUT_CONTEXT = {
   Dungeon: "dungeon",
@@ -30,6 +32,7 @@ export const content = new ContentRegistry();
 registerTestDungeon(content);
 registerTestItems(content);
 registerTestEnemies(content);
+registerQuest(content); // Register quests
 
 const definition = content.getDungeon("test-dungeon");
 applyConnectionsToGrid(definition);
