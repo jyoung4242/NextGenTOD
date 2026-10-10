@@ -76,7 +76,7 @@ export interface TacticalPosition {
 }
 
 export interface CombatAction {
-  type: "attack" | "skill" | "item" | "defend" | "flee" | "throw" | "spell" | "move";
+  type: "attack" | "skill" | "item" | "defend" | "flee" | "throw" | "spell" | "move" | "ranged";
   targetId?: string;
   skillId?: string;
   itemId?: string;

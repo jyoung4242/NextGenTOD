@@ -20,7 +20,7 @@ export class DungeonPlayerController {
   }
 
   private handleKeyPress = (event: { ctx: string; key: Keys }): void => {
-    if (event.ctx !== INPUT_CONTEXT.Dungeon) {
+    if (this.input.getCurrentContext() !== INPUT_CONTEXT.Dungeon) {
       return;
     }
 
