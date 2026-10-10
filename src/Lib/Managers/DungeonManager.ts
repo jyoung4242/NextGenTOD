@@ -63,7 +63,9 @@ export class Dungeon {
       case "wall":
         return false;
       case "door": {
-        // Dynamic store check
+        // Guard check wall.doorId to satisfy TypeScript
+        if (!wall.doorId) return false;
+
         const currentDungeonState = this.store.get().dungeon;
         return currentDungeonState.doors[wall.doorId]?.open === true;
       }
@@ -88,13 +90,14 @@ export class DungeonGrid {
     return this.cells.get(`${x},${y}`);
   }
 
+  // Inside class DungeonGrid
   getWall(x: number, y: number, direction: Direction): WallDefinition {
     const cell = this.getCell(x, y);
 
     if (!cell) {
       return {
         type: "wall",
-        materialId: "void",
+        textureKey: "void", // Fixed from materialId to textureKey
       };
     }
 

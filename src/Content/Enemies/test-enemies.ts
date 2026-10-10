@@ -4,27 +4,32 @@ import { ContentRegistry } from "../ContentRegistry";
 
 export const TEST_ENEMIES: EnemyDefinition[] = [
   {
-    id: "goblin_scout",
+    id: "goblin",
     name: "Goblin Scout",
-    spriteUrl: "assets/sprites/goblin_scout.png",
+    avatarKey: "goblin",
+    textureKey: "goblinLarge",
     health: 30,
     attack: 8,
     defense: 2,
     detectionRadius: 3,
+    yOffset: 0.2, // Adjust the offset to raise the sprite above the floor
   },
   {
     id: "skeleton_warrior",
     name: "Skeleton Warrior",
-    spriteUrl: "assets/sprites/skeleton_warrior.png",
+    avatarKey: "skeleton",
+    textureKey: "skeletonLarge",
     health: 50,
     attack: 14,
     defense: 5,
     detectionRadius: 4,
+    yOffset: 0.2, // Adjust the offset to raise the sprite above the floor
   },
   {
     id: "dungeon_orc",
     name: "Dungeon Orc",
-    spriteUrl: "assets/sprites/dungeon_orc.png",
+    avatarKey: "dungeon_orc",
+    textureKey: "dungeon_orcLarge",
     health: 80,
     attack: 20,
     defense: 8,

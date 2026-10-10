@@ -18,6 +18,7 @@ import { DialogUI } from "../UI/DialogUI";
 import { DialogLoader } from "../Lib/Managers/DialogLoader";
 import { CutSceneSystem } from "../Lib/Managers/CutScenes";
 import { QuestManager } from "../Lib/Managers/QuestManager";
+import { getLoadedTextures } from "../resources";
 
 export class DungeonScene extends Scene {
   dCamera?: DungeonCamera;
@@ -110,6 +111,8 @@ export class DungeonScene extends Scene {
       camera: this.dCamera!,
       width: 960,
       height: 540,
+      textures: getLoadedTextures(),
+      content: this.content, // Pass the content registry to the viewport
     });
 
     this.inventory = new InventorySystem(this.state, this.content);
@@ -138,6 +141,8 @@ export class DungeonScene extends Scene {
       camera: this.dCamera!,
       width: 960,
       height: 540,
+      textures: getLoadedTextures(),
+      content: this.content, // Pass the content registry to the viewport
     });
     this.add(vp);
 

@@ -3,6 +3,9 @@ import { ContentRegistry } from "../ContentRegistry";
 
 export const testDungeon: DungeonDefinition = {
   id: "test-dungeon",
+  defaultWallTexture: "stone",
+  defaultFloorTexture: "dirt",
+  defaultCeilingTexture: "ceiling",
   items: [
     {
       id: "alcove-key",
@@ -19,7 +22,7 @@ export const testDungeon: DungeonDefinition = {
   enemies: [
     {
       id: "enemy_hallway_1",
-      definitionId: "goblin_scout",
+      definitionId: "goblin",
       position: { x: 12, y: 2 },
     },
     // {

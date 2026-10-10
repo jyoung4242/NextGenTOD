@@ -48,7 +48,7 @@ export class ContentRegistry {
 
   getEnemy(id: string): EnemyDefinition {
     const definition = this.enemies.get(id);
-
+    debugger;
     if (!definition) {
       throw new Error(`Unknown enemy: ${id}`);
     }

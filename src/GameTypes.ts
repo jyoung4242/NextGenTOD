@@ -177,13 +177,15 @@ export interface DungeonEnemyPlacement {
 
 export interface DungeonDefinition {
   id: string;
+  defaultFloorTexture?: string; // e.g. "dirt"
+  defaultCeilingTexture?: string; // e.g. "ceiling"
+  defaultWallTexture?: string; // e.g. "stone"
   nodes: Record<string, DungeonNodeDefinition>;
   connections: DungeonConnectionDefinition[];
   grid: DungeonGridDefinition;
   items?: DungeonItemPlacement[];
   enemies?: DungeonEnemyPlacement[];
 }
-
 export interface DungeonConnectionDefinition {
   id: string;
   from: string;
@@ -194,6 +196,9 @@ export interface DungeonConnectionDefinition {
 }
 
 export interface DungeonCellDefinition {
+  defaultFloorTexture?: string; // e.g. "dirt"
+  defaultCeilingTexture?: string; // e.g. "ceiling"
+  defaultWallTexture?: string; // e.g. "stone"
   x: number;
   y: number;
   floor: FloorType;
@@ -208,7 +213,11 @@ export interface DoorState {
   locked: boolean;
 }
 
-export type WallDefinition = { type: "none" } | { type: "wall"; materialId: string } | { type: "door"; doorId: string };
+export interface WallDefinition {
+  type: "wall" | "door" | "none";
+  textureKey?: string; // or materialId?: string
+  doorId?: string;
+}
 
 export interface GridPosition {
   x: number;
@@ -299,13 +308,13 @@ function createWall(
   width: number,
   wall: string,
   floor: string,
-  materialId: string,
-): DungeonCellDefinition["north"] {
+  textureKey: string,
+): WallDefinition {
   if (isFloor(lines, x, y, width, wall, floor)) {
     return { type: "none" };
   }
 
-  return { type: "wall", materialId };
+  return { type: "wall", textureKey };
 }
 
 function isFloor(lines: string[], x: number, y: number, width: number, wall: string, floor: string): boolean {
@@ -383,6 +392,7 @@ export interface ItemDefinition {
   maxStackSize?: number;
   weight: number;
   icon?: string;
+  textureKey?: string;
 }
 
 // --- Runtime Inventory State ---
@@ -397,16 +407,19 @@ export interface InventoryState {
   maxWeight: number;
 }
 
-// Enemies Definition
+// GameTypes.ts
+
 export interface EnemyDefinition {
   id: string;
   name: string;
-  spriteUrl: string;
+  avatarKey: string; // or textureKey
+  textureKey?: string; // Key mapped in resources.ts (e.g. "goblin", "skeleton")
+  scale?: number; // Billboard size scale (defaults to 0.6 if omitted)
+  yOffset?: number; // Vertical displacement on floor (defaults to +0.2)
   health: number;
   attack: number;
   defense: number;
   detectionRadius: number;
-  abilities?: string[];
 }
 
 // GameTypes.ts
