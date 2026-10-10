@@ -10,6 +10,7 @@ export const healthPotionItem: ItemDefinition = {
   stackable: true,
   maxStackSize: 10,
   weight: 0.5,
+  textureKey: "potion", // Assuming you have a texture for this item
 };
 
 export function registerTestItems(registry: ContentRegistry): void {

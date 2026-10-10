@@ -52,9 +52,8 @@ export class InteractionSystem {
       if (currentInteraction.handled) return currentInteraction;
     }
 
-    // 2. Check facing wall / door
     const wall = dungeon.getWall(cellX, cellY, facingDir);
-    if (wall?.type === "door") {
+    if (wall?.type === "door" && wall.doorId) {
       return this.handleDoorInteraction(wall.doorId);
     }
 
