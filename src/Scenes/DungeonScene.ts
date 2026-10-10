@@ -152,7 +152,7 @@ export class DungeonScene extends Scene {
     this.add(minimap);
 
     this.inventory = new InventorySystem(this.state, this.content);
-    this.interactions = new InteractionSystem(this.state, dungeonManager, this.inventory, this.content);
+    this.interactions = new InteractionSystem(this.state, dungeonManager, this.inventory, this.content, this.questManager);
 
     this.d_Player = new DungeonPlayer(this.state, dungeon, this.dCamera!, this.interactions);
     // 2. Attach turn/step callback to evaluate enemy proximity & trigger encounters

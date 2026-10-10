@@ -174,6 +174,8 @@ export class InteractionSystem {
         });
       });
 
+      console.log("collecting: ", this.questManager, itemId, quantity);
+
       // 3. Notify QuestManager of item pickup
       this.questManager?.progressObjectives("collect", itemId, quantity);
 

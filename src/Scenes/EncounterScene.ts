@@ -31,14 +31,36 @@ export class EncounterScene extends Scene {
     this.inputMapper.registerMap({
       name: INPUT_CONTEXT.Encounter,
       inputMap: {
-        KeyPresses: new Set([Keys.W, Keys.S, Keys.A, Keys.D, Keys.E, Keys.F, Keys.Digit1, Keys.Digit2]),
+        KeyPresses: new Set([
+          Keys.W,
+          Keys.S,
+          Keys.A,
+          Keys.D,
+          Keys.Digit1,
+          Keys.Digit2,
+          Keys.Digit3,
+          Keys.Digit4,
+          Keys.Digit5,
+          Keys.Digit6,
+          Keys.Space,
+          Keys.E,
+          Keys.F,
+          Keys.I,
+          Keys.R,
+          Keys.T,
+        ]),
         GamepadButtonsTriggers: new Set([
           Buttons.Face1,
           Buttons.Face2,
+          Buttons.Face3,
+          Buttons.Face4,
           Buttons.DpadUp,
           Buttons.DpadDown,
           Buttons.DpadLeft,
           Buttons.DpadRight,
+          Buttons.LeftBumper,
+          Buttons.RightBumper,
+          Buttons.LeftTrigger,
         ]),
         GamepadAxesTriggers: new Set([Axes.LeftStickX, Axes.LeftStickY]),
       },
@@ -46,19 +68,19 @@ export class EncounterScene extends Scene {
 
     // 2. Unify event processing for Keyboard
     this.inputMapper.inputMapEmitter.on("keyPress", (data: any) => {
-      if (data.ctx !== INPUT_CONTEXT.Encounter) return;
+      if (this.inputMapper.getCurrentContext() !== INPUT_CONTEXT.Encounter) return;
       this.processKeyboardInput(data.key);
     });
 
     // 3. Process Gamepad Button Input
     this.inputMapper.inputMapEmitter.on("gamepadButton", (data: any) => {
-      if (data.ctx !== INPUT_CONTEXT.Encounter) return;
+      if (this.inputMapper.getCurrentContext() !== INPUT_CONTEXT.Encounter) return;
       this.processGamepadButton(data.button);
     });
 
     // 4. Process Gamepad Analog Stick Input
     this.inputMapper.inputMapEmitter.on("gamepadStick", (data: any) => {
-      if (data.ctx !== INPUT_CONTEXT.Encounter) return;
+      if (this.inputMapper.getCurrentContext() !== INPUT_CONTEXT.Encounter) return;
       if (data.event === "leftStick") {
         this.processStickDirection(data.direction);
       }
@@ -130,6 +152,7 @@ export class EncounterScene extends Scene {
     if (!this.isPlayerTurnValid()) return;
 
     switch (button) {
+      // D-Pad Grid Movement
       case Buttons.DpadUp:
         this.attemptGridMove(0, -1);
         break;
@@ -142,11 +165,28 @@ export class EncounterScene extends Scene {
       case Buttons.DpadRight:
         this.attemptGridMove(1, 0);
         break;
-      case Buttons.Face1: // A / Cross -> Primary Attack
+
+      // Face & Shoulder Action Mapping
+      case Buttons.Face1: // A / Cross -> Primary Melee Attack
         this.triggerPrimaryAttack();
         break;
       case Buttons.Face2: // B / Circle -> Flee
         this.triggerFlee();
+        break;
+      case Buttons.Face3: // X / Square -> Ranged Attack
+        this.triggerRangedAttack();
+        break;
+      case Buttons.Face4: // Y / Triangle -> Throw Item
+        this.triggerThrowItem();
+        break;
+      case Buttons.LeftBumper: // LB -> Consumable / Item
+        this.triggerUseItem();
+        break;
+      case Buttons.RightBumper: // RB -> Cast Spell
+        this.triggerCastSpell();
+        break;
+      case Buttons.LeftTrigger: // LT -> Defend / Guard
+        this.triggerDefend();
         break;
     }
   }
@@ -170,7 +210,7 @@ export class EncounterScene extends Scene {
     }
   }
 
-  // --- GRID ACTIONS ---
+  // --- ACTION TRIGGERS ---
 
   private attemptGridMove(deltaX: number, deltaY: number): void {
     const state = this.store.get();
@@ -189,32 +229,55 @@ export class EncounterScene extends Scene {
 
     if (targetX !== currentX || targetY !== currentY) {
       this.handlePlayerAction({
-        type: "move" as any,
+        type: "move",
         targetTile: { x: targetX, y: targetY },
       });
     }
   }
 
   private triggerPrimaryAttack(): void {
-    const state = this.store.get();
-    const encounter = state.game.encounter;
-    if (!encounter) return;
-
-    const enemyIds = encounter.enemyInstanceIds ?? (encounter.activeEnemyInstanceId ? [encounter.activeEnemyInstanceId] : []);
-    const targetId = encounter.activeEnemyInstanceId ?? enemyIds.find(id => state.dungeon?.enemies?.[id]?.alive);
-
+    const targetId = this.getActiveOrFirstEnemyId();
     if (targetId) {
-      this.handlePlayerAction({
-        type: "attack",
-        targetId: targetId,
-      });
+      this.handlePlayerAction({ type: "attack", targetId });
     }
   }
 
+  private triggerRangedAttack(): void {
+    const targetId = this.getActiveOrFirstEnemyId();
+    if (targetId) {
+      this.handlePlayerAction({ type: "ranged", targetId });
+    }
+  }
+
+  private triggerThrowItem(): void {
+    const targetId = this.getActiveOrFirstEnemyId();
+    this.handlePlayerAction({ type: "throw", targetId });
+  }
+
+  private triggerUseItem(): void {
+    this.handlePlayerAction({ type: "item", itemId: "health_potion" });
+  }
+
+  private triggerCastSpell(): void {
+    const targetId = this.getActiveOrFirstEnemyId();
+    this.handlePlayerAction({ type: "spell", skillId: "fireball", targetId });
+  }
+
+  private triggerDefend(): void {
+    this.handlePlayerAction({ type: "defend" });
+  }
+
   private triggerFlee(): void {
-    this.handlePlayerAction({
-      type: "flee",
-    });
+    this.handlePlayerAction({ type: "flee" });
+  }
+
+  private getActiveOrFirstEnemyId(): string | undefined {
+    const state = this.store.get();
+    const encounter = state.game.encounter;
+    if (!encounter) return undefined;
+
+    const enemyIds = encounter.enemyInstanceIds ?? (encounter.activeEnemyInstanceId ? [encounter.activeEnemyInstanceId] : []);
+    return encounter.activeEnemyInstanceId ?? enemyIds.find(id => state.dungeon?.enemies?.[id]?.alive);
   }
 
   public handlePlayerAction(action: CombatAction): void {
