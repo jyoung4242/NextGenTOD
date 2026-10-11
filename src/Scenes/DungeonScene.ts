@@ -61,7 +61,7 @@ export class DungeonScene extends Scene {
       },
     });
     this.dialogUI = new DialogUI(this.inputMapper);
-    this.encounterTriggerSystem = new EncounterTriggerSystem(this.state);
+    this.encounterTriggerSystem = new EncounterTriggerSystem(this.state, this.content);
     // Initialize CutSceneSystem
     this.cutSceneSystem = new CutSceneSystem(this.world);
     this.world.add(this.cutSceneSystem);
@@ -172,7 +172,7 @@ export class DungeonScene extends Scene {
     }
 
     this.proximitySystem = new ProximitySystem(this.state, this.content);
-    this.encounterTriggerSystem = new EncounterTriggerSystem(this.state);
+    this.encounterTriggerSystem = new EncounterTriggerSystem(this.state, this.content);
     if (this.dialogUI) {
       this.add(this.dialogUI);
       this.dialogRunner?.start();

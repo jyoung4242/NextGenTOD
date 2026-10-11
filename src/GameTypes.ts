@@ -414,6 +414,7 @@ export interface EnemyDefinition {
   name: string;
   avatarKey: string; // or textureKey
   textureKey?: string; // Key mapped in resources.ts (e.g. "goblin", "skeleton")
+  tokenKey?: string; // Key for token image (e.g. "goblinToken")
   scale?: number; // Billboard size scale (defaults to 0.6 if omitted)
   yOffset?: number; // Vertical displacement on floor (defaults to +0.2)
   health: number;

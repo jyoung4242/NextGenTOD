@@ -1,5 +1,6 @@
 // Scenes/EncounterScene.ts
-import { Scene, Actor, Color, vec, Axes, Buttons, Keys } from "excalibur";
+import { Scene, Actor, vec, Axes, Buttons, Keys } from "excalibur";
+import * as ex from "excalibur";
 import { StateStore } from "../GameState";
 import { GameState, CombatAction, EnemyState } from "../GameTypes";
 import { ContentRegistry } from "../Content/ContentRegistry";
@@ -8,6 +9,7 @@ import { INPUT_CONTEXT } from "../main";
 import { InputMapSystem } from "../Lib/Systems/InputMapper";
 import { ActionQueueManager } from "../Lib/Managers/ActionQueueManager";
 import { CombatStateMachine } from "../Lib/Systems/CombatStateMachine";
+import { getLoadedTextures, Resources } from "../resources"; // Import texture loader
 
 export class EncounterScene extends Scene {
   private playerActor?: Actor;
@@ -104,6 +106,7 @@ export class EncounterScene extends Scene {
     this.gridRenderer = new DungeonGridRenderer({
       store: this.store,
       tileSize: this.TILE_SIZE,
+      contentRegistry: this.contentRegistry,
     });
     this.add(this.gridRenderer);
 
@@ -152,7 +155,6 @@ export class EncounterScene extends Scene {
     if (!this.isPlayerTurnValid()) return;
 
     switch (button) {
-      // D-Pad Grid Movement
       case Buttons.DpadUp:
         this.attemptGridMove(0, -1);
         break;
@@ -165,27 +167,25 @@ export class EncounterScene extends Scene {
       case Buttons.DpadRight:
         this.attemptGridMove(1, 0);
         break;
-
-      // Face & Shoulder Action Mapping
-      case Buttons.Face1: // A / Cross -> Primary Melee Attack
+      case Buttons.Face1:
         this.triggerPrimaryAttack();
         break;
-      case Buttons.Face2: // B / Circle -> Flee
+      case Buttons.Face2:
         this.triggerFlee();
         break;
-      case Buttons.Face3: // X / Square -> Ranged Attack
+      case Buttons.Face3:
         this.triggerRangedAttack();
         break;
-      case Buttons.Face4: // Y / Triangle -> Throw Item
+      case Buttons.Face4:
         this.triggerThrowItem();
         break;
-      case Buttons.LeftBumper: // LB -> Consumable / Item
+      case Buttons.LeftBumper:
         this.triggerUseItem();
         break;
-      case Buttons.RightBumper: // RB -> Cast Spell
+      case Buttons.RightBumper:
         this.triggerCastSpell();
         break;
-      case Buttons.LeftTrigger: // LT -> Defend / Guard
+      case Buttons.LeftTrigger:
         this.triggerDefend();
         break;
     }
@@ -308,7 +308,10 @@ export class EncounterScene extends Scene {
       );
     };
 
-    // 1. Spawn Player Token
+    const textures = getLoadedTextures();
+    const tokenSize = this.TILE_SIZE * 0.75;
+
+    // 1. Spawn Player Token Sprite Actor
     const playerPos = encounter.playerPosition ?? state.player?.position;
     if (playerPos) {
       const pTileX = Math.floor(playerPos.x);
@@ -316,14 +319,19 @@ export class EncounterScene extends Scene {
 
       this.playerActor = new Actor({
         pos: getTileCenter(pTileX, pTileY),
-        radius: this.TILE_SIZE / 3,
-        color: Color.fromHex("#3b82f6"),
+        width: tokenSize,
+        height: tokenSize,
       });
+
+      const playerImg = Resources.playerToken.toSprite();
+      if (playerImg) {
+        this.playerActor.graphics.use(playerImg);
+      }
 
       this.add(this.playerActor);
     }
 
-    // 2. Spawn Enemy Tokens
+    // 2. Spawn Enemy Token Sprite Actors from ContentRegistry
     const enemyIds = encounter.enemyInstanceIds ?? (encounter.activeEnemyInstanceId ? [encounter.activeEnemyInstanceId] : []);
 
     for (const enemyId of enemyIds) {
@@ -334,11 +342,21 @@ export class EncounterScene extends Scene {
         const eTileX = Math.floor(ePos.x);
         const eTileY = Math.floor(ePos.y);
 
+        // Fetch enemy definition from ContentRegistry to get its registered tokenKey
+        const enemyDef = this.contentRegistry.getEnemy(enemyState.definitionId);
+        const tokenKey = enemyDef?.tokenKey ?? "goblinToken";
+        //@ts-ignore
+        const enemyImg = Resources[tokenKey].toSprite();
+
         const enemyActor = new Actor({
           pos: getTileCenter(eTileX, eTileY),
-          radius: this.TILE_SIZE / 3,
-          color: Color.fromHex("#ef4444"),
+          width: tokenSize,
+          height: tokenSize,
         });
+
+        if (enemyImg) {
+          enemyActor.graphics.use(enemyImg);
+        }
 
         this.enemyActors.set(enemyId, enemyActor);
         this.add(enemyActor);
