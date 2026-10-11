@@ -1,16 +1,18 @@
 // UI/DungeonGridRenderer.ts
-import { ScreenElement, Vector, vec } from "excalibur";
+import { Actor, Vector, vec } from "excalibur";
 import { StateStore } from "../GameState";
 import { GameState } from "../GameTypes";
 import { DungeonGridGraphic } from "./DungeonGridGraphic";
+import { ContentRegistry } from "../Content/ContentRegistry";
 
 export interface DungeonGridRendererOptions {
   store: StateStore<GameState>;
+  contentRegistry: ContentRegistry;
   position?: Vector;
   tileSize?: number;
 }
 
-export class DungeonGridRenderer extends ScreenElement {
+export class DungeonGridRenderer extends Actor {
   private gridGraphic: DungeonGridGraphic;
 
   constructor(options: DungeonGridRendererOptions) {
@@ -22,15 +24,14 @@ export class DungeonGridRenderer extends ScreenElement {
 
     this.gridGraphic = new DungeonGridGraphic({
       store: options.store,
-      tileSize: options.tileSize ?? 32,
+      contentRegistry: options.contentRegistry,
+      tileSize: options.tileSize ?? 48,
     });
 
-    // Assign custom graphic to Excalibur ScreenElement
     this.graphics.use(this.gridGraphic);
   }
 
   public override onPreUpdate(): void {
-    // Flag dirty if combat state turns or updates occur
     this.gridGraphic.flagDirty();
   }
 }

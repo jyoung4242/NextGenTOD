@@ -1,6 +1,6 @@
 // Systems/CombatStateMachine.ts
 import { StateStore } from "../../GameState";
-import { GameState, CombatAction, EnemyState, PlayerState, EncounterState } from "../../GameTypes";
+import { GameState, CombatAction, EnemyState, PlayerState, EncounterState, getDungeonCell } from "../../GameTypes";
 import { ContentRegistry } from "../../Content/ContentRegistry";
 
 export class CombatStateMachine {
@@ -15,6 +15,44 @@ export class CombatStateMachine {
 
   public getContentRegistry(): ContentRegistry {
     return this.contentRegistry;
+  }
+
+  /**
+   * Helper to check if a tile is blocked by walls, out of bounds, or occupied by another entity.
+   */
+  private isTileBlocked(targetX: number, targetY: number, state: GameState, excludeEntityId?: string): boolean {
+    // 1. Check Dungeon Content Grid Data (Walls & Floors)
+    if (state.dungeon?.definitionId) {
+      const dungeonDef = this.contentRegistry.getDungeon(state.dungeon.definitionId);
+      if (dungeonDef?.grid) {
+        const cell = getDungeonCell(dungeonDef.grid, targetX, targetY);
+        // If the cell is missing or not a walkable floor, it's a solid wall/void
+        if (!cell || cell.floor !== "floor") {
+          return true;
+        }
+      }
+    }
+
+    const encounter = state.game.encounter;
+    if (!encounter) return false;
+
+    // 2. Check Player Position Collision
+    const playerPos = encounter.playerPosition ?? state.player?.position;
+    if (playerPos && Math.floor(playerPos.x) === targetX && Math.floor(playerPos.y) === targetY) {
+      return true;
+    }
+
+    // 3. Check Other Enemy Positions Collision
+    const enemyPositions = encounter.enemyPositions ?? {};
+    for (const [id, pos] of Object.entries(enemyPositions)) {
+      if (id === excludeEntityId) continue; // Skip self when checking enemy movement
+      const enemy = state.dungeon?.enemies?.[id];
+      if (enemy && enemy.alive && Math.floor(pos.x) === targetX && Math.floor(pos.y) === targetY) {
+        return true;
+      }
+    }
+
+    return false;
   }
 
   public processPlayerAction(action: CombatAction): void {
@@ -36,6 +74,13 @@ export class CombatStateMachine {
       switch (action.type) {
         case "move": {
           if (!action.targetTile) return;
+
+          // Collision Check for Player
+          if (this.isTileBlocked(action.targetTile.x, action.targetTile.y, state)) {
+            logMessage = `Movement blocked at (${action.targetTile.x}, ${action.targetTile.y})!`;
+            break;
+          }
+
           updatedPlayerPos = { x: action.targetTile.x, y: action.targetTile.y };
           logMessage = `Player moved to (${action.targetTile.x}, ${action.targetTile.y})`;
           break;
@@ -95,8 +140,6 @@ export class CombatStateMachine {
     });
   }
 
-  // Systems/CombatStateMachine.ts
-
   public processEnemyAction(enemyInstanceId: string, action: CombatAction): void {
     const state = this.store.get();
     const encounter = state.game.encounter;
@@ -110,7 +153,6 @@ export class CombatStateMachine {
 
     this.store.batch(ctx => {
       let logMessage = "";
-      // ✅ Declare dictionary copies at the top of the batch block so all switch cases can access them
       const updatedEnemies: Record<string, EnemyState> = { ...state.dungeon.enemies };
       const updatedEnemyPositions = { ...(encounter.enemyPositions ?? {}) };
       let updatedPlayerHp = state.player.hp;
@@ -118,6 +160,12 @@ export class CombatStateMachine {
       switch (action.type) {
         case "move": {
           if (action.targetTile) {
+            // Collision Check for Enemy (excluding self)
+            if (this.isTileBlocked(action.targetTile.x, action.targetTile.y, state, enemyInstanceId)) {
+              logMessage = `${enemyDef?.name ?? "Enemy"} movement blocked at (${action.targetTile.x}, ${action.targetTile.y})!`;
+              break;
+            }
+
             updatedEnemyPositions[enemyInstanceId] = action.targetTile;
             logMessage = `${enemyDef?.name ?? "Enemy"} moved to (${action.targetTile.x}, ${action.targetTile.y})`;
           }
@@ -178,7 +226,6 @@ export class CombatStateMachine {
         }
       }
 
-      // Check Player Defeat
       if (updatedPlayerHp <= 0) {
         console.log("[CombatStateMachine] Player defeated! Game Over.");
         ctx.set("game.mode", "game_over");

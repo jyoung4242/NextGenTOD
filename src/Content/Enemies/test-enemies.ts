@@ -8,6 +8,7 @@ export const TEST_ENEMIES: EnemyDefinition[] = [
     name: "Goblin Scout",
     avatarKey: "goblin",
     textureKey: "goblinLarge",
+    tokenKey: "goblinToken",
     health: 30,
     attack: 8,
     defense: 2,

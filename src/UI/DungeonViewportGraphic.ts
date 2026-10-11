@@ -31,7 +31,6 @@ export class DungeonViewportGraphic extends Graphic {
     this.getState = options.getState;
     this.camera = options.camera;
     this.textures = options.textures;
-    debugger;
     this.content = options.content;
     this.raycaster = new DungeonRaycaster();
 
@@ -183,17 +182,12 @@ export class DungeonViewportGraphic extends Graphic {
     }
 
     const activeEnemies = Object.values(currentState.enemies).filter(enemy => enemy.alive && enemy.state !== "dead");
-    console.log(
-      "Active enemies:",
-      activeEnemies.map(e => e.definitionId),
-    );
+
     for (const enemy of activeEnemies) {
       // Look up static definition in ContentRegistry using enemy.definitionId
-      debugger;
       const enemyDef = this.content?.getEnemy(enemy.definitionId);
 
       // Resolve texture key (fallback to textureKey -> avatarKey -> "goblin")
-      console.log("Rendering enemy:", enemy.definitionId, enemyDef);
       const textureKey = enemyDef?.textureKey ?? enemyDef?.avatarKey ?? "goblin";
 
       // Resolve rendering dimensions or fall back to defaults
