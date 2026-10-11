@@ -14,16 +14,22 @@ export class DungeonGridGraphic extends Graphic {
   private isDirty: boolean = true;
   private textures: Map<string, HTMLImageElement>;
 
-  constructor(options: { store: StateStore<GameState>; contentRegistry: ContentRegistry; tileSize?: number }) {
-    super();
+  constructor(options: {
+    store: StateStore<GameState>;
+    contentRegistry: ContentRegistry;
+    tileSize?: number;
+    width: number;
+    height: number;
+  }) {
+    super({ width: options.width, height: options.height });
     this.store = options.store;
     this.contentRegistry = options.contentRegistry;
     this.tileSize = options.tileSize ?? 48;
-    this.textures = getLoadedTextures(); // Grab loaded textures from resources.ts
+    this.textures = getLoadedTextures();
 
     this.canvas = document.createElement("canvas");
-    this.canvas.width = 960;
-    this.canvas.height = 540;
+    this.canvas.width = options.width;
+    this.canvas.height = options.height;
 
     const context = this.canvas.getContext("2d");
     if (!context) throw new Error("Failed to get 2D context");
@@ -35,6 +41,8 @@ export class DungeonGridGraphic extends Graphic {
       store: this.store,
       contentRegistry: this.contentRegistry,
       tileSize: this.tileSize,
+      width: this.width,
+      height: this.height,
     });
   }
 
@@ -48,7 +56,7 @@ export class DungeonGridGraphic extends Graphic {
       this.isDirty = false;
     }
     this.canvas.setAttribute("forceUpload", "true");
-    ex.drawImage(this.canvas, x, y, this.canvas.width, this.canvas.height);
+    ex.drawImage(this.canvas, x, y, this.width, this.height);
   }
 
   private redrawGrid(): void {
@@ -56,7 +64,6 @@ export class DungeonGridGraphic extends Graphic {
     const encounter = state.game.encounter;
     if (!encounter) return;
 
-    // Retrieve active dungeon definition from ContentRegistry[cite: 6]
     const dungeonDef = this.contentRegistry.getDungeon(state.dungeon?.definitionId ?? "test-dungeon");
     if (!dungeonDef) return;
 
@@ -66,21 +73,14 @@ export class DungeonGridGraphic extends Graphic {
 
     ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
 
-    const gridWidth = (maxX - minX + 1) * tileSize;
-    const gridHeight = (maxY - minY + 1) * tileSize;
-    const offsetX = (this.canvas.width - gridWidth) / 2;
-    const offsetY = (this.canvas.height - gridHeight) / 2;
-
     for (let x = minX; x <= maxX; x++) {
       for (let y = minY; y <= maxY; y++) {
-        const drawX = offsetX + (x - minX) * tileSize;
-        const drawY = offsetY + (y - minY) * tileSize;
+        const drawX = (x - minX) * tileSize;
+        const drawY = (y - minY) * tileSize;
 
-        // Query dungeon cell from ASCII grid definition[cite: 6, 8]
         const cell = getDungeonCell(grid, x, y);
 
         if (cell && cell.floor === "floor") {
-          // 1. Draw Floor Tile Texture (fallback to default or flat color)[cite: 6]
           const floorTextureKey = dungeonDef.defaultFloorTexture ?? "dirt";
           const floorImg = this.textures.get(floorTextureKey);
 
@@ -91,12 +91,11 @@ export class DungeonGridGraphic extends Graphic {
             ctx.fillRect(drawX, drawY, tileSize, tileSize);
           }
 
-          // Tactical grid overlay[cite: 6]
           ctx.strokeStyle = "#333740";
           ctx.lineWidth = 1;
           ctx.strokeRect(drawX, drawY, tileSize, tileSize);
 
-          // Draw cell walls if applicable[cite: 6, 8]
+          // Walls
           ctx.strokeStyle = "#4a5568";
           ctx.lineWidth = 2;
           if (cell.north?.type === "wall") {
@@ -124,7 +123,6 @@ export class DungeonGridGraphic extends Graphic {
             ctx.stroke();
           }
         } else {
-          // 2. Draw Solid Wall / Void Tile Texture[cite: 6, 8]
           const wallTextureKey = dungeonDef.defaultWallTexture ?? "stone";
           const wallImg = this.textures.get(wallTextureKey);
 

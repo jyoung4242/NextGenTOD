@@ -1,5 +1,5 @@
 // Scenes/EncounterScene.ts
-import { Scene, Actor, vec, Axes, Buttons, Keys } from "excalibur";
+import { Scene, Actor, vec, Axes, Buttons, Keys, Vector } from "excalibur";
 import * as ex from "excalibur";
 import { StateStore } from "../GameState";
 import { GameState, CombatAction, EnemyState } from "../GameTypes";
@@ -16,6 +16,11 @@ export class EncounterScene extends Scene {
   private enemyActors: Map<string, Actor> = new Map();
   public gridRenderer?: DungeonGridRenderer;
   private readonly TILE_SIZE = 48;
+
+  private currentZoom = 1.0;
+  private readonly MIN_ZOOM = 0.5;
+  private readonly MAX_ZOOM = 3.0;
+  private readonly ZOOM_STEP = 0.15;
 
   private stateMachine!: CombatStateMachine;
   public queueManager!: ActionQueueManager;
@@ -50,6 +55,8 @@ export class EncounterScene extends Scene {
           Keys.I,
           Keys.R,
           Keys.T,
+          Keys.Equal,
+          Keys.Minus, // Plus/Equal (=) to zoom in, Minus (-) to zoom out
         ]),
         GamepadButtonsTriggers: new Set([
           Buttons.Face1,
@@ -63,8 +70,16 @@ export class EncounterScene extends Scene {
           Buttons.LeftBumper,
           Buttons.RightBumper,
           Buttons.LeftTrigger,
+          Buttons.RightTrigger,
+          Buttons.RightStick, // Optional: Use right stick press for zoom in/out
+          // Bind bumpers or other buttons for gamepad zoom if desired, e.g.:
+          // Buttons.RightTrigger, Buttons.LeftTrigger (or use triggers below)
         ]),
-        GamepadAxesTriggers: new Set([Axes.LeftStickX, Axes.LeftStickY]),
+        // GamepadAxesTriggers: new Set([
+        //   Axes.LeftStickX,
+        //   Axes.LeftStickY,
+        //   Axes.RightStickY, // Can use right stick vertical for zoom!
+        // ]),
       },
     });
 
@@ -89,6 +104,16 @@ export class EncounterScene extends Scene {
     });
   }
 
+  // --- ZOOM CONTROL LOGIC ---
+
+  private adjustZoom(delta: number): void {
+    this.currentZoom = Math.max(this.MIN_ZOOM, Math.min(this.MAX_ZOOM, this.currentZoom + delta));
+    if (this.camera) {
+      this.camera.zoom = this.currentZoom;
+    }
+    console.log(`[EncounterScene] Zoom adjusted to: ${this.currentZoom.toFixed(2)}`);
+  }
+
   public onActivate(): void {
     this.inputMapper.switchContext(INPUT_CONTEXT.Encounter);
 
@@ -103,14 +128,30 @@ export class EncounterScene extends Scene {
     this.stateMachine = new CombatStateMachine(this.store, this.contentRegistry);
     this.queueManager = new ActionQueueManager(this.stateMachine, this);
 
+    // 1. Calculate arena offsets first
+    const { minX, maxX, minY, maxY } = encounter.arenaBounds;
+    const canvasWidth = 960;
+    const canvasHeight = 540;
+    const gridWidth = (maxX - minX + 1) * this.TILE_SIZE;
+    const gridHeight = (maxY - minY + 1) * this.TILE_SIZE;
+    const offsetX = (canvasWidth - gridWidth) / 2;
+    const offsetY = (canvasHeight - gridHeight) / 2;
+
+    // 2. Pass the offset position to the Grid Renderer Actor
     this.gridRenderer = new DungeonGridRenderer({
       store: this.store,
-      tileSize: this.TILE_SIZE,
       contentRegistry: this.contentRegistry,
+      tileSize: this.TILE_SIZE,
+      position: Vector.Zero,
     });
     this.add(this.gridRenderer);
-
+    console.log("[EncounterScene] Added DungeonGridRenderer at offset:", offsetX, offsetY);
+    // 3. Setup combat entities using the same offsets
     this.setupCombatEntities(encounter);
+
+    console.log("[EncounterScene]: ", this.gridRenderer);
+    console.log("[EncounterScene]: ", this.playerActor);
+    console.log("[EncounterScene]: ", this.enemyActors);
   }
 
   // --- INPUT DISPATCH HELPERS ---
@@ -147,6 +188,14 @@ export class EncounterScene extends Scene {
       case Keys.Digit2:
       case Keys.F:
         this.triggerFlee();
+        break;
+      case Keys.Equal:
+      case Keys.NumAdd:
+        this.adjustZoom(this.ZOOM_STEP);
+        break;
+      case Keys.Minus:
+      case Keys.NumSubtract:
+        this.adjustZoom(-this.ZOOM_STEP);
         break;
     }
   }
@@ -185,8 +234,14 @@ export class EncounterScene extends Scene {
       case Buttons.RightBumper:
         this.triggerCastSpell();
         break;
-      case Buttons.LeftTrigger:
+      case Buttons.RightStick:
         this.triggerDefend();
+        break;
+      case Buttons.LeftTrigger:
+        this.adjustZoom(-this.ZOOM_STEP);
+        break;
+      case Buttons.RightTrigger:
+        this.adjustZoom(this.ZOOM_STEP);
         break;
     }
   }
@@ -292,46 +347,39 @@ export class EncounterScene extends Scene {
   private setupCombatEntities(encounter: NonNullable<GameState["game"]["encounter"]>): void {
     this.enemyActors.clear();
     const state = this.store.get();
-    const { minX, maxX, minY, maxY } = encounter.arenaBounds;
+    const tokenSize = this.TILE_SIZE * 0.75;
+    const { minX, minY } = encounter.arenaBounds;
 
-    const canvasWidth = 960;
-    const canvasHeight = 540;
-    const gridWidth = (maxX - minX + 1) * this.TILE_SIZE;
-    const gridHeight = (maxY - minY + 1) * this.TILE_SIZE;
-    const offsetX = (canvasWidth - gridWidth) / 2;
-    const offsetY = (canvasHeight - gridHeight) / 2;
-
-    const getTileCenter = (x: number, y: number) => {
-      return vec(
-        offsetX + (x - minX) * this.TILE_SIZE + this.TILE_SIZE / 2,
-        offsetY + (y - minY) * this.TILE_SIZE + this.TILE_SIZE / 2,
-      );
+    // Pure local position relative to the grid actor's top-left (0,0)
+    const getLocalTileCenter = (x: number, y: number) => {
+      return vec((x - minX) * this.TILE_SIZE + this.TILE_SIZE / 2, (y - minY) * this.TILE_SIZE + this.TILE_SIZE / 2);
     };
 
-    const textures = getLoadedTextures();
-    const tokenSize = this.TILE_SIZE * 0.75;
-
     // 1. Spawn Player Token Sprite Actor
+
     const playerPos = encounter.playerPosition ?? state.player?.position;
+    console.log("[EncounterScene] Player Position:", playerPos);
     if (playerPos) {
       const pTileX = Math.floor(playerPos.x);
       const pTileY = Math.floor(playerPos.y);
 
       this.playerActor = new Actor({
-        pos: getTileCenter(pTileX, pTileY),
+        pos: getLocalTileCenter(pTileX, pTileY),
         width: tokenSize,
         height: tokenSize,
       });
+      this.camera.strategy.lockToActor(this.playerActor);
+      this.camera.zoom = 1.0;
 
       const playerImg = Resources.playerToken.toSprite();
       if (playerImg) {
         this.playerActor.graphics.use(playerImg);
       }
 
-      this.add(this.playerActor);
+      this.gridRenderer!.addChild(this.playerActor);
     }
 
-    // 2. Spawn Enemy Token Sprite Actors from ContentRegistry
+    // 2. Spawn Enemy Token Sprite Actors
     const enemyIds = encounter.enemyInstanceIds ?? (encounter.activeEnemyInstanceId ? [encounter.activeEnemyInstanceId] : []);
 
     for (const enemyId of enemyIds) {
@@ -342,14 +390,13 @@ export class EncounterScene extends Scene {
         const eTileX = Math.floor(ePos.x);
         const eTileY = Math.floor(ePos.y);
 
-        // Fetch enemy definition from ContentRegistry to get its registered tokenKey
         const enemyDef = this.contentRegistry.getEnemy(enemyState.definitionId);
         const tokenKey = enemyDef?.tokenKey ?? "goblinToken";
         //@ts-ignore
         const enemyImg = Resources[tokenKey].toSprite();
 
         const enemyActor = new Actor({
-          pos: getTileCenter(eTileX, eTileY),
+          pos: getLocalTileCenter(eTileX, eTileY),
           width: tokenSize,
           height: tokenSize,
         });
@@ -359,7 +406,7 @@ export class EncounterScene extends Scene {
         }
 
         this.enemyActors.set(enemyId, enemyActor);
-        this.add(enemyActor);
+        this.gridRenderer!.addChild(enemyActor);
       }
     }
   }
@@ -369,21 +416,15 @@ export class EncounterScene extends Scene {
     const encounter = state.game.encounter;
     if (!encounter) return;
 
-    const { minX, maxX, minY, maxY } = encounter.arenaBounds;
-    const canvasWidth = 960;
-    const canvasHeight = 540;
-    const gridWidth = (maxX - minX + 1) * this.TILE_SIZE;
-    const gridHeight = (maxY - minY + 1) * this.TILE_SIZE;
-    const offsetX = (canvasWidth - gridWidth) / 2;
-    const offsetY = (canvasHeight - gridHeight) / 2;
+    const { minX, minY } = encounter.arenaBounds;
 
-    const getTileCenter = (x: number, y: number) =>
-      vec(offsetX + (x - minX) * this.TILE_SIZE + this.TILE_SIZE / 2, offsetY + (y - minY) * this.TILE_SIZE + this.TILE_SIZE / 2);
+    const getLocalTileCenter = (x: number, y: number) =>
+      vec((x - minX) * this.TILE_SIZE + this.TILE_SIZE / 2, (y - minY) * this.TILE_SIZE + this.TILE_SIZE / 2);
 
     // 1. Re-position Player
     const playerPos = encounter.playerPosition ?? state.player?.position;
     if (this.playerActor && playerPos) {
-      this.playerActor.pos = getTileCenter(Math.floor(playerPos.x), Math.floor(playerPos.y));
+      this.playerActor.pos = getLocalTileCenter(Math.floor(playerPos.x), Math.floor(playerPos.y));
     }
 
     // 2. Re-position & Clean up Enemies
@@ -397,9 +438,40 @@ export class EncounterScene extends Scene {
       }
 
       const ePos = encounter.enemyPositions?.[enemyId] ?? enemyState.position;
-      enemyActor.pos = getTileCenter(Math.floor(ePos.x), Math.floor(ePos.y));
+      enemyActor.pos = getLocalTileCenter(Math.floor(ePos.x), Math.floor(ePos.y));
     });
   }
+
+  // public updateActorPositions(): void {
+  //   const state = this.store.get();
+  //   const encounter = state.game.encounter;
+  //   if (!encounter) return;
+
+  //   const { minX, minY } = encounter.arenaBounds;
+
+  //   const getLocalTileCenter = (x: number, y: number) =>
+  //     vec((x - minX) * this.TILE_SIZE + this.TILE_SIZE / 2, (y - minY) * this.TILE_SIZE + this.TILE_SIZE / 2);
+
+  //   // 1. Re-position Player
+  //   const playerPos = encounter.playerPosition ?? state.player?.position;
+  //   if (this.playerActor && playerPos) {
+  //     this.playerActor.pos = getLocalTileCenter(Math.floor(playerPos.x), Math.floor(playerPos.y));
+  //   }
+
+  //   // 2. Re-position & Clean up Enemies
+  //   this.enemyActors.forEach((enemyActor, enemyId) => {
+  //     const enemyState = state.dungeon?.enemies?.[enemyId];
+
+  //     if (!enemyState || !enemyState.alive || enemyState.state === "dead") {
+  //       enemyActor.kill();
+  //       this.enemyActors.delete(enemyId);
+  //       return;
+  //     }
+
+  //     const ePos = encounter.enemyPositions?.[enemyId] ?? enemyState.position;
+  //     enemyActor.pos = getLocalTileCenter(Math.floor(ePos.x), Math.floor(ePos.y));
+  //   });
+  // }
 
   public onDeactivate(): void {
     this.clear();
