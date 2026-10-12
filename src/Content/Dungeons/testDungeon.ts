@@ -25,6 +25,11 @@ export const testDungeon: DungeonDefinition = {
       definitionId: "goblin",
       position: { x: 12, y: 2 },
     },
+    {
+      id: "enemy_hallway_2",
+      definitionId: "goblin",
+      position: { x: 13, y: 1 },
+    },
     // {
     //   id: "enemy_east_room_1",
     //   definitionId: "skeleton_warrior",

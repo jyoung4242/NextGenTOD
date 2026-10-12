@@ -13,7 +13,7 @@ export const TEST_ENEMIES: EnemyDefinition[] = [
     attack: 8,
     defense: 2,
     detectionRadius: 3,
-    yOffset: 0.2, // Adjust the offset to raise the sprite above the floor
+    yOffset: 0.75, // Adjust the offset to raise the sprite above the floor
   },
   {
     id: "skeleton_warrior",
