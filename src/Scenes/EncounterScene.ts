@@ -381,7 +381,6 @@ export class EncounterScene extends Scene {
 
     // 2. Spawn Enemy Token Sprite Actors
     const enemyIds = encounter.enemyInstanceIds ?? (encounter.activeEnemyInstanceId ? [encounter.activeEnemyInstanceId] : []);
-
     for (const enemyId of enemyIds) {
       const enemyState: EnemyState | undefined = state.dungeon?.enemies?.[enemyId];
 
