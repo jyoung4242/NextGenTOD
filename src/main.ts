@@ -21,6 +21,7 @@ export const INPUT_CONTEXT = {
   Menu: "menu",
   Pause: "pause",
   Dialog: "dialog",
+  Carousel: "carousel",
 } as const;
 
 export const SCENES = {
