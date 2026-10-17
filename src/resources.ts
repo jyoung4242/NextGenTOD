@@ -1,5 +1,5 @@
 // resources.ts
-import { ImageSource, Loader } from "excalibur";
+import { ImageSource, Loader, SpriteSheet } from "excalibur";
 import goblin from "./Assets/goblinsmall.png"; // replace this
 import goblinLarge from "./Assets/goblin_bb.png"; // replace this
 import goblinToken from "./Assets/goblin_token.png"; // replace this
@@ -10,6 +10,8 @@ import door from "./Assets/door.png"; // replace this
 import key from "./Assets/KeyMaster.png"; // replace this
 import potion from "./Assets/potion.png"; // replace this
 import playertoken from "./Assets/player_token.png"; // replace this
+import icons from "./Assets/64x64.png";
+import throwIcon from "./Assets/throw.png";
 
 export const Resources = {
   goblin: new ImageSource(goblin),
@@ -22,6 +24,8 @@ export const Resources = {
   potion: new ImageSource(potion),
   goblinToken: new ImageSource(goblinToken),
   playerToken: new ImageSource(playertoken),
+  icons: new ImageSource(icons),
+  throw: new ImageSource(throwIcon),
 };
 
 export const loader = new Loader();
@@ -45,3 +49,19 @@ export function getLoadedTextures(): Map<string, HTMLImageElement> {
   map.set("playerToken", Resources.playerToken.image);
   return map;
 }
+
+export const iconSS = SpriteSheet.fromImageSource({
+  image: Resources.icons,
+  grid: {
+    rows: 137,
+    columns: 16,
+    spriteWidth: 64,
+    spriteHeight: 64,
+  },
+});
+export const attackSprite = iconSS.getSprite(15, 41);
+export const magicSprite = iconSS.getSprite(15, 51);
+export const itemSprite = iconSS.getSprite(14, 59);
+export const defendSprite = iconSS.getSprite(7, 41);
+export const throwSprite = Resources.throw.toSprite();
+export const fleeSprite = iconSS.getSprite(1, 41);

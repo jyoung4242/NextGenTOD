@@ -96,6 +96,7 @@ export interface ArenaBounds {
 export interface EncounterState {
   activeEnemyInstanceId: string;
   enemyInstanceIds?: string[];
+  currentTargetId?: string; // 🎯 Added to track active cursor/reticle selection
   currentTurn: TurnParticipant;
   turnCount: number;
   arenaBounds: {

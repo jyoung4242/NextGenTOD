@@ -21,12 +21,10 @@ export class CombatStateMachine {
    * Helper to check if a tile is blocked by walls, out of bounds, or occupied by another entity.
    */
   private isTileBlocked(targetX: number, targetY: number, state: GameState, excludeEntityId?: string): boolean {
-    // 1. Check Dungeon Content Grid Data (Walls & Floors)
     if (state.dungeon?.definitionId) {
       const dungeonDef = this.contentRegistry.getDungeon(state.dungeon.definitionId);
       if (dungeonDef?.grid) {
         const cell = getDungeonCell(dungeonDef.grid, targetX, targetY);
-        // If the cell is missing or not a walkable floor, it's a solid wall/void
         if (!cell || cell.floor !== "floor") {
           return true;
         }
@@ -36,16 +34,14 @@ export class CombatStateMachine {
     const encounter = state.game.encounter;
     if (!encounter) return false;
 
-    // 2. Check Player Position Collision
     const playerPos = encounter.playerPosition ?? state.player?.position;
     if (playerPos && Math.floor(playerPos.x) === targetX && Math.floor(playerPos.y) === targetY) {
       return true;
     }
 
-    // 3. Check Other Enemy Positions Collision
     const enemyPositions = encounter.enemyPositions ?? {};
     for (const [id, pos] of Object.entries(enemyPositions)) {
-      if (id === excludeEntityId) continue; // Skip self when checking enemy movement
+      if (id === excludeEntityId) continue;
       const enemy = state.dungeon?.enemies?.[id];
       if (enemy && enemy.alive && Math.floor(pos.x) === targetX && Math.floor(pos.y) === targetY) {
         return true;
@@ -64,7 +60,10 @@ export class CombatStateMachine {
     }
 
     const enemyIds = encounter.enemyInstanceIds ?? (encounter.activeEnemyInstanceId ? [encounter.activeEnemyInstanceId] : []);
-    const targetId = action.targetId ?? encounter.activeEnemyInstanceId ?? enemyIds[0];
+
+    // 🎯 Priority Resolution: Action explicit target -> Encounter currentTargetId -> Active Enemy ID -> First available enemy
+    const targetId = action.targetId ?? encounter.currentTargetId ?? encounter.activeEnemyInstanceId ?? enemyIds[0];
+
     const enemy = targetId ? state.dungeon?.enemies?.[targetId] : undefined;
 
     this.store.batch(ctx => {
@@ -75,7 +74,6 @@ export class CombatStateMachine {
         case "move": {
           if (!action.targetTile) return;
 
-          // Collision Check for Player
           if (this.isTileBlocked(action.targetTile.x, action.targetTile.y, state)) {
             logMessage = `Movement blocked at (${action.targetTile.x}, ${action.targetTile.y})!`;
             break;
@@ -160,7 +158,6 @@ export class CombatStateMachine {
       switch (action.type) {
         case "move": {
           if (action.targetTile) {
-            // Collision Check for Enemy (excluding self)
             if (this.isTileBlocked(action.targetTile.x, action.targetTile.y, state, enemyInstanceId)) {
               logMessage = `${enemyDef?.name ?? "Enemy"} movement blocked at (${action.targetTile.x}, ${action.targetTile.y})!`;
               break;
