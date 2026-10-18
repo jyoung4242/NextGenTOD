@@ -14,6 +14,7 @@ import { EncounterScene } from "./Scenes/EncounterScene";
 import { GameOverScene } from "./Scenes/GameOver";
 import { loader } from "./resources";
 import { registerQuest } from "./Content/Quests/testQuest";
+import { registerSkills } from "./Content/Skills/SkillsRegistry";
 
 export const INPUT_CONTEXT = {
   Dungeon: "dungeon",
@@ -35,12 +36,13 @@ registerTestDungeon(content);
 registerTestItems(content);
 registerTestEnemies(content);
 registerQuest(content); // Register quests
+registerSkills(content); // Register skills
 
 const definition = content.getDungeon("test-dungeon");
 applyConnectionsToGrid(definition);
 
 const initialGameState = createInitialGameState();
-initialGameState.dungeon = createDungeonState(definition);
+initialGameState.dungeon = createDungeonState(definition, Date.now(), content);
 
 export const state: StateStore<GameState> = createStateStore(initialGameState);
 const game = new Engine({

@@ -14,7 +14,8 @@ import {
   DoorState,
   EnemyState,
 } from "../../GameTypes";
-import { StateStore } from "../../GameState"; // update import path as needed
+import { StateStore } from "../../GameState";
+import { ContentRegistry } from "../../Content/ContentRegistry";
 
 export interface DungeonGenerator {
   generate(seed: number): DungeonDefinition;
@@ -105,7 +106,9 @@ export class DungeonGrid {
   }
 }
 
-export function createDungeonState(definition: DungeonDefinition, seed = 0): DungeonState {
+export function createDungeonState(definition: DungeonDefinition, seed = 0, contentRegistry?: ContentRegistry): DungeonState {
+  console.trace("here");
+
   const startNode = Object.values(definition.nodes).find(node => node.type === "entrance");
   if (!startNode) {
     throw new Error(`Dungeon "${definition.id}" has no entrance node`);
@@ -133,14 +136,18 @@ export function createDungeonState(definition: DungeonDefinition, seed = 0): Dun
     }
   }
 
-  // 3. Populate runtime enemy instances from dungeon definition
+  // 3. Populate runtime enemy instances from dungeon definition, pulling stats from ContentRegistry
   const enemies: Record<string, EnemyState> = {};
   if (definition.enemies) {
     for (const spawn of definition.enemies) {
+      debugger;
+      const enemyDef = contentRegistry?.getEnemy(spawn.definitionId);
+      const enemyHealth = enemyDef?.health ?? 30; // Fallback health if registry isn't passed or definition is missing
+
       enemies[spawn.id] = {
         definitionId: spawn.definitionId,
-        hp: 100,
-        maxHp: 100,
+        hp: enemyHealth,
+        maxHp: enemyHealth,
         nodeId: startNode.id,
         alive: true,
         facing: "east",
