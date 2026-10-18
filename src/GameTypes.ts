@@ -9,6 +9,13 @@ export interface Rect {
 
 export interface SkillDefinition {
   id: string;
+  name: string;
+  category: string;
+  staminaCost: number;
+  manaCost: number;
+  basePower: number;
+  targetType: "self" | "single_enemy" | "area";
+  range: number;
 }
 
 export interface EntityPosition {

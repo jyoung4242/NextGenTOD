@@ -9,9 +9,9 @@ export const TEST_ENEMIES: EnemyDefinition[] = [
     avatarKey: "goblin",
     textureKey: "goblinLarge",
     tokenKey: "goblinToken",
-    health: 30,
-    attack: 8,
-    defense: 2,
+    health: 15,
+    attack: 4,
+    defense: 1,
     detectionRadius: 3,
     yOffset: 0.75, // Adjust the offset to raise the sprite above the floor
   },
