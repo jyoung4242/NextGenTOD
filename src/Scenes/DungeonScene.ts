@@ -116,8 +116,8 @@ export class DungeonScene extends Scene {
     });
 
     this.inventory = new InventorySystem(this.state, this.content);
-    this.interactions = new InteractionSystem(this.state, dungeonManager, this.inventory, this.content, this.questManager);
-    this.d_Player = new DungeonPlayer(this.state, dungeon, this.dCamera!, this.interactions);
+    this.interactions = new InteractionSystem(this.state, dungeonManager, this.inventory, this.content, vp, this.questManager);
+    this.d_Player = new DungeonPlayer(this.state, dungeon, this.dCamera!, this.interactions, vp);
     // 2. Attach turn/step callback to evaluate enemy proximity & trigger encounters
     this.d_Player.onStepOrTurn = () => {
       this.handleTurnTick();
@@ -157,9 +157,9 @@ export class DungeonScene extends Scene {
     this.add(minimap);
 
     this.inventory = new InventorySystem(this.state, this.content);
-    this.interactions = new InteractionSystem(this.state, dungeonManager, this.inventory, this.content, this.questManager);
+    this.interactions = new InteractionSystem(this.state, dungeonManager, this.inventory, this.content, vp, this.questManager);
 
-    this.d_Player = new DungeonPlayer(this.state, dungeon, this.dCamera!, this.interactions);
+    this.d_Player = new DungeonPlayer(this.state, dungeon, this.dCamera!, this.interactions, vp);
     // 2. Attach turn/step callback to evaluate enemy proximity & trigger encounters
     this.d_Player.onStepOrTurn = () => {
       this.handleTurnTick();

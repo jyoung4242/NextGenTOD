@@ -3,6 +3,8 @@ import { StateStore } from "../GameState";
 import { GameState, DungeonCamera, Direction } from "../GameTypes";
 import { Dungeon } from "../Lib/Managers/DungeonManager";
 import { InteractionSystem } from "../Lib/Systems/InteractionSystem";
+import { DungeonViewport } from "../UI/DungeonViewport";
+import { DungeonViewportGraphic } from "../UI/DungeonViewportGraphic";
 
 const CARDINAL_ANGLES: Record<Direction, number> = {
   east: 0,
@@ -29,6 +31,7 @@ export class DungeonPlayer {
     private readonly dungeon: Dungeon,
     private readonly camera: DungeonCamera,
     private readonly interactionSystem: InteractionSystem,
+    private readonly viewport: DungeonViewport,
   ) {
     const pos = this.store.get("player.position");
     this.camera.x = pos.x;
@@ -113,7 +116,8 @@ export class DungeonPlayer {
 
       this.camera.x = nextX;
       this.camera.y = nextY;
-
+      let vpGraph: DungeonViewportGraphic = this.viewport.graphics.current as DungeonViewportGraphic;
+      vpGraph.flagDirty();
       this.store.batch(ctx => {
         ctx.set("player.position.x", nextX);
         ctx.set("player.position.y", nextY);
@@ -124,5 +128,7 @@ export class DungeonPlayer {
   private syncCameraAngle(): void {
     this.camera.angle = CARDINAL_ANGLES[this.currentDirection];
     this.store.set("player.facing", this.currentDirection);
+    let vpGraph: DungeonViewportGraphic = this.viewport.graphics.current as DungeonViewportGraphic;
+    vpGraph.flagDirty();
   }
 }
