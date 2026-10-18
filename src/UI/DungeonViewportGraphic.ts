@@ -24,6 +24,7 @@ export class DungeonViewportGraphic extends Graphic {
 
   private canvas: HTMLCanvasElement;
   private ctx: CanvasRenderingContext2D;
+  private isDirty: boolean = true;
 
   public constructor(options: DungeonViewportGraphicOptions) {
     super({ width: options.width, height: options.height });
@@ -52,9 +53,16 @@ export class DungeonViewportGraphic extends Graphic {
     });
   }
 
+  public flagDirty(): void {
+    this.isDirty = true;
+  }
   protected _drawImage(ex: ExcaliburGraphicsContext, x: number, y: number): void {
-    this.redrawViewport();
-    this.canvas.setAttribute("forceUpload", "true");
+    // <--- 3. Only redraw if something changed
+    if (this.isDirty) {
+      this.redrawViewport();
+      this.canvas.setAttribute("forceUpload", "true");
+      this.isDirty = false;
+    }
     ex.drawImage(this.canvas, x, y, this.width, this.height);
   }
 

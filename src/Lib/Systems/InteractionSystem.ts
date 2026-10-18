@@ -4,6 +4,8 @@ import { GameState, Direction } from "../../GameTypes";
 import { InventorySystem } from "./InventorySystem";
 import { ContentRegistry } from "../../Content/ContentRegistry";
 import { QuestManager } from "../Managers/QuestManager"; // 1. Import QuestManager
+import { DungeonViewport } from "../../UI/DungeonViewport";
+import { DungeonViewportGraphic } from "../../UI/DungeonViewportGraphic";
 
 export interface InteractionResult {
   handled: boolean;
@@ -20,6 +22,7 @@ export class InteractionSystem {
     private readonly dungeonManager: DungeonManager,
     private readonly inventorySystem: InventorySystem,
     private readonly contentRegistry: ContentRegistry,
+    private readonly viewport: DungeonViewport,
     private readonly questManager?: QuestManager, // 2. Add QuestManager (optional)
   ) {}
 
@@ -54,6 +57,8 @@ export class InteractionSystem {
 
     const wall = dungeon.getWall(cellX, cellY, facingDir);
     if (wall?.type === "door" && wall.doorId) {
+      let graphic: DungeonViewportGraphic = this.viewport.graphics.current as DungeonViewportGraphic;
+      graphic.flagDirty();
       return this.handleDoorInteraction(wall.doorId);
     }
 
@@ -62,10 +67,13 @@ export class InteractionSystem {
     const targetCell = dungeon.getCell(targetCoords.x, targetCoords.y);
 
     if (targetCell) {
+      let graphic: DungeonViewportGraphic = this.viewport.graphics.current as DungeonViewportGraphic;
+      graphic.flagDirty();
       const targetInteraction = this.handleCellInteraction(targetCoords.x, targetCoords.y);
       if (targetInteraction.handled) return targetInteraction;
     }
-
+    let graphic: DungeonViewportGraphic = this.viewport.graphics.current as DungeonViewportGraphic;
+    graphic.flagDirty();
     return { handled: false, type: "none", message: "Nothing to interact with." };
   }
 
@@ -106,7 +114,8 @@ export class InteractionSystem {
       open: !currentOpen,
       locked: false,
     });
-
+    let graphic: DungeonViewportGraphic = this.viewport.graphics.current as DungeonViewportGraphic;
+    graphic.flagDirty();
     return {
       handled: true,
       type: "door",
@@ -146,7 +155,8 @@ export class InteractionSystem {
 
       // Notify quest system if keys count as quest objectives
       this.questManager?.progressObjectives("collect", keyId, 1);
-
+      let graphic: DungeonViewportGraphic = this.viewport.graphics.current as DungeonViewportGraphic;
+      graphic.flagDirty();
       return {
         handled: true,
         type: "container",

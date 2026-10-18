@@ -107,8 +107,6 @@ export class DungeonGrid {
 }
 
 export function createDungeonState(definition: DungeonDefinition, seed = 0, contentRegistry?: ContentRegistry): DungeonState {
-  console.trace("here");
-
   const startNode = Object.values(definition.nodes).find(node => node.type === "entrance");
   if (!startNode) {
     throw new Error(`Dungeon "${definition.id}" has no entrance node`);
@@ -140,7 +138,6 @@ export function createDungeonState(definition: DungeonDefinition, seed = 0, cont
   const enemies: Record<string, EnemyState> = {};
   if (definition.enemies) {
     for (const spawn of definition.enemies) {
-      debugger;
       const enemyDef = contentRegistry?.getEnemy(spawn.definitionId);
       const enemyHealth = enemyDef?.health ?? 30; // Fallback health if registry isn't passed or definition is missing
 
