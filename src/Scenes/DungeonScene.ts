@@ -34,6 +34,7 @@ export class DungeonScene extends Scene {
   tmpTriggeredEncounter: any = null;
   private cutSceneSystem!: CutSceneSystem;
   questManager!: QuestManager;
+  private dungeonManager = new DungeonManager();
 
   constructor(
     private readonly state: StateStore<GameState>,
@@ -94,20 +95,23 @@ export class DungeonScene extends Scene {
     });
     // this.dialogRunner = new DialogRunner(this.dialogUI, new DialogLoader("/public/Dialog/dungeon-intro.json")); //public\Dialog\testDialog.json
     this.cutSceneSystem.startCutScene("dungeon-intro");
-
     this.questManager = new QuestManager(this.state);
     const potionQuest = this.content.getQuest("find-potion");
     this.questManager.registerQuestData(potionQuest);
 
-    const definition = this.content.getDungeon("test-dungeon");
+    const currentDungeonId = this.state.get("dungeon").current;
+    const currentDungeon = this.state.get("dungeon").registry[currentDungeonId];
+    const definition = this.content.getDungeon(currentDungeonId);
+    if (!definition) {
+      throw new Error(`Dungeon definition not found for ID: ${currentDungeonId}`);
+    }
 
+    this.dungeonManager.loadOrInitDungeon(definition, this.state);
     const dungeon = new Dungeon(definition, this.state);
-    const dungeonManager = new DungeonManager();
-    dungeonManager.loadDungeon(definition, this.state);
 
     const vp = new DungeonViewport({
       dungeon: definition,
-      getState: () => this.state.get("dungeon"),
+      getState: () => currentDungeon,
       camera: this.dCamera!,
       width: 960,
       height: 540,
@@ -116,7 +120,7 @@ export class DungeonScene extends Scene {
     });
 
     this.inventory = new InventorySystem(this.state, this.content);
-    this.interactions = new InteractionSystem(this.state, dungeonManager, this.inventory, this.content, vp, this.questManager);
+    this.interactions = new InteractionSystem(this.state, this.dungeonManager, this.inventory, this.content, vp, this.questManager);
     this.d_Player = new DungeonPlayer(this.state, dungeon, this.dCamera!, this.interactions, vp);
     // 2. Attach turn/step callback to evaluate enemy proximity & trigger encounters
     this.d_Player.onStepOrTurn = () => {
@@ -130,14 +134,26 @@ export class DungeonScene extends Scene {
 
   public onActivate(): void {
     this.inputMapper.switchContext(INPUT_CONTEXT.Dungeon);
-    const definition = this.content.getDungeon("test-dungeon");
 
+    //pull current dungeon data from state
+    const currentDungeonId = this.state.get("dungeon").current;
+    const currentDungeon = this.state.get("dungeon").registry[currentDungeonId];
+    const definition = this.content.getDungeon(currentDungeonId);
+    if (!definition) {
+      throw new Error(`Dungeon definition not found for ID: ${currentDungeonId}`);
+    }
+
+    this.dungeonManager = new DungeonManager();
+    this.dungeonManager.loadOrInitDungeon(definition, this.state);
     const dungeon = new Dungeon(definition, this.state);
-    const dungeonManager = new DungeonManager();
-    dungeonManager.loadDungeon(definition, this.state);
+
     const vp = new DungeonViewport({
       dungeon: definition,
-      getState: () => this.state.get("dungeon"),
+      getState: () => {
+        const currentDungeonId = this.state.get("dungeon").current;
+        const currentDungeon = this.state.get("dungeon").registry[currentDungeonId];
+        return currentDungeon;
+      },
       camera: this.dCamera!,
       width: 960,
       height: 540,
@@ -149,7 +165,11 @@ export class DungeonScene extends Scene {
     const minimap = new Minimap({
       dungeon: definition,
       dungeonManager: dungeon,
-      getState: () => this.state.get("dungeon"),
+      getState: () => {
+        const currentDungeonId = this.state.get("dungeon").current;
+        const currentDungeon = this.state.get("dungeon").registry[currentDungeonId];
+        return currentDungeon;
+      },
       camera: this.dCamera!,
       position: vec(16, 16),
       tileSize: 12,
@@ -157,7 +177,7 @@ export class DungeonScene extends Scene {
     this.add(minimap);
 
     this.inventory = new InventorySystem(this.state, this.content);
-    this.interactions = new InteractionSystem(this.state, dungeonManager, this.inventory, this.content, vp, this.questManager);
+    this.interactions = new InteractionSystem(this.state, this.dungeonManager, this.inventory, this.content, vp, this.questManager);
 
     this.d_Player = new DungeonPlayer(this.state, dungeon, this.dCamera!, this.interactions, vp);
     // 2. Attach turn/step callback to evaluate enemy proximity & trigger encounters
@@ -178,8 +198,6 @@ export class DungeonScene extends Scene {
       this.dialogRunner?.start();
       console.log("Dialog UI added and started.", this.dialogUI);
     }
-    this.questManager.startQuest("find-potion");
-    console.log("Active Quests:", this.state.get("quests.active"));
   }
 
   public onDeactivate(context: SceneActivationContext) {

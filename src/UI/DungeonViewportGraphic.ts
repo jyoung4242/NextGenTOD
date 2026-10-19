@@ -54,6 +54,8 @@ export class DungeonViewportGraphic extends Graphic {
   }
 
   public flagDirty(): void {
+    console.log("render triggered");
+
     this.isDirty = true;
   }
   protected _drawImage(ex: ExcaliburGraphicsContext, x: number, y: number): void {

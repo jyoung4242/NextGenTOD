@@ -10,9 +10,13 @@ export class TargetingSystem {
     const encounter = state.game.encounter;
     if (!encounter || !encounter.enemyInstanceIds) return undefined;
 
-    // Filter down to only living enemies with valid instances
+    const activeDungeonId = state.dungeon.current;
+    const activeDungeonState = state.dungeon.registry?.[activeDungeonId];
+    if (!activeDungeonState) return undefined;
+
+    // Filter down to only living enemies with valid instances from active dungeon state
     const livingEnemyIds = encounter.enemyInstanceIds.filter(id => {
-      const enemy = state.dungeon?.enemies?.[id];
+      const enemy = activeDungeonState.enemies?.[id];
       return enemy && enemy.alive && enemy.hp > 0;
     });
 
@@ -34,11 +38,15 @@ export class TargetingSystem {
     const encounter = state.game.encounter;
     if (!encounter || !encounter.enemyPositions) return undefined;
 
+    const activeDungeonId = state.dungeon.current;
+    const activeDungeonState = state.dungeon.registry?.[activeDungeonId];
+    if (!activeDungeonState) return undefined;
+
     let closestId: string | undefined;
     let minDistance = Infinity;
 
     for (const [id, pos] of Object.entries(encounter.enemyPositions)) {
-      const enemy = state.dungeon?.enemies?.[id];
+      const enemy = activeDungeonState.enemies?.[id];
       if (!enemy || !enemy.alive) continue;
 
       const dist = Math.abs(pos.x - tile.x) + Math.abs(pos.y - tile.y);

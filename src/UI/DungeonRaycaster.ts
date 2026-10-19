@@ -63,19 +63,33 @@ export class DungeonRaycaster {
       let wall: WallDefinition | undefined;
       let owner = cell ?? prev;
 
-      if (prev && prev[opposite[wallSide]].type !== "none") wall = prev[opposite[wallSide]];
-      else if (cell && cell[wallSide].type !== "none") wall = cell[wallSide];
-      else if (!cell) wall = { type: "wall", materialId: "void" };
+      if (prev && prev[opposite[wallSide]].type !== "none") {
+        wall = prev[opposite[wallSide]];
+      } else if (cell && cell[wallSide].type !== "none") {
+        wall = cell[wallSide];
+      } else if (!cell) {
+        // Fixed: Use textureKey instead of materialId to match WallDefinition
+        wall = { type: "wall", textureKey: "void" };
+      }
 
       if (!wall) continue;
       if (!owner) return undefined;
 
       // ─── DOOR CHECK ───────────────────────────────────────────────────────
-      // If the wall is a door and it is OPEN, skip this collision and keep casting!
-      if (wall.type === "door") {
-        const doorState = state.doors[wall.doorId];
+      if (wall.type === "door" && wall.doorId) {
+        // Handle both root GameState and sub-state dungeon slice gracefully
+        const dungeonObj = (state as any).dungeon ?? state;
+        const activeDungeonId = dungeonObj?.current;
+
+        const registry = dungeonObj?.registry ?? dungeonObj?.states;
+        const activeDungeonState = activeDungeonId ? registry?.[activeDungeonId] : undefined;
+
+        // Fallback chain: registry doors -> direct dungeon doors -> root state doors
+        const doors = activeDungeonState?.doors ?? dungeonObj?.doors ?? (state as any).doors;
+        const doorState = doors?.[wall.doorId];
+
         if (doorState?.open === true) {
-          continue;
+          continue; // Open door: skip solid hit and keep raycasting
         }
       }
 

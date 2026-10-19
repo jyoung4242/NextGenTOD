@@ -154,7 +154,8 @@ export class MinimapGraphic extends Graphic {
           ctx.strokeStyle = "#8888aa";
           ctx.lineWidth = 2;
           this.drawWallLine(cx, cy, ts, dir);
-        } else if (wall.type === "door") {
+        } else if (wall.type === "door" && wall.doorId) {
+          // 1. Resolve active dungeon ID and active dungeon state slice
           const doorState = currentState.doors[wall.doorId];
 
           if (doorState?.locked) {

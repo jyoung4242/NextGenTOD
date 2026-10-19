@@ -1,9 +1,10 @@
+// InteractionSystem.ts
 import { DungeonManager } from "../Managers/DungeonManager";
 import { StateStore } from "../../GameState";
 import { GameState, Direction } from "../../GameTypes";
 import { InventorySystem } from "./InventorySystem";
 import { ContentRegistry } from "../../Content/ContentRegistry";
-import { QuestManager } from "../Managers/QuestManager"; // 1. Import QuestManager
+import { QuestManager } from "../Managers/QuestManager";
 import { DungeonViewport } from "../../UI/DungeonViewport";
 import { DungeonViewportGraphic } from "../../UI/DungeonViewportGraphic";
 
@@ -13,7 +14,6 @@ export interface InteractionResult {
   message: string;
 }
 
-// 0: East, 1: South, 2: West, 3: North
 const FACING_TO_DIRECTION: Direction[] = ["east", "south", "west", "north"];
 
 export class InteractionSystem {
@@ -23,7 +23,7 @@ export class InteractionSystem {
     private readonly inventorySystem: InventorySystem,
     private readonly contentRegistry: ContentRegistry,
     private readonly viewport: DungeonViewport,
-    private readonly questManager?: QuestManager, // 2. Add QuestManager (optional)
+    private readonly questManager?: QuestManager,
   ) {}
 
   public interact(): InteractionResult {
@@ -31,16 +31,12 @@ export class InteractionSystem {
     if (!dungeon) return { handled: false, type: "none", message: "No active dungeon." };
 
     const state = this.store.get();
-
-    // Safe extraction of player position
     const pos = state.player?.position;
     if (!pos || typeof pos.x !== "number" || typeof pos.y !== "number") {
       return { handled: false, type: "none", message: "Invalid player position." };
     }
 
     const { x, y } = pos;
-
-    // Convert state.player.facing (number or string) into a valid Direction string
     const facingRaw = state.player.facing as unknown;
     const facingDir: Direction =
       typeof facingRaw === "number" ? (FACING_TO_DIRECTION[facingRaw] ?? "east") : ((facingRaw as Direction) ?? "east");
@@ -55,10 +51,11 @@ export class InteractionSystem {
       if (currentInteraction.handled) return currentInteraction;
     }
 
+    // 2. Check door directly ahead
     const wall = dungeon.getWall(cellX, cellY, facingDir);
     if (wall?.type === "door" && wall.doorId) {
-      let graphic: DungeonViewportGraphic = this.viewport.graphics.current as DungeonViewportGraphic;
-      graphic.flagDirty();
+      const graphic = this.viewport.graphics.current as DungeonViewportGraphic;
+      graphic?.flagDirty();
       return this.handleDoorInteraction(wall.doorId);
     }
 
@@ -67,34 +64,48 @@ export class InteractionSystem {
     const targetCell = dungeon.getCell(targetCoords.x, targetCoords.y);
 
     if (targetCell) {
-      let graphic: DungeonViewportGraphic = this.viewport.graphics.current as DungeonViewportGraphic;
-      graphic.flagDirty();
+      const graphic = this.viewport.graphics.current as DungeonViewportGraphic;
+      graphic?.flagDirty();
       const targetInteraction = this.handleCellInteraction(targetCoords.x, targetCoords.y);
       if (targetInteraction.handled) return targetInteraction;
     }
-    let graphic: DungeonViewportGraphic = this.viewport.graphics.current as DungeonViewportGraphic;
-    graphic.flagDirty();
+
+    const graphic = this.viewport.graphics.current as DungeonViewportGraphic;
+    graphic?.flagDirty();
     return { handled: false, type: "none", message: "Nothing to interact with." };
   }
 
   private handleDoorInteraction(doorId: string): InteractionResult {
-    const existingDoor = this.store.get().dungeon.doors[doorId];
+    const state = this.store.get();
+    const activeDungeonId = state.dungeon.current;
+    const activeDungeonState = state.dungeon.registry[activeDungeonId];
+
+    if (!activeDungeonState) {
+      return { handled: false, type: "door", message: "Active dungeon state not found." };
+    }
+
+    const existingDoor = activeDungeonState.doors[doorId];
     const currentOpen = existingDoor?.open ?? false;
     const currentLocked = existingDoor?.locked ?? false;
 
-    if (currentLocked) {
-      const keyring = this.store.get().player.keyring ?? [];
+    // 👇 Correct path incorporating the active dungeon registry ID
+    const doorPath = `dungeon.registry.${activeDungeonId}.doors.${doorId}`;
 
+    if (currentLocked) {
+      const keyring = state.player.keyring ?? [];
       const connection = this.dungeonManager.current?.definition.connections.find(conn => conn.id === doorId);
       const requiredKey = connection?.requiredKey ?? `key_${doorId}`;
 
       const hasKey = keyring.includes("master_key") || keyring.includes(requiredKey);
 
       if (hasKey) {
-        this.store.set(`dungeon.doors.${doorId}`, {
+        this.store.set(doorPath as any, {
           open: true,
           locked: false,
         });
+
+        const graphic = this.viewport.graphics.current as DungeonViewportGraphic;
+        graphic?.flagDirty();
 
         return {
           handled: true,
@@ -110,12 +121,15 @@ export class InteractionSystem {
       };
     }
 
-    this.store.set(`dungeon.doors.${doorId}`, {
+    // 👇 Use the correct nested registry path here too
+    this.store.set(doorPath as any, {
       open: !currentOpen,
       locked: false,
     });
-    let graphic: DungeonViewportGraphic = this.viewport.graphics.current as DungeonViewportGraphic;
-    graphic.flagDirty();
+
+    const graphic = this.viewport.graphics.current as DungeonViewportGraphic;
+    graphic?.flagDirty();
+
     return {
       handled: true,
       type: "door",
@@ -126,8 +140,14 @@ export class InteractionSystem {
   private handleCellInteraction(cellX: number, cellY: number): InteractionResult {
     const coordKey = `${cellX},${cellY}`;
     const state = this.store.get();
+    const activeDungeonId = state.dungeon.current;
+    const activeDungeonState = state.dungeon.registry[activeDungeonId];
 
-    const containerState = state.dungeon?.containers?.[coordKey];
+    if (!activeDungeonState) {
+      return { handled: false, type: "none", message: "Active dungeon state not found." };
+    }
+
+    const containerState = activeDungeonState.containers?.[coordKey];
     if (containerState?.opened) {
       return { handled: false, type: "none", message: "Already collected." };
     }
@@ -139,24 +159,25 @@ export class InteractionSystem {
     const itemId = containerState?.itemId ?? itemPlacement?.id;
     const quantity = containerState?.quantity ?? itemPlacement?.quantity ?? 1;
 
+    const containerPath = `dungeon.registry.${activeDungeonId}.containers.${coordKey}`;
+
     // Keys -> player.keyring
     if (keyId) {
-      const keyring = this.store.get().player.keyring ?? [];
+      const keyring = state.player.keyring ?? [];
 
       this.store.batch(ctx => {
         if (!keyring.includes(keyId)) {
           ctx.set("player.keyring", [...keyring, keyId]);
         }
-        ctx.set(`dungeon.containers.${coordKey}`, {
-          ...containerState,
+        ctx.set(containerPath as any, {
+          ...(containerState ?? {}),
           opened: true,
         });
       });
 
-      // Notify quest system if keys count as quest objectives
       this.questManager?.progressObjectives("collect", keyId, 1);
-      let graphic: DungeonViewportGraphic = this.viewport.graphics.current as DungeonViewportGraphic;
-      graphic.flagDirty();
+      const graphic = this.viewport.graphics.current as DungeonViewportGraphic;
+      graphic?.flagDirty();
       return {
         handled: true,
         type: "container",
@@ -177,15 +198,12 @@ export class InteractionSystem {
       }
 
       this.store.batch(ctx => {
-        ctx.set(`dungeon.containers.${coordKey}`, {
-          ...containerState,
+        ctx.set(containerPath as any, {
+          ...(containerState ?? {}),
           opened: true,
         });
       });
 
-      console.log("collecting: ", this.questManager, itemId, quantity);
-
-      // 3. Notify QuestManager of item pickup
       this.questManager?.progressObjectives("collect", itemId, quantity);
 
       const itemDef = this.contentRegistry.getItem(itemId);

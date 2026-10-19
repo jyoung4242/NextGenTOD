@@ -1,3 +1,4 @@
+// main.ts
 import "./style.css";
 import { Engine, DisplayMode } from "excalibur";
 import { createInitialGameState, createStateStore, type StateStore } from "./GameState";
@@ -7,7 +8,6 @@ import { registerTestDungeon } from "./Content/Dungeons/testDungeon";
 import { registerTestItems } from "./Content/Items/test-items";
 import { registerTestEnemies } from "./Content/Enemies/test-enemies";
 
-import { applyConnectionsToGrid, createDungeonState } from "./Lib/Managers/DungeonManager";
 import { InputMapSystem } from "./Lib/Systems/InputMapper";
 import { DungeonScene } from "./Scenes/DungeonScene";
 import { EncounterScene } from "./Scenes/EncounterScene";
@@ -15,6 +15,7 @@ import { GameOverScene } from "./Scenes/GameOver";
 import { loader } from "./resources";
 import { registerQuest } from "./Content/Quests/testQuest";
 import { registerSkills } from "./Content/Skills/SkillsRegistry";
+import { applyConnectionsToGrid } from "./Lib/Managers/DungeonManager";
 
 export const INPUT_CONTEXT = {
   Dungeon: "dungeon",
@@ -35,16 +36,18 @@ export const content = new ContentRegistry();
 registerTestDungeon(content);
 registerTestItems(content);
 registerTestEnemies(content);
-registerQuest(content); // Register quests
-registerSkills(content); // Register skills
+registerQuest(content);
+registerSkills(content);
 
+// Ensure grid connections are processed on the static definition content
 const definition = content.getDungeon("test-dungeon");
-applyConnectionsToGrid(definition);
+if (definition) {
+  applyConnectionsToGrid(definition);
+}
 
-const initialGameState = createInitialGameState();
-initialGameState.dungeon = createDungeonState(definition, Date.now(), content);
+// Initialize state store with default factory (which sets up the dungeon cache structure)
+export const state: StateStore<GameState> = createStateStore(createInitialGameState());
 
-export const state: StateStore<GameState> = createStateStore(initialGameState);
 const game = new Engine({
   width: 960,
   height: 540,
@@ -54,7 +57,7 @@ const game = new Engine({
 
 export const inputMapper = new InputMapSystem(game);
 
-// 3. Register scenes
+// Register scenes
 game.addScene(SCENES.Dungeon, new DungeonScene(state, content, inputMapper));
 game.addScene(SCENES.Encounter, new EncounterScene(state, content, inputMapper));
 game.addScene(SCENES.GameOver, new GameOverScene(state, content));
@@ -62,7 +65,7 @@ game.addScene(SCENES.GameOver, new GameOverScene(state, content));
 game.goToScene(SCENES.Dungeon);
 await game.start(loader);
 
-// main.ts
+// Mode routing listener
 state.subscribe("game.mode", payload => {
   if (payload.value === "encounter") {
     game.goToScene(SCENES.Encounter);

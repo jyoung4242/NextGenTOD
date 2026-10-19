@@ -13,14 +13,19 @@ export class EncounterTriggerSystem {
     const state = this.store.get();
     if (state.game.mode === "encounter") return false;
 
-    const enemy = state.dungeon?.enemies?.[triggeredEnemyInstanceId];
+    // 1. Resolve active dungeon ID and active dungeon runtime state from the registry
+    const activeDungeonId = state.dungeon.current;
+    const activeDungeonState = state.dungeon.registry[activeDungeonId];
+    if (!activeDungeonState) return false;
+
+    const enemy = activeDungeonState.enemies?.[triggeredEnemyInstanceId];
     if (!enemy || !enemy.alive) return false;
 
     const px = Math.floor(state.player.position.x);
     const py = Math.floor(state.player.position.y);
 
-    // Fetch the static dungeon definition using the current dungeon id
-    const dungeonDef = this.contentRegistry.getDungeon(state.dungeon.definitionId);
+    // Fetch the static dungeon definition using the active dungeon ID
+    const dungeonDef = this.contentRegistry.getDungeon(activeDungeonId);
 
     // Arena bounds covering the full dungeon grid layout
     const arenaBounds = dungeonDef
@@ -39,8 +44,7 @@ export class EncounterTriggerSystem {
 
     const enemyInstanceIds: string[] = [];
     const enemyPositions: Record<string, { x: number; y: number }> = {};
-
-    if (dungeonDef && dungeonDef.nodes && state.dungeon?.enemies) {
+    if (dungeonDef && dungeonDef.nodes && activeDungeonState.enemies) {
       const ex = Math.floor(enemy.position.x);
       const ey = Math.floor(enemy.position.y);
 
@@ -58,8 +62,8 @@ export class EncounterTriggerSystem {
         }
       }
 
-      // 2. Gather all living enemies inside that same node's bounds
-      for (const [id, enemyState] of Object.entries(state.dungeon.enemies)) {
+      // 2. Gather all living enemies inside that same node's bounds from the active dungeon state
+      for (const [id, enemyState] of Object.entries(activeDungeonState.enemies)) {
         if (!enemyState.alive) continue;
 
         const otherEx = Math.floor(enemyState.position.x);
@@ -73,7 +77,7 @@ export class EncounterTriggerSystem {
             otherEy >= triggeredNode.bounds.y &&
             otherEy < triggeredNode.bounds.y + triggeredNode.bounds.height;
         } else {
-          // Fallback if enemy isn't mapped to a specific node bounds
+          // Fallback if enemy isn't mapped to specific node bounds
           isInSameNode = id === triggeredEnemyInstanceId;
         }
 
@@ -97,7 +101,7 @@ export class EncounterTriggerSystem {
     this.store.batch(ctx => {
       ctx.set("game.mode", "encounter");
       ctx.set("game.encounter", {
-        enemyInstanceIds, // ✅ Populated with all enemies sharing the same node space
+        enemyInstanceIds,
         activeEnemyInstanceId: triggeredEnemyInstanceId,
         currentTurn: "player",
         turnCount: 1,

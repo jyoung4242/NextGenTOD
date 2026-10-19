@@ -10,7 +10,12 @@ export class EnemyAISystem {
    */
   public selectAction(enemyInstanceId: string, state: GameState): CombatAction {
     const encounter = state.game.encounter;
-    const enemyState: EnemyState | undefined = state.dungeon?.enemies?.[enemyInstanceId];
+
+    // 1. Resolve active dungeon state from the multi-level registry
+    const activeDungeonId = state.dungeon.current;
+    const activeDungeonState = state.dungeon.registry?.[activeDungeonId];
+
+    const enemyState: EnemyState | undefined = activeDungeonState?.enemies?.[enemyInstanceId];
 
     if (!enemyState || !enemyState.alive || enemyState.hp <= 0) {
       return { type: "defend" };
@@ -77,7 +82,7 @@ export class EnemyAISystem {
     };
   }
 
-  // ─── Helper Functions ──────────────────────────────────────────────────────
+  // ─── Helper Functions ────────────────────────────────______________________
 
   private getManhattanDistance(posA: TacticalPosition, posB: TacticalPosition): number {
     return Math.abs(posA.x - posB.x) + Math.abs(posA.y - posB.y);
