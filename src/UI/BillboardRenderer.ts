@@ -1,3 +1,4 @@
+// Systems/BillboardRenderer.ts
 import { GameState, Direction, DungeonCamera } from "../GameTypes";
 import { ContentRegistry } from "../Content/ContentRegistry";
 
@@ -33,7 +34,9 @@ export class BillboardRenderer {
     const playerAngle = camera?.angle ?? CARDINAL_ANGLES[state.player.facing];
     const fov = camera?.fov ?? Math.PI / 3;
 
-    const enemies = state.dungeon?.enemies ?? {};
+    // Resolve active dungeon registry enemies slice
+    const activeDungeonId = state.dungeon.current;
+    const enemies = state.dungeon.registry?.[activeDungeonId]?.enemies ?? {};
 
     // Camera direction vector
     const dirX = Math.cos(playerAngle);
@@ -47,7 +50,7 @@ export class BillboardRenderer {
     const calculated: DrawBillboardParams[] = [];
 
     for (const enemy of Object.values(enemies)) {
-      if (enemy.state === "dead") continue;
+      if (!enemy.alive || enemy.state === "dead") continue;
 
       const def = this.contentRegistry.getEnemy(enemy.definitionId);
       if (!def) continue;
@@ -77,7 +80,7 @@ export class BillboardRenderer {
         drawStartY,
         drawStartX,
         distance: transformY,
-        textureUrl: def.spriteUrl,
+        textureUrl: def.textureKey ?? def.avatarKey ?? "goblin",
       });
     }
 

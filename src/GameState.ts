@@ -355,7 +355,6 @@ export function createInitialGameState(): GameState {
       stamina: 100,
       maxStamina: 100,
       position: {
-        nodeId: "start",
         x: 2.5,
         y: 2.5,
       },
@@ -368,24 +367,18 @@ export function createInitialGameState(): GameState {
       skills: {},
     },
     dungeon: {
-      definitionId: "test-dungeon",
-      seed: 0,
-      currentNodeId: "start",
-      discoveredNodes: ["start"],
-      visitedNodes: ["start"],
-      doors: {},
-      containers: {},
-      enemies: {},
+      current: "test-dungeon",
+      registry: {},
     },
     quests: {
       active: {},
       completed: [],
-      flags: {},
     },
     progression: {
       experience: 0,
       level: 1,
       skillPoints: 0,
     },
+    storyPoints: {},
   };
 }

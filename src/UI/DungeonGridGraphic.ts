@@ -64,7 +64,9 @@ export class DungeonGridGraphic extends Graphic {
     const encounter = state.game.encounter;
     if (!encounter) return;
 
-    const dungeonDef = this.contentRegistry.getDungeon(state.dungeon?.definitionId ?? "test-dungeon");
+    const activeDungeonId = state.dungeon?.current ?? "test-dungeon";
+    const dungeonDef = this.contentRegistry.getDungeon(activeDungeonId);
+
     if (!dungeonDef) return;
 
     const grid = dungeonDef.grid;

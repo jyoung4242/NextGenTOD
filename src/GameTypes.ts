@@ -258,6 +258,7 @@ export interface EnemyDefinition {
   attack: number;
   defense: number;
   detectionRadius: number;
+  abilities?: string[]; // 👈 Add this property to map enemy skill IDs
 }
 
 export interface EnemyState {

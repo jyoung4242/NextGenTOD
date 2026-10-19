@@ -11,7 +11,8 @@ export class TopDownArenaRenderer {
     if (!encounter) return;
 
     const { minX, maxX, minY, maxY } = encounter.arenaBounds;
-    const dungeon = state.dungeon;
+    const dungeonID = state.dungeon.current;
+    const dungeon = state.dungeon.registry[dungeonID];
 
     // Clear viewport background
     ctx.fillStyle = "#111116";
@@ -51,6 +52,7 @@ export class TopDownArenaRenderer {
     }
 
     // 3. Enemy Token (Sprite dynamically resolved from enemy definition's tokenKey)
+
     const activeEnemy = dungeon.enemies[encounter.activeEnemyInstanceId];
     if (activeEnemy && activeEnemy.alive) {
       const ex = Math.floor(activeEnemy.position.x);

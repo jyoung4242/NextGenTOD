@@ -31,8 +31,7 @@ export class EncounterScene extends Scene {
   private carouselUI?: ActionCarouselUI;
   private isCarouselOpen: boolean = false;
 
-  // Add to your EncounterScene class properties
-  private targetReticle?: TargetReticle; // Make sure to import TargetReticle from your Systems folder
+  private targetReticle?: TargetReticle;
 
   constructor(
     private readonly store: StateStore<GameState>,
@@ -53,13 +52,13 @@ export class EncounterScene extends Scene {
           Keys.A,
           Keys.D,
           Keys.Space,
-          Keys.E, // 👈 Used to trigger/execute the selected carousel action
+          Keys.E, // Used to execute selected carousel action
           Keys.Equal,
           Keys.Minus,
         ]),
         GamepadButtonsTriggers: new Set([
-          Buttons.Face1, // 👈 Used to trigger/execute the selected carousel action
-          Buttons.Face3, // Used to toggle Carousel open/close
+          Buttons.Face1, // Execute carousel action
+          Buttons.Face3, // Toggle Carousel
           Buttons.DpadUp,
           Buttons.DpadDown,
           Buttons.DpadLeft,
@@ -133,15 +132,6 @@ export class EncounterScene extends Scene {
     this.stateMachine = new CombatStateMachine(this.store, this.contentRegistry);
     this.queueManager = new ActionQueueManager(this.stateMachine, this);
 
-    // Arena offsets setup
-    const { minX, maxX, minY, maxY } = encounter.arenaBounds;
-    const canvasWidth = 960;
-    const canvasHeight = 540;
-    const gridWidth = (maxX - minX + 1) * this.TILE_SIZE;
-    const gridHeight = (maxY - minY + 1) * this.TILE_SIZE;
-    const offsetX = (canvasWidth - gridWidth) / 2;
-    const offsetY = (canvasHeight - gridHeight) / 2;
-
     this.gridRenderer = new DungeonGridRenderer({
       store: this.store,
       contentRegistry: this.contentRegistry,
@@ -152,11 +142,11 @@ export class EncounterScene extends Scene {
 
     this.setupCombatEntities(encounter);
 
-    // 🎯 Instantiate and add the Target Reticle overlay
+    // Instantiate and add Target Reticle overlay
     this.targetReticle = new TargetReticle({ tileSize: this.TILE_SIZE });
-    this.gridRenderer!.addChild(this.targetReticle);
+    this.gridRenderer.addChild(this.targetReticle);
 
-    // Initial call to position and display it on the active/default target
+    // Initial positioning of target reticle
     this.updateTargetReticle();
 
     // Instantiate and add Action Carousel UI (Hidden by default)
@@ -174,7 +164,7 @@ export class EncounterScene extends Scene {
       onActionSelected: selected => this.executeCarouselAction(selected),
     });
 
-    this.carouselUI.pos = vec(80, 260); // Centered bottom overlay
+    this.carouselUI.pos = vec(80, 260);
     this.carouselUI.graphics.isVisible = false;
     this.add(this.carouselUI);
   }
@@ -184,13 +174,16 @@ export class EncounterScene extends Scene {
     const encounter = state.game.encounter;
     if (!encounter || !this.targetReticle) return;
 
-    // Resolve target using priority: currentTargetId -> activeEnemyInstanceId -> first living enemy
+    // Resolve active dungeon registry enemies slice
+    const activeDungeonId = state.dungeon.current;
+    const dungeonEnemies = state.dungeon.registry?.[activeDungeonId]?.enemies;
+
+    // Priority: currentTargetId -> activeEnemyInstanceId -> first living enemy
     const enemyIds = encounter.enemyInstanceIds ?? [];
-    const targetId =
-      encounter.currentTargetId ?? encounter.activeEnemyInstanceId ?? enemyIds.find(id => state.dungeon?.enemies?.[id]?.alive);
+    const targetId = encounter.currentTargetId ?? encounter.activeEnemyInstanceId ?? enemyIds.find(id => dungeonEnemies?.[id]?.alive);
 
     const enemyPos = targetId ? encounter.enemyPositions?.[targetId] : undefined;
-    const enemyState = targetId ? state.dungeon?.enemies?.[targetId] : undefined;
+    const enemyState = targetId ? dungeonEnemies?.[targetId] : undefined;
 
     if (enemyPos && enemyState && enemyState.alive) {
       const { minX, minY } = encounter.arenaBounds;
@@ -214,7 +207,6 @@ export class EncounterScene extends Scene {
     if (this.isCarouselOpen) {
       this.inputMapper.switchContext(INPUT_CONTEXT.Carousel);
       if (this.carouselUI) this.carouselUI.graphics.isVisible = true;
-      // console.log("[EncounterScene] Opened Carousel -> Context switched to Carousel");
     } else {
       this.closeCarousel();
     }
@@ -224,13 +216,8 @@ export class EncounterScene extends Scene {
     this.isCarouselOpen = false;
     if (this.carouselUI) this.carouselUI.graphics.isVisible = false;
     this.inputMapper.switchContext(INPUT_CONTEXT.Encounter);
-    // console.log("[EncounterScene] Closed Carousel -> Context switched to Encounter");
   }
 
-  /**
-   * Triggers the selected action directly from the carousel UI via getSelectedAction().
-   * Simplified replacement for multiple distinct action buttons.
-   */
   private triggerSelectedCarouselAction(): void {
     if (!this.isPlayerTurnValid() || !this.carouselUI) return;
 
@@ -303,10 +290,10 @@ export class EncounterScene extends Scene {
       case Buttons.DpadRight:
         this.carouselUI?.rotate(1);
         break;
-      case Buttons.Face1: // Confirm selection
+      case Buttons.Face1:
         this.carouselUI?.confirmSelection();
         break;
-      case Buttons.Face2: // Cancel / Close
+      case Buttons.Face2:
         this.closeCarousel();
         break;
     }
@@ -319,7 +306,6 @@ export class EncounterScene extends Scene {
     if (this.camera) {
       this.camera.zoom = this.currentZoom;
     }
-    console.log(`[EncounterScene] Zoom adjusted to: ${this.currentZoom.toFixed(2)}`);
   }
 
   // --- INPUT DISPATCHERS: DEFAULT ENCOUNTER CONTEXT ---
@@ -351,11 +337,9 @@ export class EncounterScene extends Scene {
         this.attemptGridMove(1, 0);
         break;
       case Keys.E:
-        // 🚀 Replaced individual keys: E triggers the currently selected carousel action
         this.triggerSelectedCarouselAction();
         break;
       case Keys.Space:
-        // Space toggles the carousel open/close view
         this.toggleCarousel();
         break;
       case Keys.Equal:
@@ -389,10 +373,9 @@ export class EncounterScene extends Scene {
         this.attemptGridMove(1, 0);
         break;
       case Buttons.Face1:
-        // 🚀 Replaced individual triggers: Face1 executes the currently selected carousel action
         this.triggerSelectedCarouselAction();
         break;
-      case Buttons.Face3: // Open/Close Action Carousel overlay view
+      case Buttons.Face3:
         this.toggleCarousel();
         break;
       case Buttons.LeftBumper: {
@@ -405,7 +388,7 @@ export class EncounterScene extends Scene {
                 currentTargetId: prevTargetId,
               });
             });
-            this.updateTargetReticle(); // 👈 Refresh reticle position
+            this.updateTargetReticle();
           }
         }
         break;
@@ -420,7 +403,7 @@ export class EncounterScene extends Scene {
                 currentTargetId: nextId,
               });
             });
-            this.updateTargetReticle(); // 👈 Refresh reticle position
+            this.updateTargetReticle();
           }
         }
         break;
@@ -483,10 +466,12 @@ export class EncounterScene extends Scene {
     const encounter = state.game.encounter;
     if (!encounter) return undefined;
 
+    const activeDungeonId = state.dungeon.current;
+    const dungeonEnemies = state.dungeon.registry?.[activeDungeonId]?.enemies;
+
     const enemyIds = encounter.enemyInstanceIds ?? [];
 
-    // 🎯 Priority: Current cycled target -> Active instance -> First living enemy
-    return encounter.currentTargetId ?? encounter.activeEnemyInstanceId ?? enemyIds.find(id => state.dungeon?.enemies?.[id]?.alive);
+    return encounter.currentTargetId ?? encounter.activeEnemyInstanceId ?? enemyIds.find(id => dungeonEnemies?.[id]?.alive);
   }
 
   public handlePlayerAction(action: CombatAction): void {
@@ -494,13 +479,15 @@ export class EncounterScene extends Scene {
     if (!encounter || encounter.isResolved) return;
 
     const targetId = action.targetId ?? encounter.activeEnemyInstanceId;
-    // console.log("[EncounterScene] Dispatching player action to queueManager:", action);
     this.queueManager.enqueuePlayerAction(action, targetId ?? "");
   }
 
   private setupCombatEntities(encounter: NonNullable<GameState["game"]["encounter"]>): void {
     this.enemyActors.clear();
     const state = this.store.get();
+    const activeDungeonId = state.dungeon.current;
+    const dungeonEnemies = state.dungeon.registry?.[activeDungeonId]?.enemies;
+
     const tokenSize = this.TILE_SIZE * 0.75;
     const { minX, minY } = encounter.arenaBounds;
 
@@ -533,7 +520,7 @@ export class EncounterScene extends Scene {
     // 2. Spawn Enemy Tokens
     const enemyIds = encounter.enemyInstanceIds ?? (encounter.activeEnemyInstanceId ? [encounter.activeEnemyInstanceId] : []);
     for (const enemyId of enemyIds) {
-      const enemyState: EnemyState | undefined = state.dungeon?.enemies?.[enemyId];
+      const enemyState: EnemyState | undefined = dungeonEnemies?.[enemyId];
 
       if (enemyState && enemyState.alive) {
         const ePos = encounter.enemyPositions?.[enemyId] ?? enemyState.position;
@@ -542,8 +529,9 @@ export class EncounterScene extends Scene {
 
         const enemyDef = this.contentRegistry.getEnemy(enemyState.definitionId);
         const tokenKey = enemyDef?.tokenKey ?? "goblinToken";
-        //@ts-ignore
-        const enemyImg = Resources[tokenKey].toSprite();
+
+        const resourceRecord = Resources as Record<string, any>;
+        const enemyImg = resourceRecord[tokenKey]?.toSprite();
 
         const enemyActor = new Actor({
           pos: getLocalTileCenter(eTileX, eTileY),
@@ -566,6 +554,9 @@ export class EncounterScene extends Scene {
     const encounter = state.game.encounter;
     if (!encounter) return;
 
+    const activeDungeonId = state.dungeon.current;
+    const dungeonEnemies = state.dungeon.registry?.[activeDungeonId]?.enemies;
+
     const { minX, minY } = encounter.arenaBounds;
 
     const getLocalTileCenter = (x: number, y: number) =>
@@ -577,7 +568,7 @@ export class EncounterScene extends Scene {
     }
 
     this.enemyActors.forEach((enemyActor, enemyId) => {
-      const enemyState = state.dungeon?.enemies?.[enemyId];
+      const enemyState = dungeonEnemies?.[enemyId];
 
       if (!enemyState || !enemyState.alive || enemyState.state === "dead") {
         enemyActor.kill();

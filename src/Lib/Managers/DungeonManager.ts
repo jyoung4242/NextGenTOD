@@ -1,4 +1,4 @@
-//DungeonManager.ts
+// DungeonManager.ts
 
 import {
   DungeonState,
@@ -7,7 +7,6 @@ import {
   Direction,
   DungeonGridDefinition,
   DungeonDefinition,
-  DungeonAsciiResult,
   getDungeonCell,
   GameState,
   ContainerState,
@@ -23,6 +22,30 @@ export interface DungeonGenerator {
 
 export class DungeonManager {
   private dungeon?: Dungeon;
+
+  /**
+   * Loads or initializes a dungeon level by checking the multi-level state cache.
+   * If it's the first time visiting this dungeon ID, it generates its runtime state.
+   */
+  public loadOrInitDungeon(definition: DungeonDefinition, state: StateStore<GameState>, contentRegistry?: ContentRegistry): void {
+    const dungeonStore = state.get("dungeon");
+    const existingState = dungeonStore.registry[definition.id];
+
+    if (!existingState) {
+      // First time visiting this dungeon level: generate and cache initial runtime state
+      const newState = createDungeonState(definition, 0, contentRegistry);
+      state.batch(ctx => {
+        ctx.set("dungeon.current", definition.id);
+        ctx.set(`dungeon.registry.${definition.id}`, newState);
+      });
+    } else {
+      // Returning to a previously visited level: just update the current pointer
+      state.set("dungeon.current", definition.id);
+    }
+
+    // Instantiate the runtime helper class bound to the store
+    this.dungeon = new Dungeon(definition, state);
+  }
 
   loadDungeon(definition: DungeonDefinition, state: StateStore<GameState>): void {
     this.dungeon = new Dungeon(definition, state);
@@ -42,7 +65,7 @@ export class Dungeon {
 
   constructor(
     readonly definition: DungeonDefinition,
-    private readonly store: StateStore<GameState>, // Pass StateStore instead of static state
+    private readonly store: StateStore<GameState>,
   ) {
     this.grid = new DungeonGrid(definition.grid);
   }
@@ -64,11 +87,14 @@ export class Dungeon {
       case "wall":
         return false;
       case "door": {
-        // Guard check wall.doorId to satisfy TypeScript
-        if (!wall.doorId) return false;
+        if (!wall.doorId) return false; // Guard against undefined doorId
 
-        const currentDungeonState = this.store.get().dungeon;
-        return currentDungeonState.doors[wall.doorId]?.open === true;
+        // Dynamically fetch state for the currently active dungeon level
+        const gameState = this.store.get();
+        const activeDungeonId = gameState.dungeon.current;
+        const currentDungeonState = gameState.dungeon.registry[activeDungeonId];
+
+        return currentDungeonState?.doors[wall.doorId]?.open === true;
       }
     }
   }
@@ -91,14 +117,13 @@ export class DungeonGrid {
     return this.cells.get(`${x},${y}`);
   }
 
-  // Inside class DungeonGrid
   getWall(x: number, y: number, direction: Direction): WallDefinition {
     const cell = this.getCell(x, y);
 
     if (!cell) {
       return {
         type: "wall",
-        textureKey: "void", // Fixed from materialId to textureKey
+        textureKey: "void",
       };
     }
 
@@ -134,12 +159,12 @@ export function createDungeonState(definition: DungeonDefinition, seed = 0, cont
     }
   }
 
-  // 3. Populate runtime enemy instances from dungeon definition, pulling stats from ContentRegistry
+  // 3. Populate runtime enemy instances from dungeon definition
   const enemies: Record<string, EnemyState> = {};
   if (definition.enemies) {
     for (const spawn of definition.enemies) {
       const enemyDef = contentRegistry?.getEnemy(spawn.definitionId);
-      const enemyHealth = enemyDef?.health ?? 30; // Fallback health if registry isn't passed or definition is missing
+      const enemyHealth = enemyDef?.health ?? 100;
 
       enemies[spawn.id] = {
         definitionId: spawn.definitionId,
@@ -149,7 +174,6 @@ export function createDungeonState(definition: DungeonDefinition, seed = 0, cont
         alive: true,
         facing: "east",
         position: {
-          nodeId: startNode.id,
           x: spawn.position.x,
           y: spawn.position.y,
         },
@@ -177,13 +201,11 @@ export function applyConnectionsToGrid(definition: DungeonDefinition): void {
       const cell = getDungeonCell(definition.grid, x, y);
 
       if (cell) {
-        // Assign door definition to the cell edge
         cell[direction] = {
           type: "door",
           doorId: conn.id,
         };
 
-        // Also assign door definition to the neighboring cell's opposite edge
         const oppositeDir: Record<Direction, Direction> = {
           north: "south",
           south: "north",

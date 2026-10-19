@@ -19,8 +19,11 @@ export class CombatStateMachine {
   }
 
   private isTileBlocked(targetX: number, targetY: number, state: GameState, excludeEntityId?: string): boolean {
-    if (state.dungeon?.definitionId) {
-      const dungeonDef = this.contentRegistry.getDungeon(state.dungeon.definitionId);
+    const activeDungeonId = state.dungeon.current;
+    const activeDungeonState = state.dungeon.registry?.[activeDungeonId];
+
+    if (activeDungeonState) {
+      const dungeonDef = this.contentRegistry.getDungeon(activeDungeonId);
       if (dungeonDef?.grid) {
         const cell = getDungeonCell(dungeonDef.grid, targetX, targetY);
         if (!cell || cell.floor !== "floor") {
@@ -40,7 +43,7 @@ export class CombatStateMachine {
     const enemyPositions = encounter.enemyPositions ?? {};
     for (const [id, pos] of Object.entries(enemyPositions)) {
       if (id === excludeEntityId) continue;
-      const enemy = state.dungeon?.enemies?.[id];
+      const enemy = activeDungeonState?.enemies?.[id];
       if (enemy && enemy.alive && Math.floor(pos.x) === targetX && Math.floor(pos.y) === targetY) {
         return true;
       }
@@ -57,14 +60,19 @@ export class CombatStateMachine {
       return;
     }
 
+    const activeDungeonId = state.dungeon.current;
+    const activeDungeonState = state.dungeon.registry?.[activeDungeonId];
+    if (!activeDungeonState) return;
+
     const enemyIds = encounter.enemyInstanceIds ?? (encounter.activeEnemyInstanceId ? [encounter.activeEnemyInstanceId] : []);
     const targetId = action.targetId ?? encounter.currentTargetId ?? encounter.activeEnemyInstanceId ?? enemyIds[0];
-    const enemy = targetId ? state.dungeon?.enemies?.[targetId] : undefined;
+    const enemy = targetId ? activeDungeonState.enemies?.[targetId] : undefined;
 
     this.store.batch(ctx => {
       let logMessage = "";
       let updatedPlayerPos = encounter.playerPosition ?? state.player?.position;
       console.log("[Combat action] ", action.type);
+
       switch (action.type) {
         case "move": {
           if (!action.targetTile) return;
@@ -105,7 +113,6 @@ export class CombatStateMachine {
           console.log(`[Combat Log] ${logMessage}`);
 
           let newHp = enemy.hp;
-          console.log("enemy hp: ", newHp);
 
           if (attackResult.isHit && attackResult.damage > 0) {
             newHp = Math.max(0, enemy.hp - attackResult.damage);
@@ -113,7 +120,7 @@ export class CombatStateMachine {
           }
 
           const updatedEnemies: Record<string, EnemyState> = {
-            ...state.dungeon.enemies,
+            ...activeDungeonState.enemies,
             [targetId]: {
               ...enemy,
               hp: newHp,
@@ -122,11 +129,20 @@ export class CombatStateMachine {
             },
           };
 
-          ctx.set("dungeon.enemies", updatedEnemies);
+          ctx.set(`dungeon.registry.${activeDungeonId}.enemies` as any, updatedEnemies);
 
           const updatedState: GameState = {
             ...state,
-            dungeon: { ...state.dungeon, enemies: updatedEnemies },
+            dungeon: {
+              ...state.dungeon,
+              registry: {
+                ...state.dungeon.registry,
+                [activeDungeonId]: {
+                  ...activeDungeonState,
+                  enemies: updatedEnemies,
+                },
+              },
+            },
           };
 
           if (this.checkEncounterCompletion(ctx, updatedState)) {
@@ -149,7 +165,7 @@ export class CombatStateMachine {
           this.awardSkillXP("destruction", 20);
 
           const updatedEnemies: Record<string, EnemyState> = {
-            ...state.dungeon.enemies,
+            ...activeDungeonState.enemies,
             [targetId]: {
               ...enemy,
               hp: newHp,
@@ -158,11 +174,20 @@ export class CombatStateMachine {
             },
           };
 
-          ctx.set("dungeon.enemies", updatedEnemies);
+          ctx.set(`dungeon.registry.${activeDungeonId}.enemies` as any, updatedEnemies);
 
           const updatedState: GameState = {
             ...state,
-            dungeon: { ...state.dungeon, enemies: updatedEnemies },
+            dungeon: {
+              ...state.dungeon,
+              registry: {
+                ...state.dungeon.registry,
+                [activeDungeonId]: {
+                  ...activeDungeonState,
+                  enemies: updatedEnemies,
+                },
+              },
+            },
           };
 
           if (this.checkEncounterCompletion(ctx, updatedState)) {
@@ -192,7 +217,7 @@ export class CombatStateMachine {
           console.log(`[Combat Log] ${logMessage}`);
 
           const updatedEnemies: Record<string, EnemyState> = {
-            ...state.dungeon.enemies,
+            ...activeDungeonState.enemies,
             [targetId]: {
               ...enemy,
               hp: newHp,
@@ -201,11 +226,20 @@ export class CombatStateMachine {
             },
           };
 
-          ctx.set("dungeon.enemies", updatedEnemies);
+          ctx.set(`dungeon.registry.${activeDungeonId}.enemies` as any, updatedEnemies);
 
           const updatedState: GameState = {
             ...state,
-            dungeon: { ...state.dungeon, enemies: updatedEnemies },
+            dungeon: {
+              ...state.dungeon,
+              registry: {
+                ...state.dungeon.registry,
+                [activeDungeonId]: {
+                  ...activeDungeonState,
+                  enemies: updatedEnemies,
+                },
+              },
+            },
           };
 
           if (this.checkEncounterCompletion(ctx, updatedState)) {
@@ -249,14 +283,18 @@ export class CombatStateMachine {
 
     if (!encounter || encounter.isResolved) return;
 
-    const enemy = state.dungeon?.enemies?.[enemyInstanceId];
+    const activeDungeonId = state.dungeon.current;
+    const activeDungeonState = state.dungeon.registry?.[activeDungeonId];
+    if (!activeDungeonState) return;
+
+    const enemy = activeDungeonState.enemies?.[enemyInstanceId];
     if (!enemy || !enemy.alive || enemy.hp <= 0) return;
 
     const enemyDef = this.contentRegistry.getEnemy(enemy.definitionId);
 
     this.store.batch(ctx => {
       let logMessage = "";
-      const updatedEnemies: Record<string, EnemyState> = { ...state.dungeon.enemies };
+      const updatedEnemies: Record<string, EnemyState> = { ...activeDungeonState.enemies };
       const updatedEnemyPositions = { ...(encounter.enemyPositions ?? {}) };
       let updatedPlayerHp = state.player.hp;
 
@@ -286,7 +324,7 @@ export class CombatStateMachine {
               ...enemy,
               hp: newHp,
             };
-            ctx.set("dungeon.enemies", updatedEnemies);
+            ctx.set(`dungeon.registry.${activeDungeonId}.enemies` as any, updatedEnemies);
             logMessage = `${enemyDef?.name ?? "Enemy"} used Mend Wounds and healed ${healAmount} HP!`;
             console.log(`[Combat Log] ${logMessage}`);
           }
@@ -324,8 +362,12 @@ export class CombatStateMachine {
     const encounter = state.game.encounter;
     if (!encounter) return true;
 
+    const activeDungeonId = state.dungeon.current;
+    const activeDungeonState = state.dungeon.registry?.[activeDungeonId];
+    if (!activeDungeonState) return true;
+
     const enemyIds = encounter.enemyInstanceIds ?? (encounter.activeEnemyInstanceId ? [encounter.activeEnemyInstanceId] : []);
-    const encounterEnemies = enemyIds.map(id => state.dungeon?.enemies?.[id]).filter(Boolean);
+    const encounterEnemies = enemyIds.map(id => activeDungeonState.enemies?.[id]).filter(Boolean);
 
     const allEnemiesDefeated =
       encounterEnemies.length > 0 && encounterEnemies.every(enemy => !enemy.alive || enemy.hp <= 0 || enemy.state === "dead");
