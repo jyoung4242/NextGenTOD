@@ -1,123 +1,10 @@
 // GameTypes.ts
 
-export interface Rect {
-  x: number;
-  y: number;
-  width: number;
-  height: number;
-}
-
-export interface SkillDefinition {
-  id: string;
-  name: string;
-  category: string;
-  staminaCost: number;
-  manaCost: number;
-  basePower: number;
-  targetType: "self" | "single_enemy" | "area";
-  range: number;
-}
-
-export interface EntityPosition {
-  nodeId?: string; // Optional if position uses continuous grid coordinates
-  x: number;
-  y: number;
-}
-
-export interface EnemyState {
-  definitionId: string;
-  hp: number;
-  maxHp: number;
-  nodeId: string;
-  alive: boolean;
-  position: EntityPosition;
-  facing: Direction | number;
-  state: "idle" | "alert" | "dead";
-}
-
-export interface PlayerState {
-  hp: number;
-  maxHp: number;
-  stamina: number;
-  maxStamina: number;
-  position: EntityPosition;
-  facing: Direction;
-  keyring: string[];
-  inventory: InventoryState;
-  skills: Record<string, SkillState>;
-}
-
-export interface SkillState {
-  level: number;
-  xp: number;
-  unlocked: boolean;
-}
-
-export interface ContainerState {
-  opened: boolean;
-  keyId?: string;
-  itemId?: string;
-  quantity?: number;
-}
-
-export interface ObjectiveState {
-  completed: boolean;
-  progress: number;
-}
-
-export interface ProgressionState {
-  experience: number;
-  level: number;
-  skillPoints: number;
-}
-
-// Game Modes & Combat Participants
+// ******************************
+//Game State
+// ******************************
+//#region gamestate
 export type GameMode = "playing" | "encounter" | "paused" | "dead" | "victory" | "game_over";
-
-export type TurnParticipant = "player" | "enemy";
-
-// Tactical Grid & Combat Actions
-export interface TacticalPosition {
-  x: number;
-  y: number;
-}
-
-export interface CombatAction {
-  type: "attack" | "skill" | "item" | "defend" | "flee" | "throw" | "spell" | "move" | "ranged";
-  targetId?: string;
-  skillId?: string;
-  itemId?: string;
-  targetTile?: TacticalPosition;
-}
-
-// Combat & Encounter State Types
-export interface ArenaBounds {
-  minX: number;
-  maxX: number;
-  minY: number;
-  maxY: number;
-}
-
-// GameTypes.ts
-
-export interface EncounterState {
-  activeEnemyInstanceId: string;
-  enemyInstanceIds?: string[];
-  currentTargetId?: string; // 🎯 Added to track active cursor/reticle selection
-  currentTurn: TurnParticipant;
-  turnCount: number;
-  arenaBounds: {
-    minX: number;
-    maxX: number;
-    minY: number;
-    maxY: number;
-  };
-  // Store local tactical positions separately
-  playerPosition: { x: number; y: number };
-  enemyPositions: Record<string, { x: number; y: number }>;
-  combatLog: string[];
-  isResolved: boolean;
-}
 
 export interface GameSessionState {
   mode: GameMode;
@@ -128,16 +15,56 @@ export interface GameSessionState {
 export interface GameState {
   game: GameSessionState;
   player: PlayerState;
-  dungeon: DungeonState;
+  dungeon: {
+    current: string;
+    registry: Record<string, DungeonState>;
+  };
   quests: {
     active: Record<string, QuestProgress>;
     completed: string[];
-    flags: Record<string, boolean>; // Global flags toggled by quest triggers
   };
   progression: ProgressionState;
+  storyPoints: Record<string, unknown>;
+}
+//#endregion gamestate
+
+// ********************************
+// Dungeon Types
+// ********************************
+//#region dungeons
+export interface DungeonViewportGraphicOptions {
+  dungeon: DungeonDefinition;
+  camera: DungeonCamera;
+  width: number;
+  height: number;
 }
 
-// --- Dungeon Types & Interfaces ---
+export interface DungeonCamera {
+  x: number;
+  y: number;
+  angle: number;
+  fov: number;
+}
+
+export interface RaycastHit {
+  distance: number;
+  x: number;
+  y: number;
+  cellX: number;
+  cellY: number;
+  side: "north" | "east" | "south" | "west";
+  wallOffset: number;
+  wall: WallDefinition;
+}
+
+const cellIndex = new WeakMap<DungeonGridDefinition, Map<number, DungeonCellDefinition>>();
+
+export interface Rect {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+}
 
 export interface DungeonState {
   definitionId: string;
@@ -270,6 +197,265 @@ export interface DungeonAsciiMarker {
   x: number;
   y: number;
 }
+//#endregion dungeons
+
+// ********************************
+// Player Types
+// ********************************
+
+//#region playertypes
+export interface SkillDefinition {
+  id: string;
+  name: string;
+  category: string;
+  staminaCost: number;
+  manaCost: number;
+  basePower: number;
+  targetType: "self" | "single_enemy" | "area";
+  range: number;
+}
+
+export interface EntityPosition {
+  x: number;
+  y: number;
+}
+
+export interface PlayerState {
+  hp: number;
+  maxHp: number;
+  stamina: number;
+  maxStamina: number;
+  position: EntityPosition;
+  facing: Direction;
+  keyring: string[];
+  inventory: InventoryState;
+  skills: Record<string, SkillState>;
+}
+
+export interface SkillState {
+  level: number;
+  xp: number;
+  unlocked: boolean;
+}
+
+//#endregion playertypes
+
+// ********************************
+// Enemy Types
+// ********************************
+
+//#region enemytypes
+
+export interface EnemyDefinition {
+  id: string;
+  name: string;
+  avatarKey: string; // or textureKey
+  textureKey?: string; // Key mapped in resources.ts (e.g. "goblin", "skeleton")
+  tokenKey?: string; // Key for token image (e.g. "goblinToken")
+  scale?: number; // Billboard size scale (defaults to 0.6 if omitted)
+  yOffset?: number; // Vertical displacement on floor (defaults to +0.2)
+  health: number;
+  attack: number;
+  defense: number;
+  detectionRadius: number;
+}
+
+export interface EnemyState {
+  definitionId: string;
+  hp: number;
+  maxHp: number;
+  nodeId: string;
+  alive: boolean;
+  position: EntityPosition;
+  facing: Direction | number;
+  state: "idle" | "alert" | "dead";
+}
+
+//#endregion enemytypes
+
+// ********************************
+// Item Types
+// ********************************
+
+//#region itemtypes
+
+export type ItemCategory = "consumable" | "equipment" | "material" | "junk";
+
+export interface ItemDefinition {
+  id: string;
+  name: string;
+  description: string;
+  category: ItemCategory;
+  stackable: boolean;
+  maxStackSize?: number;
+  weight: number;
+  icon?: string;
+  textureKey?: string;
+}
+
+export interface ItemInstance {
+  instanceId: string;
+  definitionId: string;
+  quantity: number;
+}
+
+export interface InventoryState {
+  items: ItemInstance[];
+  maxWeight: number;
+}
+
+export interface ContainerState {
+  opened: boolean;
+  keyId?: string;
+  itemId?: string;
+  quantity?: number;
+}
+
+//#endregion itemtypes
+
+// ********************************
+// Quest Types
+// ********************************
+
+//#region questtypes
+
+export type ObjectiveType = "talk" | "kill" | "collect" | "reach" | "interact";
+
+export interface QuestObjectiveData {
+  id: string;
+  description: string;
+  type: ObjectiveType;
+  /** npcId | enemyId | itemId | regionId | objectId */
+  target: string;
+  count: number;
+}
+
+export interface QuestMetadata {
+  title: string;
+  description: string;
+  faction?: string;
+  giverNpc?: string;
+}
+
+export interface QuestRewards {
+  reputation?: number;
+  items?: string[];
+  equipment?: string[];
+}
+
+export interface QuestTriggerActions {
+  setsFlag?: string[];
+}
+
+export interface QuestTriggers {
+  onStart?: QuestTriggerActions;
+  onComplete?: QuestTriggerActions;
+}
+
+export interface QuestWorldFlags {
+  sets?: string[];
+  requires?: string[];
+}
+
+export interface QuestDefinitionData {
+  id: string;
+  metadata: QuestMetadata;
+  objectives: QuestObjectiveData[];
+  rewards?: QuestRewards;
+  triggers?: QuestTriggers;
+  worldFlags?: QuestWorldFlags;
+}
+
+export interface ObjectiveProgress {
+  id: string;
+  current: number;
+  target: number;
+  complete: boolean;
+}
+
+export interface QuestProgress {
+  questId: string;
+  state: "active" | "complete";
+  objectives: ObjectiveProgress[];
+}
+
+export type QuestState = "not_started" | "active" | "complete";
+
+export interface ObjectiveState {
+  completed: boolean;
+  progress: number;
+}
+
+//#endregion questtypes
+
+// ********************************
+// Progression Types
+// ********************************
+
+//#region progressiontypes
+
+export interface ProgressionState {
+  experience: number;
+  level: number;
+  skillPoints: number;
+}
+
+//#endregion progressiontypes
+
+// ********************************
+// Encounter (Combat) Types
+// ********************************
+
+//#region encountertypes
+
+export type TurnParticipant = "player" | "enemy";
+
+export interface TacticalPosition {
+  x: number;
+  y: number;
+}
+
+export interface CombatAction {
+  type: "attack" | "skill" | "item" | "defend" | "flee" | "throw" | "spell" | "move" | "ranged";
+  targetId?: string;
+  skillId?: string;
+  itemId?: string;
+  targetTile?: TacticalPosition;
+}
+
+export interface ArenaBounds {
+  minX: number;
+  maxX: number;
+  minY: number;
+  maxY: number;
+}
+
+export interface EncounterState {
+  activeEnemyInstanceId: string;
+  enemyInstanceIds?: string[];
+  currentTargetId?: string; // 🎯 Added to track active cursor/reticle selection
+  currentTurn: TurnParticipant;
+  turnCount: number;
+  arenaBounds: {
+    minX: number;
+    maxX: number;
+    minY: number;
+    maxY: number;
+  };
+  // Store local tactical positions separately
+  playerPosition: { x: number; y: number };
+  enemyPositions: Record<string, { x: number; y: number }>;
+  combatLog: string[];
+  isResolved: boolean;
+}
+
+//#endregion encountertypes
+
+// ********************************
+// Helper Functions
+// ********************************
+
+//#region helpers
 
 export function dungeonFromAscii(ascii: string, options: DungeonAsciiOptions = {}): DungeonGridDefinition {
   const wall = options.wall ?? "#";
@@ -333,28 +519,6 @@ function isFloor(lines: string[], x: number, y: number, width: number, wall: str
   return lines[y][x] === floor;
 }
 
-// Raycasting 1st Person View
-
-export interface DungeonCamera {
-  x: number;
-  y: number;
-  angle: number;
-  fov: number;
-}
-
-export interface RaycastHit {
-  distance: number;
-  x: number;
-  y: number;
-  cellX: number;
-  cellY: number;
-  side: "north" | "east" | "south" | "west";
-  wallOffset: number;
-  wall: WallDefinition;
-}
-
-const cellIndex = new WeakMap<DungeonGridDefinition, Map<number, DungeonCellDefinition>>();
-
 export function getDungeonCell(grid: DungeonGridDefinition, x: number, y: number): DungeonCellDefinition | undefined {
   if (x < 0 || y < 0 || x >= grid.width || y >= grid.height) {
     return undefined;
@@ -372,13 +536,6 @@ export function getDungeonCell(grid: DungeonGridDefinition, x: number, y: number
   return index.get(y * grid.width + x);
 }
 
-export interface DungeonViewportGraphicOptions {
-  dungeon: DungeonDefinition;
-  camera: DungeonCamera;
-  width: number;
-  height: number;
-}
-
 export function createDungeonCamera(x: number, y: number): DungeonCamera {
   return {
     x,
@@ -388,113 +545,4 @@ export function createDungeonCamera(x: number, y: number): DungeonCamera {
   };
 }
 
-// --- Static Content Definitions ---
-export type ItemCategory = "consumable" | "equipment" | "material" | "junk";
-
-export interface ItemDefinition {
-  id: string;
-  name: string;
-  description: string;
-  category: ItemCategory;
-  stackable: boolean;
-  maxStackSize?: number;
-  weight: number;
-  icon?: string;
-  textureKey?: string;
-}
-
-// --- Runtime Inventory State ---
-export interface ItemInstance {
-  instanceId: string;
-  definitionId: string;
-  quantity: number;
-}
-
-export interface InventoryState {
-  items: ItemInstance[];
-  maxWeight: number;
-}
-
-// GameTypes.ts
-
-export interface EnemyDefinition {
-  id: string;
-  name: string;
-  avatarKey: string; // or textureKey
-  textureKey?: string; // Key mapped in resources.ts (e.g. "goblin", "skeleton")
-  tokenKey?: string; // Key for token image (e.g. "goblinToken")
-  scale?: number; // Billboard size scale (defaults to 0.6 if omitted)
-  yOffset?: number; // Vertical displacement on floor (defaults to +0.2)
-  health: number;
-  attack: number;
-  defense: number;
-  detectionRadius: number;
-}
-
-// GameTypes.ts
-
-// ─── Quest Static Definitions (Content Registry Data) ────────────────────────
-
-export type ObjectiveType = "talk" | "kill" | "collect" | "reach" | "interact";
-
-export interface QuestObjectiveData {
-  id: string;
-  description: string;
-  type: ObjectiveType;
-  /** npcId | enemyId | itemId | regionId | objectId */
-  target: string;
-  count: number;
-}
-
-export interface QuestMetadata {
-  title: string;
-  description: string;
-  faction?: string;
-  giverNpc?: string;
-}
-
-export interface QuestRewards {
-  reputation?: number;
-  items?: string[];
-  equipment?: string[];
-}
-
-export interface QuestTriggerActions {
-  setsFlag?: string[];
-}
-
-export interface QuestTriggers {
-  onStart?: QuestTriggerActions;
-  onComplete?: QuestTriggerActions;
-}
-
-export interface QuestWorldFlags {
-  sets?: string[];
-  requires?: string[];
-}
-
-export interface QuestDefinitionData {
-  id: string;
-  metadata: QuestMetadata;
-  objectives: QuestObjectiveData[];
-  rewards?: QuestRewards;
-  triggers?: QuestTriggers;
-  worldFlags?: QuestWorldFlags;
-}
-
-// ─── Quest Runtime State (GameState Data) ───────────────────────────────────
-
-export interface ObjectiveProgress {
-  id: string;
-  current: number;
-  target: number;
-  complete: boolean;
-}
-
-export interface QuestProgress {
-  questId: string;
-  state: "active" | "complete";
-  objectives: ObjectiveProgress[];
-}
-
-export type QuestState = "not_started" | "active" | "complete";
+//#endregion helpers
