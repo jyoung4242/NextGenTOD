@@ -120,6 +120,7 @@ export interface DungeonDefinition {
   grid: DungeonGridDefinition;
   items?: DungeonItemPlacement[];
   enemies?: DungeonEnemyPlacement[];
+  cutsceneTriggers?: CutsceneTriggerDefinition[];
 }
 export interface DungeonConnectionDefinition {
   id: string;
@@ -181,7 +182,9 @@ export interface DungeonGridDefinition {
 export interface DungeonAsciiOptions {
   wall?: string;
   floor?: string;
-  wallMaterialId?: string;
+  wallMaterialId?: string; // Default wall texture
+  // Add a map for special characters to texture keys
+  tileMap?: Record<string, string>;
 }
 
 export interface DungeonAsciiResult {
@@ -453,6 +456,37 @@ export interface EncounterState {
 //#endregion encountertypes
 
 // ********************************
+// CuteScene Types
+// ********************************
+
+//#region cutscenetypes
+
+export type CutsceneTriggerType =
+  | "quest_step"
+  | "interaction"
+  | "dialogue_choice"
+  | "encounter_start"
+  | "encounter_victory"
+  | "tile_enter";
+
+export interface CutsceneTriggerDefinition {
+  id: string;
+  cutsceneId: string;
+  triggerType: CutsceneTriggerType;
+
+  // Specific payload criteria based on trigger type
+  targetId?: string; // Quest ID, Node ID, Item ID, or Enemy ID[cite: 2]
+  position?: { x: number; y: number }; // Tile coordinates for dungeon step triggers
+
+  // Gating & Execution Rules
+  requiredFlags?: string[]; // Story points that must be true
+  succeedsFlag?: string; // Flag set after playing to make it run once
+  playOnce?: boolean; // Explicit flag tracking
+}
+
+//#endregion cutscenetypes
+
+// ********************************
 // Helper Functions
 // ********************************
 
@@ -461,7 +495,8 @@ export interface EncounterState {
 export function dungeonFromAscii(ascii: string, options: DungeonAsciiOptions = {}): DungeonGridDefinition {
   const wall = options.wall ?? "#";
   const floor = options.floor ?? " ";
-  const wallMaterialId = options.wallMaterialId ?? "stone";
+  const defaultWallTexture = options.wallMaterialId ?? "stone";
+  const tileMap = options.tileMap ?? {};
 
   const lines = ascii
     .trim()
@@ -485,15 +520,41 @@ export function dungeonFromAscii(ascii: string, options: DungeonAsciiOptions = {
         x,
         y,
         floor: "floor",
-        north: createWall(lines, x, y - 1, width, wall, floor, wallMaterialId),
-        east: createWall(lines, x + 1, y, width, wall, floor, wallMaterialId),
-        south: createWall(lines, x, y + 1, width, wall, floor, wallMaterialId),
-        west: createWall(lines, x - 1, y, width, wall, floor, wallMaterialId),
+        north: createCustomWall(lines, x, y - 1, width, wall, floor, defaultWallTexture, tileMap),
+        east: createCustomWall(lines, x + 1, y, width, wall, floor, defaultWallTexture, tileMap),
+        south: createCustomWall(lines, x, y + 1, width, wall, floor, defaultWallTexture, tileMap),
+        west: createCustomWall(lines, x - 1, y, width, wall, floor, defaultWallTexture, tileMap),
       });
     }
   }
 
   return { width, height, cells };
+}
+
+function createCustomWall(
+  lines: string[],
+  x: number,
+  y: number,
+  width: number,
+  wall: string,
+  floor: string,
+  defaultTexture: string,
+  tileMap: Record<string, string>,
+): WallDefinition {
+  if (x < 0 || y < 0 || y >= lines.length || x >= width) {
+    return { type: "wall", textureKey: defaultTexture };
+  }
+
+  const char = lines[y][x];
+
+  if (char === floor) {
+    return { type: "none" };
+  }
+
+  // If the character is in our custom tileMap, use that texture; otherwise default
+  const textureKey = tileMap[char] ?? defaultTexture;
+
+  return { type: "wall", textureKey };
 }
 
 function createWall(

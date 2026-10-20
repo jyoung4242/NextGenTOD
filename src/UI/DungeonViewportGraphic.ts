@@ -1,5 +1,5 @@
 // UI/DungeonViewportGraphic.ts
-import { ExcaliburGraphicsContext, Graphic, Vector } from "excalibur";
+import { ExcaliburGraphicsContext, Graphic } from "excalibur";
 import { DungeonDefinition, DungeonCamera, DungeonState } from "../GameTypes";
 import { DungeonRaycaster } from "./DungeonRaycaster";
 import { ContentRegistry } from "../Content/ContentRegistry";
@@ -54,12 +54,10 @@ export class DungeonViewportGraphic extends Graphic {
   }
 
   public flagDirty(): void {
-    console.log("render triggered");
-
     this.isDirty = true;
   }
+
   protected _drawImage(ex: ExcaliburGraphicsContext, x: number, y: number): void {
-    // <--- 3. Only redraw if something changed
     if (this.isDirty) {
       this.redrawViewport();
       this.canvas.setAttribute("forceUpload", "true");
@@ -131,7 +129,7 @@ export class DungeonViewportGraphic extends Graphic {
       let textureKey = hit.wall.textureKey;
 
       if (hit.wall.type === "door") {
-        textureKey = "door"; // Uses map.set("door", Resources.door.image) from resources.ts
+        textureKey = "door";
       } else if (!textureKey) {
         textureKey = this.dungeon.defaultWallTexture ?? "stone";
       }
@@ -152,17 +150,7 @@ export class DungeonViewportGraphic extends Graphic {
           texX = wallTexture.width - texX - 1;
         }
 
-        ctx.drawImage(
-          wallTexture,
-          texX,
-          0,
-          1,
-          wallTexture.height, // Source 1px stripe
-          screenX,
-          wallTop,
-          1,
-          wallHeight, // Destination column
-        );
+        ctx.drawImage(wallTexture, texX, 0, 1, wallTexture.height, screenX, wallTop, 1, wallHeight);
       } else {
         ctx.fillStyle = hit.side === "north" || hit.side === "south" ? "#888888" : "#666666";
         ctx.fillRect(screenX, wallTop, 1, wallHeight);
@@ -170,49 +158,86 @@ export class DungeonViewportGraphic extends Graphic {
     }
 
     // -------------------------------------------------------------
-    // 3. Item & Key Billboards (Depth-tested against zBuffer)
+    // 3. Item & Enemy Billboards (Sorted Back-to-Front)
     // -------------------------------------------------------------
+    interface BillboardToRender {
+      x: number;
+      y: number;
+      scale: number;
+      textureKey: string;
+      yOffset: number;
+      distanceSq: number;
+    }
+
+    const billboards: BillboardToRender[] = [];
+
+    // Collect Uncollected Items
     const uncollectedItems = (this.dungeon.items ?? []).filter(item => {
       const coordKey = `${item.position.x},${item.position.y}`;
       return !currentState.containers[coordKey]?.opened;
     });
 
     for (const item of uncollectedItems) {
-      const textureKey = this.resolveItemTextureKey(item.id, item.keyId);
+      const worldX = item.position.x + 0.5;
+      const worldY = item.position.y + 0.5;
+      const dx = worldX - this.camera.x;
+      const dy = worldY - this.camera.y;
 
-      this.renderBillboard(
-        ctx,
-        item.position.x + 0.5,
-        item.position.y + 0.5,
-        0.35, // Item scale on floor
-        textureKey,
-        zBuffer,
-        projectionPlane,
-      );
+      billboards.push({
+        x: worldX,
+        y: worldY,
+        scale: 0.35,
+        textureKey: this.resolveItemTextureKey(item.id, item.keyId),
+        yOffset: 0,
+        distanceSq: dx * dx + dy * dy,
+      });
     }
 
+    // Collect Active Enemies
     const activeEnemies = Object.values(currentState.enemies).filter(enemy => enemy.alive && enemy.state !== "dead");
 
     for (const enemy of activeEnemies) {
-      // Look up static definition in ContentRegistry using enemy.definitionId
       const enemyDef = this.content?.getEnemy(enemy.definitionId);
-
-      // Resolve texture key (fallback to textureKey -> avatarKey -> "goblin")
       const textureKey = enemyDef?.textureKey ?? enemyDef?.avatarKey ?? "goblin";
-
-      // Resolve rendering dimensions or fall back to defaults
       const scale = enemyDef?.scale ?? 0.6;
       const yOffset = enemyDef?.yOffset ?? 0.2;
 
-      this.renderBillboard(ctx, enemy.position.x + 0.5, enemy.position.y + 0.5, scale, textureKey, zBuffer, projectionPlane, yOffset);
+      const worldX = enemy.position.x + 0.5;
+      const worldY = enemy.position.y + 0.5;
+      const dx = worldX - this.camera.x;
+      const dy = worldY - this.camera.y;
+
+      billboards.push({
+        x: worldX,
+        y: worldY,
+        scale,
+        textureKey,
+        yOffset,
+        distanceSq: dx * dx + dy * dy,
+      });
+    }
+
+    // Sort billboards from furthest to nearest (Painter's Algorithm)
+    billboards.sort((a, b) => b.distanceSq - a.distanceSq);
+
+    // Render sorted billboards
+    for (const billboard of billboards) {
+      this.renderBillboard(
+        ctx,
+        billboard.x,
+        billboard.y,
+        billboard.scale,
+        billboard.textureKey,
+        zBuffer,
+        projectionPlane,
+        billboard.yOffset,
+      );
     }
   }
 
   private resolveItemTextureKey(itemId: string, keyId?: string): string {
-    // 1. If key placement, default to key sprite
     if (keyId) return "key";
 
-    // 2. Look up static ItemDefinition in ContentRegistry
     if (this.content) {
       const itemDef = this.content.getItem(itemId);
       if (itemDef?.textureKey) {
@@ -220,7 +245,6 @@ export class DungeonViewportGraphic extends Graphic {
       }
     }
 
-    // 3. Fallback default
     return "potion";
   }
 
@@ -232,7 +256,7 @@ export class DungeonViewportGraphic extends Graphic {
     textureKey: string,
     zBuffer: Float32Array,
     projectionPlane: number,
-    yOffset: number = 0, // Offset multiplier relative to sprite height (+ lowers, - raises)
+    yOffset: number = 0,
   ): void {
     const { width, height } = this;
 
@@ -254,9 +278,6 @@ export class DungeonViewportGraphic extends Graphic {
     const centerScreenX = Math.floor(width / 2 + Math.tan(spriteAngle) * projectionPlane);
     const spriteSize = (projectionPlane / correctedDistance) * scale;
 
-    // BASE CALCULATION:
-    // (height - spriteSize) / 2 centers the sprite vertically.
-    // Adding (spriteSize * yOffset) allows adjusting the vertical anchor line.
     const baseTop = (height - spriteSize) / 2;
     const spriteTop = baseTop + spriteSize * yOffset;
 

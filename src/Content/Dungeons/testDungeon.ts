@@ -1,5 +1,6 @@
 import { DungeonDefinition, dungeonFromAscii } from "../../GameTypes";
 import { ContentRegistry } from "../ContentRegistry";
+import { cryptDungeon } from "./cryptDungeon";
 
 export const testDungeon: DungeonDefinition = {
   id: "test-dungeon",
@@ -15,7 +16,7 @@ export const testDungeon: DungeonDefinition = {
     },
     {
       id: "potion_health_minor",
-      position: { x: 12, y: 9 }, // Located in the hallway near entrance
+      position: { x: 12, y: 8 }, // Located in the hallway near entrance
       quantity: 2,
     },
   ],
@@ -146,8 +147,17 @@ export const testDungeon: DungeonDefinition = {
       },
     },
   ],
+  cutsceneTriggers: [
+    {
+      id: "goToCrypt",
+      cutsceneId: "enter-crypt",
+      position: { x: 14, y: 9 },
+      triggerType: "tile_enter",
+    },
+  ],
 
-  grid: dungeonFromAscii(`
+  grid: dungeonFromAscii(
+    `
 ################
 #   #  #      ##
 #             ##
@@ -156,12 +166,19 @@ export const testDungeon: DungeonDefinition = {
 #####  #########
 #####  #########     
 #####  #########
-#####          #
-#####          #
+#####         ##
+#####          p
 ################
-`),
+`,
+    {
+      tileMap: {
+        p: "portal",
+      },
+    },
+  ),
 };
 
 export function registerTestDungeon(reg: ContentRegistry) {
   reg.registerDungeon(testDungeon);
+  reg.registerDungeon(cryptDungeon);
 }

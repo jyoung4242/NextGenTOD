@@ -1,0 +1,9 @@
+{
+  "id": "enter-crypt",
+  "commands": [
+    {
+      "type": "newDungeon",
+      "args": { "id": "crypt-dungeon" }
+    }
+  ]
+}

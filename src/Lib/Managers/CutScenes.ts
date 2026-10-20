@@ -19,6 +19,8 @@ import { DialogRunner } from "./DialogRunner";
 import { DialogUI } from "../../UI/DialogUI";
 import { EncounterTriggerSystem } from "../Systems/EncounterTrigger";
 import { DialogAction } from "./actions/DialogJSONaction";
+import { StateStore } from "../../GameState";
+import { CutsceneTriggerDefinition, CutsceneTriggerType, GameMode, GameState } from "../../GameTypes";
 
 // ==========================================
 // 1. Types & Manifest Interfaces
@@ -93,7 +95,10 @@ export class CutSceneSystem extends System {
   private activeSequence: ActionSequence | null = null;
   private isPlaying: boolean = false;
 
-  constructor(world: World) {
+  constructor(
+    world: World,
+    private getState: () => StateStore<GameState>,
+  ) {
     super();
     this.world = world;
     this.engine = world.scene.engine;
@@ -289,6 +294,17 @@ export class CutSceneSystem extends System {
       await this.director.actions.runAction(new DialogAction(scene, dialog, path)).toPromise();
     });
 
+    this.registerCommand("newDungeon", async (args, ctx) => {
+      const { id, newPos, direction } = args;
+      this.getState().batch(batch => {
+        batch.set("dungeon.current", id);
+        batch.set("game.mode", "playing" as GameMode);
+        batch.set("player.facing", direction);
+        batch.set("player.position.x", newPos.x);
+        batch.set("player.position.y", newPos.y);
+      });
+    });
+
     this.registerCommand("parallel", async (args, ctx) => {
       const { actions } = args;
       if (!actions || !Array.isArray(actions)) return;
@@ -308,5 +324,54 @@ export class CutSceneSystem extends System {
       // Block the Director's main sequence loop until ALL inner actors report completion
       await Promise.all(promAll);
     });
+  }
+}
+
+export class CutsceneTriggerSystem {
+  constructor(
+    private readonly state: StateStore<GameState>,
+    private readonly cutSceneSystem: CutSceneSystem,
+  ) {}
+
+  public async checkTileTriggers(playerX: number, playerY: number, triggers?: CutsceneTriggerDefinition[]): Promise<boolean> {
+    if (!triggers || triggers.length === 0) return false;
+
+    for (const trigger of triggers) {
+      if (!trigger) continue;
+      // 1. Check if player is on the exact trigger coordinate
+      if (trigger.position!.x === playerX && trigger.position!.y === playerY) {
+        // 2. Read from top-level 'storypoints' instead of 'quests.flags'
+        const storyPoints = this.state.get("storyPoints") || {};
+
+        // Check if already played/succeeded
+        if (trigger.succeedsFlag && storyPoints[trigger.succeedsFlag]) {
+          continue; // Skip because it already ran once!
+        }
+
+        // Check required story point prerequisites (supports any value/type)
+        const prerequisitesMet = (trigger.requiredFlags ?? []).every(f => {
+          const val = storyPoints[f];
+          return val !== undefined && val !== false && val !== null;
+        });
+        if (!prerequisitesMet) continue;
+
+        // 3. Pause gameplay mode & fire the cutscene
+        this.state.update("game", g => ({ ...g, mode: "paused" as GameMode }));
+        await this.cutSceneSystem.startCutScene(trigger.cutsceneId);
+        this.state.update("game", g => ({ ...g, mode: "playing" as GameMode }));
+
+        // 4. Automatically update the storypoint so it never triggers again
+        if (trigger.succeedsFlag) {
+          this.state.update("storyPoints", points => ({
+            ...points,
+            [trigger.succeedsFlag!]: true, // Can be boolean or any custom data type
+          }));
+        }
+
+        return true; // Trigger handled successfully
+      }
+    }
+
+    return false;
   }
 }

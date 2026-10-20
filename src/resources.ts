@@ -12,6 +12,7 @@ import potion from "./Assets/potion.png"; // replace this
 import playertoken from "./Assets/player_token.png"; // replace this
 import icons from "./Assets/64x64.png";
 import throwIcon from "./Assets/throw.png";
+import portal from "./Assets/portal.png";
 
 export const Resources = {
   goblin: new ImageSource(goblin),
@@ -26,6 +27,7 @@ export const Resources = {
   playerToken: new ImageSource(playertoken),
   icons: new ImageSource(icons),
   throw: new ImageSource(throwIcon),
+  portal: new ImageSource(portal),
 };
 
 export const loader = new Loader();
@@ -47,6 +49,7 @@ export function getLoadedTextures(): Map<string, HTMLImageElement> {
   map.set("goblinLarge", Resources.goblinLarge.image);
   map.set("goblinToken", Resources.goblinToken.image);
   map.set("playerToken", Resources.playerToken.image);
+  map.set("portal", Resources.portal.image);
   return map;
 }
 

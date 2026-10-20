@@ -42,25 +42,29 @@ export class InventorySystem {
       return { success: false, reason: "overburdened", addedQuantity: 0 };
     }
 
+    // Get current items and clone them immutably
     const currentItems = this.store.get().player.inventory.items;
 
     this.store.batch(ctx => {
-      const items: ItemInstance[] = [...currentItems];
+      // Deep/shallow clone items so we don't mutate frozen state objects directly
+      let items: ItemInstance[] = currentItems.map(i => ({ ...i }));
 
       if (def.stackable) {
         const maxStack = def.maxStackSize ?? 99;
         let remainingToAdd = quantity;
 
-        for (const item of items) {
-          if (item.definitionId === definitionId && item.quantity < maxStack) {
+        // Try filling existing stacks first
+        items = items.map(item => {
+          if (remainingToAdd > 0 && item.definitionId === definitionId && item.quantity < maxStack) {
             const spaceInStack = maxStack - item.quantity;
             const toAdd = Math.min(spaceInStack, remainingToAdd);
-            item.quantity += toAdd;
             remainingToAdd -= toAdd;
-            if (remainingToAdd <= 0) break;
+            return { ...item, quantity: item.quantity + toAdd };
           }
-        }
+          return item;
+        });
 
+        // Push new stacks if quantity remains
         while (remainingToAdd > 0) {
           const stackAmount = Math.min(maxStack, remainingToAdd);
           items.push({
@@ -71,6 +75,8 @@ export class InventorySystem {
           remainingToAdd -= stackAmount;
         }
       } else {
+        // Non-stackable: append new individual item instances
+        items = [...items];
         for (let i = 0; i < quantity; i++) {
           items.push({
             instanceId: `inst_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
@@ -87,19 +93,24 @@ export class InventorySystem {
   }
 
   public removeItem(instanceId: string, quantity = 1): boolean {
-    const items = [...this.store.get().player.inventory.items];
+    const items = this.store.get().player.inventory.items;
     const index = items.findIndex(i => i.instanceId === instanceId);
 
     if (index === -1) return false;
 
     this.store.batch(ctx => {
-      const item = items[index];
-      if (item.quantity > quantity) {
-        item.quantity -= quantity;
+      const targetItem = items[index];
+      let updatedItems: ItemInstance[];
+
+      if (targetItem.quantity > quantity) {
+        // Clone items and update the specific item's quantity
+        updatedItems = items.map((i, idx) => (idx === index ? { ...i, quantity: i.quantity - quantity } : { ...i }));
       } else {
-        items.splice(index, 1);
+        // Filter out the removed item instance entirely
+        updatedItems = items.filter((_, idx) => idx !== index).map(i => ({ ...i }));
       }
-      ctx.set("player.inventory.items", items);
+
+      ctx.set("player.inventory.items", updatedItems);
     });
 
     return true;

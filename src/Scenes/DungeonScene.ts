@@ -1,6 +1,6 @@
 import { Scene, Label, vec, Color, toDegrees, Keys, Axes, Buttons, Engine, SceneActivationContext } from "excalibur";
 import { StateStore } from "../GameState";
-import { createDungeonCamera, DungeonCamera, GameState } from "../GameTypes";
+import { createDungeonCamera, DungeonCamera, DungeonDefinition, GameState } from "../GameTypes";
 import { ContentRegistry } from "../Content/ContentRegistry";
 import { Dungeon, DungeonManager } from "../Lib/Managers/DungeonManager";
 import { DungeonViewport } from "../UI/DungeonViewport";
@@ -15,8 +15,7 @@ import { EncounterTriggerSystem } from "../Lib/Systems/EncounterTrigger";
 import { ProximitySystem } from "../Lib/Systems/ProxSystem";
 import { DialogRunner } from "../Lib/Managers/DialogRunner";
 import { DialogUI } from "../UI/DialogUI";
-import { DialogLoader } from "../Lib/Managers/DialogLoader";
-import { CutSceneSystem } from "../Lib/Managers/CutScenes";
+import { CutSceneSystem, CutsceneTriggerSystem } from "../Lib/Managers/CutScenes";
 import { QuestManager } from "../Lib/Managers/QuestManager";
 import { getLoadedTextures } from "../resources";
 
@@ -33,8 +32,10 @@ export class DungeonScene extends Scene {
   tmpDialogLock: string = "idle";
   tmpTriggeredEncounter: any = null;
   private cutSceneSystem!: CutSceneSystem;
+  private cutsceneTriggerSystem!: CutsceneTriggerSystem;
   questManager!: QuestManager;
   private dungeonManager = new DungeonManager();
+  private dungeonDef!: DungeonDefinition;
 
   constructor(
     private readonly state: StateStore<GameState>,
@@ -64,7 +65,8 @@ export class DungeonScene extends Scene {
     this.dialogUI = new DialogUI(this.inputMapper);
     this.encounterTriggerSystem = new EncounterTriggerSystem(this.state, this.content);
     // Initialize CutSceneSystem
-    this.cutSceneSystem = new CutSceneSystem(this.world);
+    this.cutSceneSystem = new CutSceneSystem(this.world, () => this.state);
+    this.cutsceneTriggerSystem = new CutsceneTriggerSystem(this.state, this.cutSceneSystem);
     this.world.add(this.cutSceneSystem);
     this.cutSceneSystem.setDialogUI(this.dialogUI);
     this.cutSceneSystem.setEncounterTriggerSystem(this.encounterTriggerSystem);
@@ -78,8 +80,6 @@ export class DungeonScene extends Scene {
         },
       ],
     });
-    // Inside DungeonScene.ts -> onInitialize()
-
     this.cutSceneSystem.registerCutScene("goblin-encounter", {
       id: "goblin-encounter",
       commands: [
@@ -93,7 +93,15 @@ export class DungeonScene extends Scene {
         },
       ],
     });
-    // this.dialogRunner = new DialogRunner(this.dialogUI, new DialogLoader("/public/Dialog/dungeon-intro.json")); //public\Dialog\testDialog.json
+    this.cutSceneSystem.registerCutScene("enter-crypt", {
+      id: "enter-crypt",
+      commands: [
+        {
+          type: "newDungeon",
+          args: { id: "crypt-dungeon", newPos: { x: 7.5, y: 10.5 }, direction: "north" },
+        },
+      ],
+    });
     this.cutSceneSystem.startCutScene("dungeon-intro");
     this.questManager = new QuestManager(this.state);
     const potionQuest = this.content.getQuest("find-potion");
@@ -134,14 +142,15 @@ export class DungeonScene extends Scene {
 
   public onActivate(): void {
     this.inputMapper.switchContext(INPUT_CONTEXT.Dungeon);
+    console.log("reactivating scene");
 
     //pull current dungeon data from state
     const currentDungeonId = this.state.get("dungeon").current;
-    const currentDungeon = this.state.get("dungeon").registry[currentDungeonId];
     const definition = this.content.getDungeon(currentDungeonId);
     if (!definition) {
       throw new Error(`Dungeon definition not found for ID: ${currentDungeonId}`);
     }
+    this.dungeonDef = definition;
 
     this.dungeonManager = new DungeonManager();
     this.dungeonManager.loadOrInitDungeon(definition, this.state);
@@ -196,7 +205,7 @@ export class DungeonScene extends Scene {
     if (this.dialogUI) {
       this.add(this.dialogUI);
       this.dialogRunner?.start();
-      console.log("Dialog UI added and started.", this.dialogUI);
+      // console.log("Dialog UI added and started.", this.dialogUI);
     }
   }
 
@@ -204,9 +213,18 @@ export class DungeonScene extends Scene {
     this.clear();
   }
 
-  private handleTurnTick(): void {
+  private async handleTurnTick(): Promise<void> {
     // Only check proximity if currently in playing mode
     if (this.state.get("game.mode") !== "playing") return;
+
+    // Check if player stepped on a tile trigger
+    const triggered = await this.cutsceneTriggerSystem.checkTileTriggers(
+      Math.floor(this.dCamera!.x),
+      Math.floor(this.dCamera!.y),
+      this.dungeonDef.cutsceneTriggers,
+    );
+
+    if (triggered) return; // Skip normal turn processing if cutscene fired
 
     // Evaluate enemy distances and alert states
     const { alertedEnemies, triggeredEncounter } = this.proximitySystem.updateProximity();
