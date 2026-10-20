@@ -34,7 +34,6 @@ export class ProximitySystem {
 
       for (const [instanceId, enemy] of Object.entries(enemies)) {
         if (enemy.state === "dead") continue;
-        console.log("enemies: ", instanceId);
 
         const def = this.contentRegistry.getEnemy(enemy.definitionId);
         if (!def) continue;

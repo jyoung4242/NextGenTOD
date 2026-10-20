@@ -21,6 +21,13 @@ const OPPOSITE_DIRECTIONS: Record<Direction, Direction> = {
 };
 
 const DIRECTIONS: Direction[] = ["east", "south", "west", "north"];
+// Map directions to their array index
+const DIRECTION_INDICES: Record<Direction, number> = {
+  east: 0,
+  south: 1,
+  west: 2,
+  north: 3,
+};
 
 export class DungeonPlayer {
   private currentDirectionIndex = 0;
@@ -31,11 +38,18 @@ export class DungeonPlayer {
     private readonly dungeon: Dungeon,
     private readonly camera: DungeonCamera,
     private readonly interactionSystem: InteractionSystem,
-    private readonly viewport: DungeonViewport,
+    private readonly viewport: DungeonViewport, // or whatever parameters your constructor uses
   ) {
+    // 1. Sync initial position
     const pos = this.store.get("player.position");
     this.camera.x = pos.x;
     this.camera.y = pos.y;
+
+    // 2. Sync initial facing direction from store (with fallback to "east")
+    const facing = this.store.get("player.facing") || "east";
+    this.currentDirectionIndex = DIRECTION_INDICES[facing as Direction] ?? 0;
+
+    // 3. Set camera angle accordingly
     this.camera.angle = CARDINAL_ANGLES[DIRECTIONS[this.currentDirectionIndex]];
   }
 
