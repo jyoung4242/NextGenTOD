@@ -11,16 +11,14 @@ import {
   Camera,
   ActionContext,
   Actor,
-  ParallelActions,
   Blink,
 } from "excalibur";
-import { DialogLoader } from "./DialogLoader";
-import { DialogRunner } from "./DialogRunner";
 import { DialogUI } from "../../UI/DialogUI";
 import { EncounterTriggerSystem } from "../Systems/EncounterTrigger";
 import { DialogAction } from "./actions/DialogJSONaction";
 import { StateStore } from "../../GameState";
-import { CutsceneTriggerDefinition, CutsceneTriggerType, GameMode, GameState } from "../../GameTypes";
+import { CutsceneTriggerDefinition, GameMode, GameState } from "../../GameTypes";
+import { DungeonScene } from "../../Scenes/DungeonScene";
 
 // ==========================================
 // 1. Types & Manifest Interfaces
@@ -179,7 +177,6 @@ export class CutSceneSystem extends System {
 
     const manifest = this.registeredCutScenes.get(cutsceneId);
     if (!manifest) return;
-
     this.isPlaying = true;
     // Toggle flags on your tracking components
     this.setParticipantsPlayingState(true);
@@ -289,7 +286,9 @@ export class CutSceneSystem extends System {
 
     // Dialogue Command Registration
     this.registerCommand("dialog", async (args, ctx) => {
-      const { path, scene, dialog } = args;
+      const { path } = args;
+      let scene = this.world.scene;
+      let dialog = (scene as DungeonScene).dialogUI as DialogUI;
       console.warn("CutSceneSystem: Executing dialog command with path:", path, "scene:", scene, "dialogUI:", dialog);
       await this.director.actions.runAction(new DialogAction(scene, dialog, path)).toPromise();
     });

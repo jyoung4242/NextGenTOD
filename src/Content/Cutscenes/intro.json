@@ -1,5 +1,5 @@
 {
-  "id": "dungeon-intro-cutscene",
+  "id": "dungeon-intro",
   "commands": [
     {
       "type": "dialog",
