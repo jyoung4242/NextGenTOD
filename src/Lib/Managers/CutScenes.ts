@@ -19,6 +19,7 @@ import { DialogAction } from "./actions/DialogJSONaction";
 import { StateStore } from "../../GameState";
 import { CutsceneTriggerDefinition, GameMode, GameState } from "../../GameTypes";
 import { DungeonScene } from "../../Scenes/DungeonScene";
+import { QuestManager } from "./QuestManager";
 
 // ==========================================
 // 1. Types & Manifest Interfaces
@@ -96,6 +97,7 @@ export class CutSceneSystem extends System {
   constructor(
     world: World,
     private getState: () => StateStore<GameState>,
+    private questMgr: QuestManager,
   ) {
     super();
     this.world = world;
@@ -304,6 +306,13 @@ export class CutSceneSystem extends System {
       });
     });
 
+    // Register the command handler on your CutSceneSystem
+    this.registerCommand("start_quest", async (args, context) => {
+      const { questId } = args;
+      console.log(`[Cutscene Command] Starting quest: ${questId}`);
+      this.questMgr.startQuest(questId);
+    });
+
     this.registerCommand("parallel", async (args, ctx) => {
       const { actions } = args;
       if (!actions || !Array.isArray(actions)) return;
@@ -340,7 +349,7 @@ export class CutsceneTriggerSystem {
       // 1. Check if player is on the exact trigger coordinate
       if (trigger.position!.x === playerX && trigger.position!.y === playerY) {
         // 2. Read from top-level 'storypoints' instead of 'quests.flags'
-        const storyPoints = this.state.get("storyPoints") || {};
+        const storyPoints = this.state.get("storypoints") || {};
 
         // Check if already played/succeeded
         if (trigger.succeedsFlag && storyPoints[trigger.succeedsFlag]) {
@@ -356,12 +365,14 @@ export class CutsceneTriggerSystem {
 
         // 3. Pause gameplay mode & fire the cutscene
         this.state.update("game", g => ({ ...g, mode: "paused" as GameMode }));
+        console.log(trigger.cutsceneId);
+
         await this.cutSceneSystem.startCutScene(trigger.cutsceneId);
         this.state.update("game", g => ({ ...g, mode: "playing" as GameMode }));
 
         // 4. Automatically update the storypoint so it never triggers again
         if (trigger.succeedsFlag) {
-          this.state.update("storyPoints", points => ({
+          this.state.update("storypoints", points => ({
             ...points,
             [trigger.succeedsFlag!]: true, // Can be boolean or any custom data type
           }));

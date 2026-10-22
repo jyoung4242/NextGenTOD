@@ -9,7 +9,7 @@ export const cryptDungeon: DungeonDefinition = {
   items: [
     {
       id: "potion_health_minor",
-      position: { x: 7, y: 7 }, // Located in the southern crypt room
+      position: { x: 5, y: 7 }, // Located in the southern crypt room
       quantity: 1,
     },
   ],

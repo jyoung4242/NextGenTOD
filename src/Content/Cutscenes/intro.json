@@ -4,6 +4,10 @@
     {
       "type": "dialog",
       "args": { "path": "/public/Dialog/dungeon-intro.json" }
+    },
+    {
+      "type": "start_quest",
+      "args": { "questId": "find-potion" }
     }
   ]
 }
