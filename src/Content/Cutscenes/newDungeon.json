@@ -3,7 +3,7 @@
   "commands": [
     {
       "type": "newDungeon",
-      "args": { "id": "crypt-dungeon" }
+      "args": { "id": "crypt-dungeon", "newPos": { "x": 7.5, "y": 10.5 }, "direction": "north" }
     }
   ]
 }

@@ -17,15 +17,16 @@ export interface GameState {
   player: PlayerState;
   dungeon: {
     current: string;
-    registry: Record<string, DungeonState>;
+    registry: Record<string, DungeonState>; // 👈 Multi-level runtime state cache
   };
   quests: {
     active: Record<string, QuestProgress>;
     completed: string[];
   };
   progression: ProgressionState;
-  storyPoints: Record<string, unknown>;
+  storypoints: Record<string, unknown>; // 👈 Top-level storypoints narrative blackboard (supports any data type)
 }
+
 //#endregion gamestate
 
 // ********************************
@@ -325,6 +326,7 @@ export interface ContainerState {
 // ********************************
 
 //#region questtypes
+// --- Quest Content Definitions (Static Data) ---
 
 export type ObjectiveType = "talk" | "kill" | "collect" | "reach" | "interact";
 
@@ -332,7 +334,6 @@ export interface QuestObjectiveData {
   id: string;
   description: string;
   type: ObjectiveType;
-  /** npcId | enemyId | itemId | regionId | objectId */
   target: string;
   count: number;
 }
@@ -373,6 +374,8 @@ export interface QuestDefinitionData {
   worldFlags?: QuestWorldFlags;
 }
 
+// --- Quest Runtime State ---
+
 export interface ObjectiveProgress {
   id: string;
   current: number;
@@ -387,11 +390,6 @@ export interface QuestProgress {
 }
 
 export type QuestState = "not_started" | "active" | "complete";
-
-export interface ObjectiveState {
-  completed: boolean;
-  progress: number;
-}
 
 //#endregion questtypes
 

@@ -1,3 +1,4 @@
+// DungeonScene.ts
 import { Scene, Label, vec, Color, toDegrees, Keys, Axes, Buttons, Engine, SceneActivationContext } from "excalibur";
 import { StateStore } from "../GameState";
 import { createDungeonCamera, DungeonCamera, DungeonDefinition, GameMode, GameState } from "../GameTypes";
@@ -64,7 +65,15 @@ export class DungeonScene extends Scene {
     });
     this.dialogUI = new DialogUI(this.inputMapper);
     this.encounterTriggerSystem = new EncounterTriggerSystem(this.state, this.content);
-    this.cutSceneSystem = new CutSceneSystem(this.world, () => this.state);
+
+    // 🚀 Initialize QuestManager and load ALL quests dynamically from ContentRegistry
+    this.questManager = new QuestManager(this.state);
+    for (const [id, questDef] of this.content.quests.entries()) {
+      this.questManager.registerQuestData(questDef);
+    }
+
+    // 🚀 Initialize Cutscenes and load ALL cutscenes dynamically from ContentRegistry
+    this.cutSceneSystem = new CutSceneSystem(this.world, () => this.state, this.questManager);
     this.cutsceneTriggerSystem = new CutsceneTriggerSystem(this.state, this.cutSceneSystem);
     this.world.add(this.cutSceneSystem);
     this.cutSceneSystem.setDialogUI(this.dialogUI);
@@ -72,10 +81,6 @@ export class DungeonScene extends Scene {
     for (const [id, manifest] of this.content.cutscenes.entries()) {
       this.cutSceneSystem.registerCutScene(id, manifest);
     }
-
-    this.questManager = new QuestManager(this.state);
-    const potionQuest = this.content.getQuest("find-potion");
-    this.questManager.registerQuestData(potionQuest);
 
     const currentDungeonId = this.state.get("dungeon").current;
     const currentDungeon = this.state.get("dungeon").registry[currentDungeonId];
@@ -94,7 +99,7 @@ export class DungeonScene extends Scene {
       width: 960,
       height: 540,
       textures: getLoadedTextures(),
-      content: this.content, // Pass the content registry to the viewport
+      content: this.content,
     });
 
     this.inventory = new InventorySystem(this.state, this.content);
@@ -112,7 +117,6 @@ export class DungeonScene extends Scene {
   public async onActivate(): Promise<void> {
     this.inputMapper.switchContext(INPUT_CONTEXT.Dungeon);
 
-    //pull current dungeon data from state
     const currentDungeonId = this.state.get("dungeon").current;
     const definition = this.content.getDungeon(currentDungeonId);
     if (!definition) {
@@ -134,7 +138,7 @@ export class DungeonScene extends Scene {
       width: 960,
       height: 540,
       textures: getLoadedTextures(),
-      content: this.content, // Pass the content registry to the viewport
+      content: this.content,
     });
     this.add(vp);
 
@@ -170,18 +174,14 @@ export class DungeonScene extends Scene {
     this.encounterTriggerSystem = new EncounterTriggerSystem(this.state, this.content);
 
     if (this.dungeonDef.onEnterCutsceneId) {
-      const storyPoints = this.state.get("storyPoints") || {};
+      const storyPoints = this.state.get("storypoints") || {};
       const flagKey = `dungeon_entered_${currentDungeonId}`;
 
       if (!storyPoints[flagKey]) {
         this.state.update("game", g => ({ ...g, mode: "paused" as GameMode }));
-        console.log("running on enter cutscene");
-
         await this.cutSceneSystem.startCutScene(this.dungeonDef.onEnterCutsceneId);
-
         this.state.update("game", g => ({ ...g, mode: "playing" as GameMode }));
-
-        this.state.update("storyPoints", points => ({
+        this.state.update("storypoints", points => ({
           ...points,
           [flagKey]: true,
         }));
@@ -195,28 +195,22 @@ export class DungeonScene extends Scene {
       await this.cutSceneSystem.startCutScene(this.dungeonDef.onExitCutsceneId);
       this.state.update("game", g => ({ ...g, mode: "playing" as GameMode }));
     }
-
     this.clear();
   }
 
   private async handleTurnTick(): Promise<void> {
-    // Only check proximity if currently in playing mode
     if (this.state.get("game.mode") !== "playing") return;
 
-    // Check if player stepped on a tile trigger
     const triggered = await this.cutsceneTriggerSystem.checkTileTriggers(
       Math.floor(this.dCamera!.x),
       Math.floor(this.dCamera!.y),
       this.dungeonDef.cutsceneTriggers,
     );
 
-    if (triggered) return; // Skip normal turn processing if cutscene fired
+    if (triggered) return;
 
-    // Evaluate enemy distances and alert states
     const { alertedEnemies, triggeredEncounter } = this.proximitySystem.updateProximity();
-    // If an enemy is in immediate contact range, initiate combat encounter
     if (triggeredEncounter) {
-      // Dynamic Cutscene Registration with Dialogue & Encounter Actions
       this.cutSceneSystem.registerCutScene("goblin-encounter", {
         id: "goblin-encounter",
         commands: [

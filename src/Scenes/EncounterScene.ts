@@ -130,7 +130,7 @@ export class EncounterScene extends Scene {
     }
 
     this.stateMachine = new CombatStateMachine(this.store, this.contentRegistry);
-    this.queueManager = new ActionQueueManager(this.stateMachine, this);
+    this.queueManager = new ActionQueueManager(this.stateMachine);
 
     this.gridRenderer = new DungeonGridRenderer({
       store: this.store,

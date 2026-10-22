@@ -44,15 +44,21 @@ export class QuestManager {
     this.store.batch(ctx => {
       ctx.set(`quests.active.${questId}` as any, progress);
 
+      // 🛠️ FIX: Write start flags to root-level 'storypoints'
       for (const flag of def.triggers?.onStart?.setsFlag ?? []) {
-        ctx.set(`quests.flags.${flag}` as any, true);
+        ctx.update("storypoints", points => ({
+          ...points,
+          [flag]: true,
+        }));
       }
       for (const flag of def.worldFlags?.sets ?? []) {
-        ctx.set(`quests.flags.${flag}` as any, true);
+        ctx.update("storypoints", points => ({
+          ...points,
+          [flag]: true,
+        }));
       }
     });
 
-    // 📍 LOG: QUEST STARTED
     console.log(
       `%c[Quest Started]%c ${def.metadata.title || questId}`,
       "color: #4caf50; font-weight: bold;",
@@ -78,8 +84,18 @@ export class QuestManager {
       ctx.set("quests.active", nextActive);
       ctx.set("quests.completed", [...quests.completed, questId]);
 
+      // Grant item rewards if specified in definition
+      if (def.rewards?.items) {
+        const currentItems = this.store.get("player.inventory.items") || [];
+        ctx.set("player.inventory.items" as any, [...currentItems, ...def.rewards.items]);
+      }
+
+      // 🛠️ FIX: Write completion flags to root-level 'storypoints'
       for (const flag of def.triggers?.onComplete?.setsFlag ?? []) {
-        ctx.set(`quests.flags.${flag}` as any, true);
+        ctx.update("storypoints", points => ({
+          ...points,
+          [flag]: true,
+        }));
       }
     });
 
@@ -132,6 +148,13 @@ export class QuestManager {
 
       if (updated) {
         this.store.set(`quests.active.${questId}.objectives` as any, nextObjectives);
+
+        // Check if ALL objectives for this quest are now complete
+        const allComplete = nextObjectives.every(obj => obj.complete);
+        if (allComplete) {
+          console.log(`[QuestManager]: All objectives met for quest "${questId}". Auto-completing quest.`);
+          this.completeQuest(questId);
+        }
       }
     }
   }
