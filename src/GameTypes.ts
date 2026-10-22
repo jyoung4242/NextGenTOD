@@ -121,6 +121,9 @@ export interface DungeonDefinition {
   items?: DungeonItemPlacement[];
   enemies?: DungeonEnemyPlacement[];
   cutsceneTriggers?: CutsceneTriggerDefinition[];
+  // 🚀 Lifecycle Cutscene Hooks
+  onEnterCutsceneId?: string; // Cutscene triggered when entering the dungeon
+  onExitCutsceneId?: string; // Cutscene triggered when leaving the dungeon
 }
 export interface DungeonConnectionDefinition {
   id: string;

@@ -16,6 +16,7 @@ import { loader } from "./resources";
 import { registerQuest } from "./Content/Quests/testQuest";
 import { registerSkills } from "./Content/Skills/SkillsRegistry";
 import { applyConnectionsToGrid } from "./Lib/Managers/DungeonManager";
+import { registerCutscenes } from "./Content/Cutscenes";
 
 export const INPUT_CONTEXT = {
   Dungeon: "dungeon",
@@ -38,6 +39,7 @@ registerTestItems(content);
 registerTestEnemies(content);
 registerQuest(content);
 registerSkills(content);
+registerCutscenes(content);
 
 // Ensure grid connections are processed on the static definition content
 const definition = content.getDungeon("test-dungeon");

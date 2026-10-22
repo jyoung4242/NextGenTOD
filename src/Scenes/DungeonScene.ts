@@ -1,6 +1,6 @@
 import { Scene, Label, vec, Color, toDegrees, Keys, Axes, Buttons, Engine, SceneActivationContext } from "excalibur";
 import { StateStore } from "../GameState";
-import { createDungeonCamera, DungeonCamera, DungeonDefinition, GameState } from "../GameTypes";
+import { createDungeonCamera, DungeonCamera, DungeonDefinition, GameMode, GameState } from "../GameTypes";
 import { ContentRegistry } from "../Content/ContentRegistry";
 import { Dungeon, DungeonManager } from "../Lib/Managers/DungeonManager";
 import { DungeonViewport } from "../UI/DungeonViewport";
@@ -64,45 +64,15 @@ export class DungeonScene extends Scene {
     });
     this.dialogUI = new DialogUI(this.inputMapper);
     this.encounterTriggerSystem = new EncounterTriggerSystem(this.state, this.content);
-    // Initialize CutSceneSystem
     this.cutSceneSystem = new CutSceneSystem(this.world, () => this.state);
     this.cutsceneTriggerSystem = new CutsceneTriggerSystem(this.state, this.cutSceneSystem);
     this.world.add(this.cutSceneSystem);
     this.cutSceneSystem.setDialogUI(this.dialogUI);
     this.cutSceneSystem.setEncounterTriggerSystem(this.encounterTriggerSystem);
-    // Register Cutscenes
-    this.cutSceneSystem.registerCutScene("dungeon-intro", {
-      id: "dungeon-intro",
-      commands: [
-        {
-          type: "dialog",
-          args: { path: "/public/Dialog/dungeon-intro.json", scene: this, dialog: this.dialogUI },
-        },
-      ],
-    });
-    this.cutSceneSystem.registerCutScene("goblin-encounter", {
-      id: "goblin-encounter",
-      commands: [
-        {
-          type: "dialog",
-          args: { path: "/public/Dialog/goblin.json" },
-        },
-        {
-          type: "encounter",
-          args: { enemyInstanceId: "goblin-1" }, // Or dynamic argument passed at runtime
-        },
-      ],
-    });
-    this.cutSceneSystem.registerCutScene("enter-crypt", {
-      id: "enter-crypt",
-      commands: [
-        {
-          type: "newDungeon",
-          args: { id: "crypt-dungeon", newPos: { x: 7.5, y: 10.5 }, direction: "north" },
-        },
-      ],
-    });
-    this.cutSceneSystem.startCutScene("dungeon-intro");
+    for (const [id, manifest] of this.content.cutscenes.entries()) {
+      this.cutSceneSystem.registerCutScene(id, manifest);
+    }
+
     this.questManager = new QuestManager(this.state);
     const potionQuest = this.content.getQuest("find-potion");
     this.questManager.registerQuestData(potionQuest);
@@ -130,19 +100,17 @@ export class DungeonScene extends Scene {
     this.inventory = new InventorySystem(this.state, this.content);
     this.interactions = new InteractionSystem(this.state, this.dungeonManager, this.inventory, this.content, vp, this.questManager);
     this.d_Player = new DungeonPlayer(this.state, dungeon, this.dCamera!, this.interactions, vp);
-    // 2. Attach turn/step callback to evaluate enemy proximity & trigger encounters
+
     this.d_Player.onStepOrTurn = () => {
       this.handleTurnTick();
     };
     this.playerController = new DungeonPlayerController(this.inputMapper, this.d_Player);
     this.playerController.initialize();
-
     this.proximitySystem = new ProximitySystem(this.state, this.content);
   }
 
-  public onActivate(): void {
+  public async onActivate(): Promise<void> {
     this.inputMapper.switchContext(INPUT_CONTEXT.Dungeon);
-    console.log("reactivating scene");
 
     //pull current dungeon data from state
     const currentDungeonId = this.state.get("dungeon").current;
@@ -151,7 +119,6 @@ export class DungeonScene extends Scene {
       throw new Error(`Dungeon definition not found for ID: ${currentDungeonId}`);
     }
     this.dungeonDef = definition;
-
     this.dungeonManager = new DungeonManager();
     this.dungeonManager.loadOrInitDungeon(definition, this.state);
     const dungeon = new Dungeon(definition, this.state);
@@ -189,7 +156,6 @@ export class DungeonScene extends Scene {
     this.interactions = new InteractionSystem(this.state, this.dungeonManager, this.inventory, this.content, vp, this.questManager);
 
     this.d_Player = new DungeonPlayer(this.state, dungeon, this.dCamera!, this.interactions, vp);
-    // 2. Attach turn/step callback to evaluate enemy proximity & trigger encounters
     this.d_Player.onStepOrTurn = () => {
       this.handleTurnTick();
     };
@@ -202,14 +168,34 @@ export class DungeonScene extends Scene {
 
     this.proximitySystem = new ProximitySystem(this.state, this.content);
     this.encounterTriggerSystem = new EncounterTriggerSystem(this.state, this.content);
-    if (this.dialogUI) {
-      this.add(this.dialogUI);
-      this.dialogRunner?.start();
-      // console.log("Dialog UI added and started.", this.dialogUI);
+
+    if (this.dungeonDef.onEnterCutsceneId) {
+      const storyPoints = this.state.get("storyPoints") || {};
+      const flagKey = `dungeon_entered_${currentDungeonId}`;
+
+      if (!storyPoints[flagKey]) {
+        this.state.update("game", g => ({ ...g, mode: "paused" as GameMode }));
+        console.log("running on enter cutscene");
+
+        await this.cutSceneSystem.startCutScene(this.dungeonDef.onEnterCutsceneId);
+
+        this.state.update("game", g => ({ ...g, mode: "playing" as GameMode }));
+
+        this.state.update("storyPoints", points => ({
+          ...points,
+          [flagKey]: true,
+        }));
+      }
     }
   }
 
-  public onDeactivate(context: SceneActivationContext) {
+  public async onDeactivate(context: SceneActivationContext) {
+    if (this.dungeonDef && this.dungeonDef.onExitCutsceneId) {
+      this.state.update("game", g => ({ ...g, mode: "paused" as GameMode }));
+      await this.cutSceneSystem.startCutScene(this.dungeonDef.onExitCutsceneId);
+      this.state.update("game", g => ({ ...g, mode: "playing" as GameMode }));
+    }
+
     this.clear();
   }
 
