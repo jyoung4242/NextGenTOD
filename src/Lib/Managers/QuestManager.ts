@@ -84,15 +84,6 @@ export class QuestManager {
       ctx.set("quests.active", nextActive);
       ctx.set("quests.completed", [...quests.completed, questId]);
 
-      // 🛑 REMOVE OR FIX THIS BLOCK:
-      // Pushing raw strings here corrupts the inventory array!
-      /*
-      if (def.rewards?.items) {
-        const currentItems = this.store.get("player.inventory.items") || [];
-        ctx.set("player.inventory.items" as any, [...currentItems, ...def.rewards.items]);
-      }
-      */
-
       for (const flag of def.triggers?.onComplete?.setsFlag ?? []) {
         ctx.update("storypoints", points => ({
           ...points,
