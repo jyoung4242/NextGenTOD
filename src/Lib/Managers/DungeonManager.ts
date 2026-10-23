@@ -158,12 +158,14 @@ export function createDungeonState(definition: DungeonDefinition, seed = 0, cont
       };
     }
   }
-
-  // 3. Populate runtime enemy instances from dungeon definition
+  // 3. Populate runtime enemy instances dynamically from ContentRegistry
   const enemies: Record<string, EnemyState> = {};
   if (definition.enemies) {
     for (const spawn of definition.enemies) {
+      // Lookup the actual enemy definition from content
       const enemyDef = contentRegistry?.getEnemy(spawn.definitionId);
+
+      // Fallback to 100 if the registry isn't passed or definition doesn't exist
       const enemyHealth = enemyDef?.health ?? 100;
 
       enemies[spawn.id] = {

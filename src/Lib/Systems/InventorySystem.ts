@@ -16,7 +16,11 @@ export class InventorySystem {
 
   public getTotalWeight(): number {
     const { items } = this.store.get().player.inventory;
-    return items.reduce((total, item) => {
+
+    // Filter out corrupted/undefined items to prevent crashes
+    const validItems = items.filter(item => item && typeof item.definitionId === "string");
+
+    return validItems.reduce((total, item) => {
       const def = this.contentRegistry.getItem(item.definitionId);
       return total + (def ? def.weight * item.quantity : 0);
     }, 0);
@@ -24,7 +28,7 @@ export class InventorySystem {
 
   public hasItem(definitionId: string, quantity = 1): boolean {
     const { items } = this.store.get().player.inventory;
-    const totalCount = items.filter(i => i.definitionId === definitionId).reduce((sum, i) => sum + i.quantity, 0);
+    const totalCount = items.filter(i => i && i.definitionId === definitionId).reduce((sum, i) => sum + i.quantity, 0);
     return totalCount >= quantity;
   }
 
@@ -42,12 +46,12 @@ export class InventorySystem {
       return { success: false, reason: "overburdened", addedQuantity: 0 };
     }
 
-    // Get current items and clone them immutably
+    // Get current items and clean/clone them immutably
     const currentItems = this.store.get().player.inventory.items;
 
     this.store.batch(ctx => {
-      // Deep/shallow clone items so we don't mutate frozen state objects directly
-      let items: ItemInstance[] = currentItems.map(i => ({ ...i }));
+      // Filter out invalid/undefined items and clone the rest
+      let items: ItemInstance[] = currentItems.filter(i => i && typeof i.definitionId === "string").map(i => ({ ...i }));
 
       if (def.stackable) {
         const maxStack = def.maxStackSize ?? 99;
@@ -76,7 +80,6 @@ export class InventorySystem {
         }
       } else {
         // Non-stackable: append new individual item instances
-        items = [...items];
         for (let i = 0; i < quantity; i++) {
           items.push({
             instanceId: `inst_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
@@ -89,12 +92,21 @@ export class InventorySystem {
       ctx.set("player.inventory.items", items);
     });
 
+    // Optional debug log to confirm successful pickup
+    const updatedInventory = this.store.get().player.inventory;
+    console.log("[Inventory Updated]:", {
+      addedItem: def.name,
+      quantityAdded: quantity,
+      totalWeight: `${this.getTotalWeight()}/${updatedInventory.maxWeight}`,
+      items: updatedInventory.items,
+    });
+
     return { success: true, addedQuantity: quantity };
   }
 
   public removeItem(instanceId: string, quantity = 1): boolean {
     const items = this.store.get().player.inventory.items;
-    const index = items.findIndex(i => i.instanceId === instanceId);
+    const index = items.findIndex(i => i && i.instanceId === instanceId);
 
     if (index === -1) return false;
 
@@ -103,10 +115,8 @@ export class InventorySystem {
       let updatedItems: ItemInstance[];
 
       if (targetItem.quantity > quantity) {
-        // Clone items and update the specific item's quantity
         updatedItems = items.map((i, idx) => (idx === index ? { ...i, quantity: i.quantity - quantity } : { ...i }));
       } else {
-        // Filter out the removed item instance entirely
         updatedItems = items.filter((_, idx) => idx !== index).map(i => ({ ...i }));
       }
 

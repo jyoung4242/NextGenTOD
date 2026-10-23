@@ -379,6 +379,6 @@ export function createInitialGameState(): GameState {
       level: 1,
       skillPoints: 0,
     },
-    storyPoints: {},
+    storypoints: {},
   };
 }
