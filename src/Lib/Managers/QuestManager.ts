@@ -83,14 +83,7 @@ export class QuestManager {
 
       ctx.set("quests.active", nextActive);
       ctx.set("quests.completed", [...quests.completed, questId]);
-
-      // Grant item rewards if specified in definition
-      if (def.rewards?.items) {
-        const currentItems = this.store.get("player.inventory.items") || [];
-        ctx.set("player.inventory.items" as any, [...currentItems, ...def.rewards.items]);
-      }
-
-      // 🛠️ FIX: Write completion flags to root-level 'storypoints'
+      // update state
       for (const flag of def.triggers?.onComplete?.setsFlag ?? []) {
         ctx.update("storypoints", points => ({
           ...points,
@@ -99,7 +92,6 @@ export class QuestManager {
       }
     });
 
-    // 📍 LOG: QUEST COMPLETED
     console.log(`%c[Quest Completed]%c ${def.metadata.title || questId}`, "color: #ffd700; font-weight: bold;", "color: inherit;");
   }
 

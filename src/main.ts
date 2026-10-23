@@ -49,7 +49,6 @@ if (definition) {
 
 // Initialize state store with default factory (which sets up the dungeon cache structure)
 export const state: StateStore<GameState> = createStateStore(createInitialGameState());
-
 const game = new Engine({
   width: 960,
   height: 540,

@@ -19,7 +19,8 @@ export class ActionQueueManager {
     this.enemyAi = new EnemyAISystem(this.stateMachine.getContentRegistry());
   }
 
-  public enqueuePlayerAction(action: CombatAction, enemyId: string): void {
+  // Systems/ActionQueueManager.ts
+  public enqueuePlayerAction(action: CombatAction, targetEnemyId: string): void {
     // 1. Queue Player Action
     this.queue.push({
       actorId: "player",
@@ -27,20 +28,33 @@ export class ActionQueueManager {
       action,
     });
 
-    // 2. Automatically queue the Enemy's counter-action right after
+    // 2. Automatically queue counter-actions for ALL living enemies in the encounter
     const currentState = this.stateMachine.getStore().get();
-    const enemyAction = this.enemyAi.selectAction(enemyId, currentState);
+    const encounter = currentState.game.encounter;
 
-    this.queue.push({
-      actorId: enemyId,
-      participantType: "enemy",
-      action: enemyAction,
-    });
+    if (encounter && encounter.enemyInstanceIds) {
+      const activeDungeonId = currentState.dungeon.current;
+      const dungeonEnemies = currentState.dungeon.registry?.[activeDungeonId]?.enemies;
+
+      for (const enemyId of encounter.enemyInstanceIds) {
+        const enemyState = dungeonEnemies?.[enemyId];
+        // Only queue actions for living enemies
+        if (enemyState && enemyState.alive && enemyState.hp > 0) {
+          const enemyAction = this.enemyAi.selectAction(enemyId, currentState);
+          this.queue.push({
+            actorId: enemyId,
+            participantType: "enemy",
+            action: enemyAction,
+          });
+        }
+      }
+    }
 
     // 3. Process the queue sequentially
     this.processQueue();
   }
 
+  // Systems/ActionQueueManager.ts
   private async processQueue(): Promise<void> {
     if (this.isProcessing) return;
     this.isProcessing = true;
@@ -50,17 +64,23 @@ export class ActionQueueManager {
       if (!current) break;
 
       if (current.participantType === "player") {
-        // Execute player action (which sets currentTurn to 'enemy')
         this.stateMachine.processPlayerAction(current.action);
       } else {
-        // Execute enemy action (which sets currentTurn back to 'player')
         this.stateMachine.processEnemyAction(current.actorId, current.action);
       }
 
-      // Small delay for smooth combat pacing and log readability
+      // ─── ADD THIS: Refresh visual actor positions and grid after every tick ───
+      const engine = this.stateMachine.getStore(); // or access your current Scene instance
+      // Assuming you can access the current active scene from your Excalibur engine:
+      // (If your engine instance is globally accessible or passed into manager)
+
+      // Alternatively, call update on the active scene directly if accessible:
+      const activeScene = engine as any; // or hook into your scene reference
+      // ...
+
+      // Small delay for smooth pacing
       await new Promise(resolve => setTimeout(resolve, 200));
 
-      // If the encounter became resolved (e.g. enemy died), clear the rest of the queue
       const latestState = this.stateMachine.getStore().get();
       if (latestState.game.encounter?.isResolved) {
         this.queue = [];

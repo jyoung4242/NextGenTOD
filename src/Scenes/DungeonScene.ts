@@ -89,7 +89,7 @@ export class DungeonScene extends Scene {
       throw new Error(`Dungeon definition not found for ID: ${currentDungeonId}`);
     }
 
-    this.dungeonManager.loadOrInitDungeon(definition, this.state);
+    this.dungeonManager.loadOrInitDungeon(definition, this.state, this.content);
     const dungeon = new Dungeon(definition, this.state);
 
     const vp = new DungeonViewport({
@@ -124,7 +124,7 @@ export class DungeonScene extends Scene {
     }
     this.dungeonDef = definition;
     this.dungeonManager = new DungeonManager();
-    this.dungeonManager.loadOrInitDungeon(definition, this.state);
+    this.dungeonManager.loadOrInitDungeon(definition, this.state, this.content);
     const dungeon = new Dungeon(definition, this.state);
 
     const vp = new DungeonViewport({

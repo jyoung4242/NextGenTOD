@@ -132,6 +132,7 @@ export class MinimapGraphic extends Graphic {
     const { ctx, tileSize: ts, width, height } = this;
     const grid = this.dungeon.grid;
     const currentState = this.getState();
+    if (!currentState) return;
 
     // 1. Clear background
     ctx.fillStyle = "rgba(10, 10, 15, 0.85)";

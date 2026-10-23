@@ -33,6 +33,9 @@ export class EncounterScene extends Scene {
 
   private targetReticle?: TargetReticle;
 
+  // Scenes/EncounterScene.ts
+  private unubscribeStore?: () => void;
+
   constructor(
     private readonly store: StateStore<GameState>,
     private readonly contentRegistry: ContentRegistry,
@@ -139,8 +142,15 @@ export class EncounterScene extends Scene {
       position: Vector.Zero,
     });
     this.add(this.gridRenderer);
-
     this.setupCombatEntities(encounter);
+
+    // 🎯 Listen for ANY changes to the encounter state or dungeon state and auto-update!
+    this.unubscribeStore = this.store.subscribe("game.encounter", () => {
+      this.updateActorPositions();
+      if (this.gridRenderer && (this.gridRenderer as any).gridGraphic) {
+        (this.gridRenderer as any).gridGraphic.flagDirty();
+      }
+    });
 
     // Instantiate and add Target Reticle overlay
     this.targetReticle = new TargetReticle({ tileSize: this.TILE_SIZE });
@@ -486,7 +496,11 @@ export class EncounterScene extends Scene {
     this.enemyActors.clear();
     const state = this.store.get();
     const activeDungeonId = state.dungeon.current;
-    const dungeonEnemies = state.dungeon.registry?.[activeDungeonId]?.enemies;
+    const activeDungeonState = state.dungeon.registry?.[activeDungeonId];
+    // Fallback check to support both registry structure and legacy flat structures if any linger
+    console.log(activeDungeonState);
+
+    const dungeonEnemies = activeDungeonState?.enemies ?? (state.dungeon as any).enemies ?? {};
 
     const tokenSize = this.TILE_SIZE * 0.75;
     const { minX, minY } = encounter.arenaBounds;
@@ -518,9 +532,14 @@ export class EncounterScene extends Scene {
     }
 
     // 2. Spawn Enemy Tokens
+    console.log(encounter);
+
     const enemyIds = encounter.enemyInstanceIds ?? (encounter.activeEnemyInstanceId ? [encounter.activeEnemyInstanceId] : []);
+    console.log(dungeonEnemies);
+
     for (const enemyId of enemyIds) {
       const enemyState: EnemyState | undefined = dungeonEnemies?.[enemyId];
+      console.log(enemyState);
 
       if (enemyState && enemyState.alive) {
         const ePos = encounter.enemyPositions?.[enemyId] ?? enemyState.position;

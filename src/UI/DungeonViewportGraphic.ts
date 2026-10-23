@@ -69,6 +69,7 @@ export class DungeonViewportGraphic extends Graphic {
   private redrawViewport(): void {
     const { ctx, width, height } = this;
     const currentState = this.getState();
+    if (!currentState) return;
     const projectionPlane = width / 2 / Math.tan(this.camera.fov / 2);
 
     ctx.clearRect(0, 0, width, height);

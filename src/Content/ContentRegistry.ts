@@ -62,7 +62,6 @@ export class ContentRegistry {
 
   getItem(id: string): ItemDefinition {
     const definition = this.items.get(id);
-
     if (!definition) {
       throw new Error(`Unknown item: ${id}`);
     }
