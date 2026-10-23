@@ -83,7 +83,7 @@ export class QuestManager {
 
       ctx.set("quests.active", nextActive);
       ctx.set("quests.completed", [...quests.completed, questId]);
-
+      // update state
       for (const flag of def.triggers?.onComplete?.setsFlag ?? []) {
         ctx.update("storypoints", points => ({
           ...points,
