@@ -49,6 +49,7 @@ if (definition) {
 
 // Initialize state store with default factory (which sets up the dungeon cache structure)
 export const state: StateStore<GameState> = createStateStore(createInitialGameState());
+
 const game = new Engine({
   width: 960,
   height: 540,
@@ -75,4 +76,30 @@ state.subscribe("game.mode", payload => {
   } else if (payload.value === "game_over") {
     game.goToScene(SCENES.GameOver);
   }
+});
+
+/**
+ * DEBUG SETUP FOR ENCOUNTER
+ */
+state.batch(ctx => {
+  ctx.set("game.mode", "encounter");
+  ctx.set("game.encounter", {
+    enemyInstanceIds: ["enemy_hallway_1", "enemy_hallway_2"],
+    activeEnemyInstanceId: "enemy_hallway_1",
+    currentTurn: "player",
+    turnCount: 1,
+    arenaBounds: {
+      maxX: 15,
+      maxY: 10,
+      minX: 0,
+      minY: 0,
+    },
+    playerPosition: { x: 9, y: 2 },
+    enemyPositions: {
+      enemy_hallway_1: { x: 12, y: 2 },
+      enemy_hallway_2: { x: 13, y: 1 },
+    },
+    combatLog: [`Encounter initiated with 2 enemies in the room!`],
+    isResolved: false,
+  });
 });
