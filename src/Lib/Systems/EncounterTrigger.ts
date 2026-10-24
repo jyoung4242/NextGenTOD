@@ -97,6 +97,7 @@ export class EncounterTriggerSystem {
         y: Math.floor(enemy.position.y),
       };
     }
+    console.log(arenaBounds);
 
     this.store.batch(ctx => {
       ctx.set("game.mode", "encounter");

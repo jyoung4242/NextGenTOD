@@ -1,5 +1,5 @@
 // Scenes/EncounterScene.ts
-import { Scene, Actor, vec, Axes, Buttons, Keys, Vector } from "excalibur";
+import { Scene, Actor, vec, Axes, Buttons, Keys, Vector, Color } from "excalibur";
 import { StateStore } from "../GameState";
 import { GameState, CombatAction, EnemyState } from "../GameTypes";
 import { ContentRegistry } from "../Content/ContentRegistry";
@@ -12,6 +12,8 @@ import { CombatStateMachine } from "../Lib/Systems/CombatStateMachine";
 import { attackSprite, defendSprite, fleeSprite, itemSprite, magicSprite, Resources, throwSprite } from "../resources";
 import { TargetingSystem } from "../Lib/Systems/TargetingSystem";
 import { TargetReticle } from "../Actors/TargetReticle";
+import { CharacterStatusGraphic, CharacterStatusHUD } from "../UI/CharacterStatusHUD";
+import { FloatingText } from "../Actors/FloatingText";
 
 export class EncounterScene extends Scene {
   private playerActor?: Actor;
@@ -32,6 +34,8 @@ export class EncounterScene extends Scene {
   private isCarouselOpen: boolean = false;
 
   private targetReticle?: TargetReticle;
+
+  private statusHud?: CharacterStatusHUD; // 👈 Add field reference
 
   // Scenes/EncounterScene.ts
   private unubscribeStore?: () => void;
@@ -142,13 +146,34 @@ export class EncounterScene extends Scene {
       position: Vector.Zero,
     });
     this.add(this.gridRenderer);
+
+    this.statusHud = new CharacterStatusHUD(this.store);
+    this.add(this.statusHud);
+
     this.setupCombatEntities(encounter);
 
     // 🎯 Listen for ANY changes to the encounter state or dungeon state and auto-update!
-    this.unubscribeStore = this.store.subscribe("game.encounter", () => {
+    this.unubscribeStore = this.store.subscribe("game.encounter", payload => {
       this.updateActorPositions();
+
       if (this.gridRenderer && (this.gridRenderer as any).gridGraphic) {
         (this.gridRenderer as any).gridGraphic.flagDirty();
+      }
+      if (this.statusHud) {
+        if (this.statusHud.graphics.current && this.statusHud.graphics.current instanceof CharacterStatusGraphic)
+          this.statusHud.graphics.current!.flagDirty();
+      }
+
+      // 🎯 Parse new combat log entries and spawn Floating Combat Text
+      const prevLog = payload.previousValue?.combatLog ?? [];
+      const currentLog = payload.value?.combatLog ?? [];
+
+      if (currentLog.length > prevLog.length) {
+        // Process all newly added log messages
+        for (let i = prevLog.length; i < currentLog.length; i++) {
+          const logMessage = currentLog[i];
+          this.handleCombatLogFCT(logMessage);
+        }
       }
     });
 
@@ -177,6 +202,25 @@ export class EncounterScene extends Scene {
     this.carouselUI.pos = vec(80, 260);
     this.carouselUI.graphics.isVisible = false;
     this.add(this.carouselUI);
+  }
+
+  public spawnFloatingText(text: string, gridX: number, gridY: number, color?: Color): void {
+    const encounter = this.store.get().game.encounter;
+    if (!encounter) return;
+
+    const { minX, minY } = encounter.arenaBounds;
+    // Convert grid coordinates to local pixels relative to the grid renderer
+    const localX = (gridX - minX) * this.TILE_SIZE + this.TILE_SIZE / 2;
+    const localY = (gridY - minY) * this.TILE_SIZE + this.TILE_SIZE / 2;
+
+    const fct = new FloatingText({
+      text,
+      pos: vec(localX, localY - 12), // Offset slightly above token center
+      color: color ?? Color.Red,
+    });
+
+    // Attach as child to gridRenderer so it zooms/pans with the tactical arena grid
+    this.gridRenderer?.addChild(fct);
   }
 
   public updateTargetReticle(): void {
@@ -604,5 +648,43 @@ export class EncounterScene extends Scene {
 
   public onDeactivate(): void {
     this.clear();
+  }
+
+  private handleCombatLogFCT(message: string): void {
+    const state = this.store.get();
+    const encounter = state.game.encounter;
+    if (!encounter) return;
+
+    const activeDungeonId = state.dungeon.current;
+    const dungeonEnemies = state.dungeon.registry?.[activeDungeonId]?.enemies;
+
+    // Priority target ID
+    const targetId = encounter.currentTargetId ?? encounter.activeEnemyInstanceId;
+    const targetPos = targetId ? encounter.enemyPositions?.[targetId] : undefined;
+    const playerPos = encounter.playerPosition ?? state.player?.position;
+
+    // 1. Match Damage dealt to Enemy (e.g., "for 8 damage!")
+    const damageMatch = message.match(/for (\d+) damage/i);
+    if (damageMatch && targetPos) {
+      const damageVal = damageMatch[1];
+      this.spawnFloatingText(`-${damageVal}`, targetPos.x, targetPos.y, Color.Red);
+      return;
+    }
+
+    // 2. Match Player Healing (e.g., "restored 25 HP!")
+    const healMatch = message.match(/restored (\d+) HP/i);
+    if (healMatch && playerPos) {
+      const healVal = healMatch[1];
+      this.spawnFloatingText(`+${healVal}`, playerPos.x, playerPos.y, Color.Green);
+      return;
+    }
+
+    // 3. Match Enemy Attack on Player (e.g., "Goblin strikes for 12 damage!")
+    const playerDamageMatch = message.match(/strikes for (\d+) damage/i) || message.match(/dealt (\d+) damage/i);
+    if (playerDamageMatch && playerPos) {
+      const damageVal = playerDamageMatch[1];
+      this.spawnFloatingText(`-${damageVal}`, playerPos.x, playerPos.y, Color.fromRGB(255, 100, 100));
+      return;
+    }
   }
 }

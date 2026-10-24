@@ -7,7 +7,7 @@ export const testDungeon: DungeonDefinition = {
   defaultWallTexture: "stone",
   defaultFloorTexture: "dirt",
   defaultCeilingTexture: "ceiling",
-  onEnterCutsceneId: "dungeon-intro",
+  // onEnterCutsceneId: "dungeon-intro",  //commented out for debug of encounter
   items: [
     {
       id: "alcove-key",
