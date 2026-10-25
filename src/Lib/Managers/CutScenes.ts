@@ -20,6 +20,7 @@ import { StateStore } from "../../GameState";
 import { CutsceneTriggerDefinition, GameMode, GameState } from "../../GameTypes";
 import { DungeonScene } from "../../Scenes/DungeonScene";
 import { QuestManager } from "./QuestManager";
+import { DialogJSONActionFromObject } from "./actions/DialogJSONfromobject";
 
 // ==========================================
 // 1. Types & Manifest Interfaces
@@ -304,6 +305,96 @@ export class CutSceneSystem extends System {
         batch.set("player.position.x", newPos.x);
         batch.set("player.position.y", newPos.y);
       });
+    });
+
+    // Inside CutScenes.ts -> registerCoreCommands()
+
+    // 1. Encounter Summary (Victory)
+    this.registerCommand("encounter_summary", async (args, ctx) => {
+      const game = this.getState().get("game");
+      const encounter = game?.encounter;
+      if (!encounter) return;
+
+      const summaryTitle = "Victory!";
+      const summaryDescription = "You successfully cleared the encounter and gained your spoils.";
+      console.log(`[Cutscene] Encounter Summary -> ${summaryTitle}`);
+
+      let scene = this.world.scene;
+      let dialog = (scene as any).dialogUI as DialogUI;
+
+      if (dialog) {
+        await this.director.actions
+          .runAction(
+            new DialogJSONActionFromObject(scene, dialog, this.getState(), {
+              id: "encounter-summary",
+              startNodeId: "summary",
+              nodes: {
+                summary: {
+                  speaker: "Narrator",
+                  portrait: "none",
+                  text: `${summaryTitle}\n\n${summaryDescription}`,
+                },
+              },
+            }),
+          )
+          .toPromise();
+      }
+    });
+
+    // 2. Encounter Flee
+    this.registerCommand("encounter_flee", async (args, ctx) => {
+      const summaryTitle = "Escaped!";
+      const summaryDescription = "You managed to escape safely from the danger.";
+      console.log(`[Cutscene] Encounter Flee -> ${summaryTitle}`);
+
+      let scene = this.world.scene;
+      let dialog = (scene as any).dialogUI as DialogUI;
+
+      if (dialog) {
+        await this.director.actions
+          .runAction(
+            new DialogJSONActionFromObject(scene, dialog, this.getState(), {
+              id: "encounter-flee",
+              startNodeId: "summary",
+              nodes: {
+                summary: {
+                  speaker: "Narrator",
+                  portrait: "none",
+                  text: `${summaryTitle}\n\n${summaryDescription}`,
+                },
+              },
+            }),
+          )
+          .toPromise();
+      }
+    });
+
+    // 3. Encounter Defeat
+    this.registerCommand("encounter_defeat", async (args, ctx) => {
+      const summaryTitle = "Defeated...";
+      const summaryDescription = "Your vision fades to black as you succumb to your wounds.";
+      console.log(`[Cutscene] Encounter Defeat -> ${summaryTitle}`);
+
+      let scene = this.world.scene;
+      let dialog = (scene as any).dialogUI as DialogUI;
+
+      if (dialog) {
+        await this.director.actions
+          .runAction(
+            new DialogJSONActionFromObject(scene, dialog, this.getState(), {
+              id: "encounter-defeat",
+              startNodeId: "summary",
+              nodes: {
+                summary: {
+                  speaker: "Narrator",
+                  portrait: "none",
+                  text: `${summaryTitle}\n\n${summaryDescription}`,
+                },
+              },
+            }),
+          )
+          .toPromise();
+      }
     });
 
     // Register the command handler on your CutSceneSystem
