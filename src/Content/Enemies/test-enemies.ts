@@ -14,6 +14,7 @@ export const TEST_ENEMIES: EnemyDefinition[] = [
     defense: 1,
     detectionRadius: 3,
     yOffset: 0.75, // Adjust the offset to raise the sprite above the floor
+    xpReward: 10,
   },
   {
     id: "skeleton_warrior",

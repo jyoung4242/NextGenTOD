@@ -4,6 +4,8 @@ import { GameState, CombatAction, EnemyState, PlayerState, EncounterState, getDu
 import { ContentRegistry } from "../../Content/ContentRegistry";
 import { CombatRulesEngine } from "./CombatRulesEngine";
 import { CutSceneSystem } from "../Managers/CutScenes";
+import { LootDrop, LootManager } from "../Managers/LootManager";
+import { ProgressionSystem } from "./ProgressionSystem";
 
 export class CombatStateMachine {
   constructor(
@@ -407,17 +409,74 @@ export class CombatStateMachine {
     if (!activeDungeonState) return true;
 
     const enemyIds = encounter.enemyInstanceIds ?? (encounter.activeEnemyInstanceId ? [encounter.activeEnemyInstanceId] : []);
-    const encounterEnemies = enemyIds.map(id => activeDungeonState.enemies?.[id]).filter(Boolean);
+    const encounterEnemies = enemyIds
+      .map((id: string) => activeDungeonState.enemies?.[id])
+      .filter((e): e is EnemyState => e !== undefined);
 
     const allEnemiesDefeated =
       encounterEnemies.length > 0 && encounterEnemies.every(enemy => !enemy.alive || enemy.hp <= 0 || enemy.state === "dead");
 
     if (allEnemiesDefeated) {
       console.log("[CombatStateMachine] All encounter enemies defeated!");
+
+      const lootManager = new LootManager();
+      let totalXp = 0;
+      const allLootDrops: LootDrop[] = [];
+
+      for (const enemyId of enemyIds) {
+        const enemy = activeDungeonState.enemies?.[enemyId];
+        if (!enemy) continue;
+
+        const enemyDef = this.contentRegistry.getEnemy(enemy.definitionId);
+        const enemyXp = enemyDef?.xpReward ?? 25;
+        totalXp += enemyXp;
+
+        const tableId = enemyDef?.lootTableId ?? "table_basic_enemy";
+        const drops = lootManager.generateLoot(tableId);
+        allLootDrops.push(...drops);
+      }
+
+      // 1. Get current progression or fallback defaults
+      const currentProgression = state.progression ?? { experience: 0, level: 1, skillPoints: 0 };
+      const oldLevel = currentProgression.level;
+      const newXp = currentProgression.experience + totalXp;
+
+      let newLevel = oldLevel;
+      let skillPoints = currentProgression.skillPoints;
+      const xpNeeded = newLevel * 100;
+
+      // 2. Check if the new XP crosses the threshold
+      if (newXp >= xpNeeded) {
+        newLevel += 1;
+        skillPoints += 1;
+        console.log(`[Progression] Level Up! Reached level ${newLevel}`);
+      }
+
+      const leveledUp = newLevel > oldLevel;
+
+      // 3. Commit new progression to the state store
+      ctx.set("progression", {
+        experience: newXp,
+        level: newLevel,
+        skillPoints: skillPoints,
+      });
+
+      const lootSummaryText =
+        allLootDrops.length > 0
+          ? `Loot acquired: ${allLootDrops.map((d: LootDrop) => `${d.quantity}x ${d.itemId}`).join(", ")}`
+          : "No loot found.";
+
+      // 4. Save rewards including leveledUp flag into encounter state
       ctx.set("game.encounter", {
         ...encounter,
         isResolved: true,
-        combatLog: [...encounter.combatLog, "All enemies defeated!"],
+        rewards: {
+          xpGained: totalXp,
+          itemsDropped: allLootDrops,
+          leveledUp: leveledUp,
+          newLevel: newLevel,
+        },
+        combatLog: [...encounter.combatLog, "All enemies defeated!", `Gained a total of ${totalXp} XP!`, lootSummaryText],
       });
       return true;
     }
