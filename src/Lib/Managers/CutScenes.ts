@@ -310,14 +310,40 @@ export class CutSceneSystem extends System {
     // Inside CutScenes.ts -> registerCoreCommands()
 
     // 1. Encounter Summary (Victory)
+    // Inside CutScenes.ts -> registerCoreCommands()
+
     this.registerCommand("encounter_summary", async (args, ctx) => {
       const game = this.getState().get("game");
       const encounter = game?.encounter;
       if (!encounter) return;
 
-      const summaryTitle = "Victory!";
-      const summaryDescription = "You successfully cleared the encounter and gained your spoils.";
-      console.log(`[Cutscene] Encounter Summary -> ${summaryTitle}`);
+      const combatLog = encounter.combatLog ?? [];
+      const victory = encounter.isResolved && !combatLog.some(log => log.includes("fled"));
+
+      const summaryTitle = victory ? "Victory!" : "Escaped!";
+
+      // 🎯 Extract rewards captured during combat resolution
+      const rewards = encounter.rewards;
+      let rewardText = "";
+      let xpText;
+      let lootText;
+      if (victory && rewards) {
+        xpText = `Gained ${rewards.xpGained} Experience!`;
+        const levelText = rewards.leveledUp ? `\n🎉 LEVEL UP! You reached Level ${rewards.newLevel}!` : "";
+
+        lootText = "No loot found.";
+        if (rewards.itemsDropped && rewards.itemsDropped.length > 0) {
+          lootText = `Loot Found:\n` + rewards.itemsDropped.map(item => `• ${item.quantity}x ${item.itemId}`).join("\n");
+        }
+
+        rewardText = `\n${xpText}${levelText}\n${lootText}`;
+      } else {
+        rewardText = "\nYou managed to escape safely from the danger.";
+      }
+
+      const summaryDescription = victory
+        ? `You successfully cleared the encounter and claimed your spoils.`
+        : "You retreated from battle.";
 
       let scene = this.world.scene;
       let dialog = (scene as any).dialogUI as DialogUI;
@@ -333,6 +359,18 @@ export class CutSceneSystem extends System {
                   speaker: "Narrator",
                   portrait: "none",
                   text: `${summaryTitle}\n\n${summaryDescription}`,
+                  autoNextNodeId: "experience",
+                },
+                experience: {
+                  speaker: "Narrator",
+                  portrait: "none",
+                  text: `${xpText}`,
+                  autoNextNodeId: "loot",
+                },
+                loot: {
+                  speaker: "Narrator",
+                  portrait: "none",
+                  text: `${lootText}`,
                 },
               },
             }),

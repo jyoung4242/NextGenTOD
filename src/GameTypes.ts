@@ -256,19 +256,24 @@ export interface SkillState {
 export interface EnemyDefinition {
   id: string;
   name: string;
-  avatarKey: string; // or textureKey
-  textureKey?: string; // Key mapped in resources.ts (e.g. "goblin", "skeleton")
-  tokenKey?: string; // Key for token image (e.g. "goblinToken")
-  scale?: number; // Billboard size scale (defaults to 0.6 if omitted)
-  yOffset?: number; // Vertical displacement on floor (defaults to +0.2)
+  avatarKey: string;
+  textureKey?: string;
+  tokenKey?: string;
+  scale?: number;
+  yOffset?: number;
   health: number;
   attack: number;
   defense: number;
   detectionRadius: number;
-  abilities?: string[]; // 👈 Add this property to map enemy skill IDs
+  abilities?: string[];
+
+  // 🚀 New properties for Progression & Loot
+  xpReward?: number;
+  lootTableId?: string;
 }
 
 export interface EnemyState {
+  instanceId?: string; // Optional unique instance tracking if needed
   definitionId: string;
   hp: number;
   maxHp: number;
@@ -452,6 +457,13 @@ export interface EncounterState {
   enemyPositions: Record<string, { x: number; y: number }>;
   combatLog: string[];
   isResolved: boolean;
+  // Add post-encounter reward tracking if desired:
+  rewards?: {
+    xpGained: number;
+    itemsDropped: { itemId: string; quantity: number }[];
+    leveledUp?: boolean;
+    newLevel?: number;
+  };
 }
 
 //#endregion encountertypes
