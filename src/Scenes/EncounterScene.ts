@@ -14,6 +14,10 @@ import { TargetingSystem } from "../Lib/Systems/TargetingSystem";
 import { TargetReticle } from "../Actors/TargetReticle";
 import { CharacterStatusGraphic, CharacterStatusHUD } from "../UI/CharacterStatusHUD";
 import { FloatingText } from "../Actors/FloatingText";
+import { CutSceneSystem } from "../Lib/Managers/CutScenes";
+import { QuestManager } from "../Lib/Managers/QuestManager";
+import { EncounterTriggerSystem } from "../Lib/Systems/EncounterTrigger";
+import { DialogUI } from "../UI/DialogUI";
 
 export class EncounterScene extends Scene {
   private playerActor?: Actor;
@@ -37,7 +41,11 @@ export class EncounterScene extends Scene {
 
   private statusHud?: CharacterStatusHUD; // 👈 Add field reference
 
-  // Scenes/EncounterScene.ts
+  // Cutscene & Dialogue Support
+  public dialogUI: DialogUI | null = null;
+  private cutSceneSystem!: CutSceneSystem;
+  private questManager!: QuestManager;
+
   private unubscribeStore?: () => void;
 
   constructor(
@@ -123,6 +131,56 @@ export class EncounterScene extends Scene {
         if (data.direction === "right") this.carouselUI?.rotate(1);
       }
     });
+
+    this.dialogUI = new DialogUI(this.inputMapper);
+    this.questManager = new QuestManager(this.store);
+    for (const [id, questDef] of this.contentRegistry.quests.entries()) {
+      this.questManager.registerQuestData(questDef);
+    }
+
+    this.cutSceneSystem = new CutSceneSystem(this.world, () => this.store, this.questManager);
+    this.world.add(this.cutSceneSystem);
+    this.cutSceneSystem.setDialogUI(this.dialogUI);
+
+    // Register all cutscenes dynamically from ContentRegistry
+    for (const [id, manifest] of this.contentRegistry.cutscenes.entries()) {
+      this.cutSceneSystem.registerCutScene(id, manifest);
+    }
+
+    // Register End-of-Encounter Victory/Summary Cutscene Manifest
+    this.cutSceneSystem.registerCutScene("encounter-summary", {
+      id: "encounter-summary",
+      commands: [
+        {
+          type: "encounter_summary", // Handled by your custom command extension in CutScenes.ts
+          args: {},
+        },
+      ],
+    });
+
+    // Register Flee Cutscene Manifest
+    this.cutSceneSystem.registerCutScene("encounter-flee", {
+      id: "encounter-flee",
+      commands: [
+        {
+          type: "encounter_flee",
+          args: {},
+        },
+      ],
+    });
+    // Register Flee Cutscene Manifest
+    this.cutSceneSystem.registerCutScene("encounter-defeat", {
+      id: "encounter-defeat",
+      commands: [
+        {
+          type: "encounter_defeat",
+          args: {},
+        },
+      ],
+    });
+
+    // Pass the CutSceneSystem into the CombatStateMachine
+    this.stateMachine = new CombatStateMachine(this.store, this.contentRegistry, this.cutSceneSystem);
   }
 
   public onActivate(): void {
@@ -136,7 +194,7 @@ export class EncounterScene extends Scene {
       return;
     }
 
-    this.stateMachine = new CombatStateMachine(this.store, this.contentRegistry);
+    this.stateMachine = new CombatStateMachine(this.store, this.contentRegistry, this.cutSceneSystem);
     this.queueManager = new ActionQueueManager(this.stateMachine);
 
     this.gridRenderer = new DungeonGridRenderer({

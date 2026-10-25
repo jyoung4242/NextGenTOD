@@ -3,11 +3,13 @@ import { StateStore } from "../../GameState";
 import { GameState, CombatAction, EnemyState, PlayerState, EncounterState, getDungeonCell } from "../../GameTypes";
 import { ContentRegistry } from "../../Content/ContentRegistry";
 import { CombatRulesEngine } from "./CombatRulesEngine";
+import { CutSceneSystem } from "../Managers/CutScenes";
 
 export class CombatStateMachine {
   constructor(
     private readonly store: StateStore<GameState>,
     private readonly contentRegistry: ContentRegistry,
+    private readonly cutSceneSystem?: CutSceneSystem,
   ) {}
 
   public getStore(): StateStore<GameState> {
@@ -67,6 +69,9 @@ export class CombatStateMachine {
     const enemyIds = encounter.enemyInstanceIds ?? (encounter.activeEnemyInstanceId ? [encounter.activeEnemyInstanceId] : []);
     const targetId = action.targetId ?? encounter.currentTargetId ?? encounter.activeEnemyInstanceId ?? enemyIds[0];
     const enemy = targetId ? activeDungeonState.enemies?.[targetId] : undefined;
+
+    // Track if we need to trigger an end cutscene after the batch commits
+    let pendingCutsceneId: string | null = null;
 
     this.store.batch(ctx => {
       let logMessage = "";
@@ -146,6 +151,7 @@ export class CombatStateMachine {
           };
 
           if (this.checkEncounterCompletion(ctx, updatedState)) {
+            pendingCutsceneId = "encounter-summary";
             return;
           }
           break;
@@ -191,6 +197,7 @@ export class CombatStateMachine {
           };
 
           if (this.checkEncounterCompletion(ctx, updatedState)) {
+            pendingCutsceneId = "encounter-summary";
             return;
           }
           break;
@@ -243,6 +250,7 @@ export class CombatStateMachine {
           };
 
           if (this.checkEncounterCompletion(ctx, updatedState)) {
+            pendingCutsceneId = "encounter-summary";
             return;
           }
           break;
@@ -258,12 +266,13 @@ export class CombatStateMachine {
         case "flee": {
           logMessage = "Player fled from combat!";
           console.log(`[Combat Log] ${logMessage}`);
-          ctx.set("game.mode", "playing");
           ctx.set("game.encounter", {
             ...encounter,
             isResolved: true,
             combatLog: [...encounter.combatLog, logMessage],
           });
+
+          pendingCutsceneId = "encounter-flee";
           return;
         }
       }
@@ -275,6 +284,11 @@ export class CombatStateMachine {
         combatLog: [...encounter.combatLog, logMessage],
       });
     });
+
+    // 🚀 Trigger the end cutscene AFTER the batch has successfully committed to the store
+    if (pendingCutsceneId) {
+      this.triggerEndCutscene(pendingCutsceneId);
+    }
   }
 
   public processEnemyAction(enemyInstanceId: string, action: CombatAction): void {
@@ -291,6 +305,9 @@ export class CombatStateMachine {
     if (!enemy || !enemy.alive || enemy.hp <= 0) return;
 
     const enemyDef = this.contentRegistry.getEnemy(enemy.definitionId);
+
+    // Track if player was defeated during this enemy action
+    let pendingCutsceneId: string | null = null;
 
     this.store.batch(ctx => {
       let logMessage = "";
@@ -343,8 +360,13 @@ export class CombatStateMachine {
       }
 
       if (updatedPlayerHp <= 0) {
-        console.log("[CombatStateMachine] Player defeated! Game Over.");
-        ctx.set("game.mode", "game_over");
+        console.log("[CombatStateMachine] Player defeated!");
+        ctx.set("game.encounter", {
+          ...encounter,
+          isResolved: true,
+          combatLog: [...encounter.combatLog, logMessage, "Player defeated!"],
+        });
+        pendingCutsceneId = "encounter-defeat";
       } else {
         const updatedEncounter: EncounterState = {
           ...encounter,
@@ -356,8 +378,26 @@ export class CombatStateMachine {
         ctx.set("game.encounter", updatedEncounter);
       }
     });
-  }
 
+    // 🚀 Trigger the defeat cutscene BEFORE heading to game over
+    if (pendingCutsceneId) {
+      this.handleDefeatSequence(pendingCutsceneId);
+    }
+  }
+  private async handleDefeatSequence(cutsceneId: string): Promise<void> {
+    this.store.set("game.mode", "paused");
+
+    if (this.cutSceneSystem) {
+      try {
+        await this.cutSceneSystem.startCutScene(cutsceneId);
+      } catch (e) {
+        console.warn(`[CombatStateMachine] Cutscene '${cutsceneId}' not found or failed to execute:`, e);
+      }
+    }
+
+    // Now transition to the game over scene after the cutscene completes
+    this.store.set("game.mode", "game_over");
+  }
   private checkEncounterCompletion(ctx: any, state: GameState): boolean {
     const encounter = state.game.encounter;
     if (!encounter) return true;
@@ -373,8 +413,7 @@ export class CombatStateMachine {
       encounterEnemies.length > 0 && encounterEnemies.every(enemy => !enemy.alive || enemy.hp <= 0 || enemy.state === "dead");
 
     if (allEnemiesDefeated) {
-      console.log("[CombatStateMachine] All encounter enemies defeated! Returning to dungeon.");
-      ctx.set("game.mode", "playing");
+      console.log("[CombatStateMachine] All encounter enemies defeated!");
       ctx.set("game.encounter", {
         ...encounter,
         isResolved: true,
@@ -384,6 +423,21 @@ export class CombatStateMachine {
     }
 
     return false;
+  }
+
+  private async triggerEndCutscene(cutsceneId: string): Promise<void> {
+    this.store.set("game.mode", "paused");
+
+    if (this.cutSceneSystem) {
+      try {
+        await this.cutSceneSystem.startCutScene(cutsceneId);
+      } catch (e) {
+        console.warn(`[CombatStateMachine] Cutscene '${cutsceneId}' not found or failed to execute:`, e);
+      }
+    }
+
+    // Return to dungeon exploration after cutscene completes
+    this.store.set("game.mode", "playing");
   }
 
   private awardSkillXP(skillId: string, amount: number): void {

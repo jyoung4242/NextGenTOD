@@ -261,7 +261,7 @@ export class TypeWriterElement extends ScreenElement {
       height: 100,
       lineHeight: 30,
       font: "Arial",
-      fontSize: 20,
+      fontSize: 16,
     },
     color: Color.Black,
   };

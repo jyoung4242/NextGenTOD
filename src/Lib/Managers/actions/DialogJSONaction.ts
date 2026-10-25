@@ -23,7 +23,7 @@ export class DialogAction implements Action {
 
   update(elapsed: number): void {
     if (!this._started) {
-      this.runner = new DialogRunner(this.dialogUI, new DialogLoader(this.dialogPath));
+      this.runner = new DialogRunner(this.dialogUI, DialogLoader.fromPath(this.dialogPath));
       this.runner.start();
       this._started = true;
       this.scene.add(this.dialogUI);

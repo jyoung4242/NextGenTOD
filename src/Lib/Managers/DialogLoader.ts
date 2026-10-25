@@ -3,12 +3,8 @@ import dialogSchema from "../../Content/Dialog/dialog_schema.json";
 type DialogSchema = {
   required?: string[];
   $defs?: {
-    DialogueNode?: {
-      required?: string[];
-    };
-    DialogueChoice?: {
-      required?: string[];
-    };
+    DialogueNode?: { required?: string[] };
+    DialogueChoice?: { required?: string[] };
   };
 };
 
@@ -51,16 +47,42 @@ export interface DialogueTree {
 }
 
 export class DialogLoader {
-  constructor(private readonly sourcePath: string) {}
+  // Private constructor to enforce factory usage
+  private constructor(
+    private readonly sourcePath?: string,
+    private readonly directPayload?: unknown,
+  ) {}
+
+  /**
+   * Factory method for loading a dialog tree from a file path via fetch.
+   */
+  public static fromPath(path: string): DialogLoader {
+    return new DialogLoader(path, undefined);
+  }
+
+  /**
+   * Factory method for loading a dialog tree directly from an in-memory JSON object.
+   */
+  public static fromJSON(payload: unknown): DialogLoader {
+    return new DialogLoader(undefined, payload);
+  }
 
   public async load(): Promise<DialogueTree> {
-    const response = await fetch(this.resolveSourcePath(), { cache: "no-store" });
+    let payload: unknown;
 
-    if (!response.ok) {
-      throw new Error(`Failed to load dialog data from ${this.sourcePath}: ${response.status}`);
+    if (this.directPayload !== undefined) {
+      payload = this.directPayload;
+    } else if (this.sourcePath) {
+      const response = await fetch(this.resolveSourcePath(this.sourcePath), { cache: "no-store" });
+
+      if (!response.ok) {
+        throw new Error(`Failed to load dialog data from ${this.sourcePath}: ${response.status}`);
+      }
+
+      payload = await response.json();
+    } else {
+      throw new Error("DialogLoader initialized without a path or JSON payload.");
     }
-
-    const payload = (await response.json()) as unknown;
 
     return this.buildTree(payload);
   }
@@ -102,14 +124,9 @@ export class DialogLoader {
     };
   }
 
-  private resolveSourcePath(): string {
-    const normalizedPath = DialogLoader.normalizeSourcePath(this.sourcePath);
-
-    if (normalizedPath.startsWith("/")) {
-      return normalizedPath;
-    }
-
-    return `/${normalizedPath}`;
+  private resolveSourcePath(sourcePath: string): string {
+    const normalizedPath = DialogLoader.normalizeSourcePath(sourcePath);
+    return normalizedPath.startsWith("/") ? normalizedPath : `/${normalizedPath}`;
   }
 
   private static normalizeSourcePath(sourcePath: string): string {
@@ -117,11 +134,9 @@ export class DialogLoader {
     if (trimmed.startsWith("/public/data/")) {
       return trimmed.replace("/public/data/", "/data/");
     }
-
     if (trimmed.startsWith("/data/")) {
       return trimmed;
     }
-
     return `/${trimmed.replace(/^\/+/, "")}`;
   }
 
