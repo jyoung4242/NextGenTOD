@@ -113,7 +113,7 @@ export class DungeonScene extends Scene {
 
     this.inventory = new InventorySystem(this.state, this.content);
     this.interactions = new InteractionSystem(this.state, this.dungeonManager, this.inventory, this.content, vp, this.questManager);
-    this.d_Player = new DungeonPlayer(this.state, dungeon, this.dCamera!, this.interactions, vp);
+    this.d_Player = new DungeonPlayer(this.state, dungeon, this.dCamera!, this.interactions, vp, this.toastManager);
 
     this.d_Player.onStepOrTurn = () => {
       this.handleTurnTick();
@@ -168,7 +168,7 @@ export class DungeonScene extends Scene {
     this.inventory = new InventorySystem(this.state, this.content);
     this.interactions = new InteractionSystem(this.state, this.dungeonManager, this.inventory, this.content, vp, this.questManager);
 
-    this.d_Player = new DungeonPlayer(this.state, dungeon, this.dCamera!, this.interactions, vp);
+    this.d_Player = new DungeonPlayer(this.state, dungeon, this.dCamera!, this.interactions, vp, this.toastManager);
     this.d_Player.onStepOrTurn = () => {
       this.handleTurnTick();
     };
@@ -223,6 +223,10 @@ export class DungeonScene extends Scene {
 
     // 🚀 Fixed destructuring variable name here:
     const { alertedEnemies, triggeredEncounter } = this.proximitySystem.updateProximity();
+
+    if (alertedEnemies.length > 0) {
+      this.toastManager.show("enemy", "Enemies Alerted", "Nearby Enemies are aware of you!");
+    }
 
     if (triggeredEncounter) {
       this.cutSceneSystem.registerCutScene("goblin-encounter", {

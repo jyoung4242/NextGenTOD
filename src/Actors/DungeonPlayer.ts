@@ -5,6 +5,7 @@ import { Dungeon } from "../Lib/Managers/DungeonManager";
 import { InteractionSystem } from "../Lib/Systems/InteractionSystem";
 import { DungeonViewport } from "../UI/DungeonViewport";
 import { DungeonViewportGraphic } from "../UI/DungeonViewportGraphic";
+import { ToastManager } from "../UI/ToastManager";
 
 const CARDINAL_ANGLES: Record<Direction, number> = {
   east: 0,
@@ -38,6 +39,7 @@ export class DungeonPlayer {
     private readonly camera: DungeonCamera,
     private readonly interactionSystem: InteractionSystem,
     private readonly viewport: DungeonViewport,
+    private toastMngr: ToastManager,
   ) {
     // 1. Sync initial position
     const pos = this.store.get("player.position");
@@ -95,6 +97,10 @@ export class DungeonPlayer {
       }
     } else {
       console.log(`[Interaction Failed]: ${result.message}`);
+
+      if (result.type == "door") {
+        this.toastMngr.show("dungeon", "Locked Door", result.message);
+      }
     }
   }
 

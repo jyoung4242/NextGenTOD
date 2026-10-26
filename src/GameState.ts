@@ -1,6 +1,7 @@
 // GameState.ts
 
 import { EventEmitter } from "excalibur";
+import { GameState } from "./GameTypes"; // 👈 Import the single source of truth
 
 // ─── Path Typing ────────────────────────────────────────────────────────────
 
@@ -364,41 +365,41 @@ export function createStateStore<State extends object>(initialState: State): Sta
 
 // ─── Initial Game State (Top-Level Inventory) ────────────────────────────────
 
-export interface GameState {
-  game: {
-    mode: string;
-    time: number;
-  };
-  player: {
-    hp: number;
-    maxHp: number;
-    stamina: number;
-    maxStamina: number;
-    position: {
-      nodeId?: string;
-      x: number;
-      y: number;
-    };
-    facing: string;
-    keyring: string[];
-    skills: Record<string, { level: number; xp: number; unlocked?: boolean }>;
-  };
-  inventory: InventoryState; // Promoted to top-level property
-  dungeon: {
-    current: string;
-    registry: Record<string, unknown>;
-  };
-  quests: {
-    active: Record<string, unknown>;
-    completed: string[];
-  };
-  progression: {
-    experience: number;
-    level: number;
-    skillPoints: number;
-  };
-  storypoints?: Record<string, unknown>;
-}
+// export interface GameState {
+//   game: {
+//     mode: string;
+//     time: number;
+//   };
+//   player: {
+//     hp: number;
+//     maxHp: number;
+//     stamina: number;
+//     maxStamina: number;
+//     position: {
+//       nodeId?: string;
+//       x: number;
+//       y: number;
+//     };
+//     facing: string;
+//     keyring: string[];
+//     skills: Record<string, { level: number; xp: number; unlocked?: boolean }>;
+//   };
+//   inventory: InventoryState; // Promoted to top-level property
+//   dungeon: {
+//     current: string;
+//     registry: Record<string, unknown>;
+//   };
+//   quests: {
+//     active: Record<string, unknown>;
+//     completed: string[];
+//   };
+//   progression: {
+//     experience: number;
+//     level: number;
+//     skillPoints: number;
+//   };
+//   storypoints?: Record<string, unknown>;
+// }
 
 export function createInitialGameState(): GameState {
   return {
