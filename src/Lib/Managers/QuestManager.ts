@@ -18,6 +18,85 @@ export class QuestManager {
     this.definitions.set(def.id, def);
   }
 
+  // public startQuest(questId: string): void {
+  //   const def = this.definitions.get(questId);
+  //   if (!def) {
+  //     console.warn(`QuestManager: startQuest("${questId}") — quest not registered`);
+  //     return;
+  //   }
+
+  //   const currentQuests = this.store.get("quests");
+  //   if (currentQuests.active[questId] || currentQuests.completed.includes(questId)) return;
+
+  //   const objectives: ObjectiveProgress[] = def.objectives.map(o => ({
+  //     id: o.id,
+  //     current: 0,
+  //     target: o.count,
+  //     complete: false,
+  //   }));
+
+  //   const progress: QuestProgress = {
+  //     questId,
+  //     state: "active",
+  //     objectives,
+  //   };
+
+  //   console.log(`[DEBUG] QuestManager writing to store for: ${questId}`, progress); // 🔍 ADD THIS
+
+  //   this.store.batch(ctx => {
+  //     ctx.set(`quests.active.${questId}` as any, progress);
+
+  //     // 🛠️ FIX: Write start flags to root-level 'storypoints'
+  //     for (const flag of def.triggers?.onStart?.setsFlag ?? []) {
+  //       ctx.update("storypoints", points => ({
+  //         ...points,
+  //         [flag]: true,
+  //       }));
+  //     }
+  //     for (const flag of def.worldFlags?.sets ?? []) {
+  //       ctx.update("storypoints", points => ({
+  //         ...points,
+  //         [flag]: true,
+  //       }));
+  //     }
+  //   });
+
+  //   console.log(
+  //     `%c[Quest Started]%c ${def.metadata.title || questId}`,
+  //     "color: #4caf50; font-weight: bold;",
+  //     "color: inherit;",
+  //     progress,
+  //   );
+  // }
+
+  // public completeQuest(questId: string): void {
+  //   const def = this.definitions.get(questId);
+  //   const activeQuest = this.store.get("quests").active[questId];
+
+  //   if (!def || !activeQuest) {
+  //     console.warn(`QuestManager: completeQuest("${questId}") — quest not active`);
+  //     return;
+  //   }
+
+  //   this.store.batch(ctx => {
+  //     const quests = this.store.get("quests");
+  //     const nextActive = { ...quests.active };
+  //     delete nextActive[questId];
+
+  //     ctx.set("quests.active", nextActive);
+  //     ctx.set("quests.completed", [...quests.completed, questId]);
+  //     // update state
+  //     for (const flag of def.triggers?.onComplete?.setsFlag ?? []) {
+  //       ctx.update("storypoints", points => ({
+  //         ...points,
+  //         [flag]: true,
+  //       }));
+  //     }
+  //   });
+
+  //   console.log(`%c[Quest Completed]%c ${def.metadata.title || questId}`, "color: #ffd700; font-weight: bold;", "color: inherit;");
+  // }
+
   public startQuest(questId: string): void {
     const def = this.definitions.get(questId);
     if (!def) {
@@ -42,9 +121,13 @@ export class QuestManager {
     };
 
     this.store.batch(ctx => {
-      ctx.set(`quests.active.${questId}` as any, progress);
+      const nextActive = {
+        ...this.store.get("quests").active,
+        [questId]: progress,
+      };
+      ctx.set("quests.active" as any, nextActive);
 
-      // 🛠️ FIX: Write start flags to root-level 'storypoints'
+      // Write start flags to root-level 'storypoints'
       for (const flag of def.triggers?.onStart?.setsFlag ?? []) {
         ctx.update("storypoints", points => ({
           ...points,
@@ -83,7 +166,7 @@ export class QuestManager {
 
       ctx.set("quests.active", nextActive);
       ctx.set("quests.completed", [...quests.completed, questId]);
-      // update state
+
       for (const flag of def.triggers?.onComplete?.setsFlag ?? []) {
         ctx.update("storypoints", points => ({
           ...points,

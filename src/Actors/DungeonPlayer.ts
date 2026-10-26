@@ -21,7 +21,6 @@ const OPPOSITE_DIRECTIONS: Record<Direction, Direction> = {
 };
 
 const DIRECTIONS: Direction[] = ["east", "south", "west", "north"];
-// Map directions to their array index
 const DIRECTION_INDICES: Record<Direction, number> = {
   east: 0,
   south: 1,
@@ -31,14 +30,14 @@ const DIRECTION_INDICES: Record<Direction, number> = {
 
 export class DungeonPlayer {
   private currentDirectionIndex = 0;
-  public onStepOrTurn?: () => void; // Hook for Proximity System check
+  public onStepOrTurn?: () => void;
 
   constructor(
     private readonly store: StateStore<GameState>,
     private readonly dungeon: Dungeon,
     private readonly camera: DungeonCamera,
     private readonly interactionSystem: InteractionSystem,
-    private readonly viewport: DungeonViewport, // or whatever parameters your constructor uses
+    private readonly viewport: DungeonViewport,
   ) {
     // 1. Sync initial position
     const pos = this.store.get("player.position");
@@ -88,9 +87,10 @@ export class DungeonPlayer {
     if (result.handled) {
       console.log(`[Interaction Success]: ${result.message}`);
       if (result.type == "container") {
-        let inv = this.store.get("player.inventory.items");
-        console.log("player inventory: ", inv);
-        let keys = this.store.get("player.keyring");
+        // Updated to top-level inventory path
+        const inv = this.store.get("inventory.items");
+        console.log("inventory items: ", inv);
+        const keys = this.store.get("player.keyring");
         console.log("player keyring: ", keys);
       }
     } else {
@@ -103,7 +103,6 @@ export class DungeonPlayer {
     const currentY = Math.floor(this.camera.y);
     const dir = this.currentDirection;
 
-    // Check the facing direction if stepping forward, or the opposite direction if stepping backward
     const checkDir = step > 0 ? dir : OPPOSITE_DIRECTIONS[dir];
 
     if (this.dungeon.canMove(currentX, currentY, checkDir)) {
@@ -130,7 +129,7 @@ export class DungeonPlayer {
 
       this.camera.x = nextX;
       this.camera.y = nextY;
-      let vpGraph: DungeonViewportGraphic = this.viewport.graphics.current as DungeonViewportGraphic;
+      const vpGraph: DungeonViewportGraphic = this.viewport.graphics.current as DungeonViewportGraphic;
       vpGraph.flagDirty();
       this.store.batch(ctx => {
         ctx.set("player.position.x", nextX);
@@ -142,7 +141,7 @@ export class DungeonPlayer {
   private syncCameraAngle(): void {
     this.camera.angle = CARDINAL_ANGLES[this.currentDirection];
     this.store.set("player.facing", this.currentDirection);
-    let vpGraph: DungeonViewportGraphic = this.viewport.graphics.current as DungeonViewportGraphic;
+    const vpGraph: DungeonViewportGraphic = this.viewport.graphics.current as DungeonViewportGraphic;
     vpGraph.flagDirty();
   }
 }

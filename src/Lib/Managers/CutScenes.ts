@@ -292,7 +292,6 @@ export class CutSceneSystem extends System {
       const { path } = args;
       let scene = this.world.scene;
       let dialog = (scene as DungeonScene).dialogUI as DialogUI;
-      console.warn("CutSceneSystem: Executing dialog command with path:", path, "scene:", scene, "dialogUI:", dialog);
       await this.director.actions.runAction(new DialogAction(scene, dialog, path)).toPromise();
     });
 
@@ -306,11 +305,6 @@ export class CutSceneSystem extends System {
         batch.set("player.position.y", newPos.y);
       });
     });
-
-    // Inside CutScenes.ts -> registerCoreCommands()
-
-    // 1. Encounter Summary (Victory)
-    // Inside CutScenes.ts -> registerCoreCommands()
 
     this.registerCommand("encounter_summary", async (args, ctx) => {
       const game = this.getState().get("game");
