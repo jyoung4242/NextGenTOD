@@ -58,11 +58,11 @@ export class DungeonViewportGraphic extends Graphic {
   }
 
   protected _drawImage(ex: ExcaliburGraphicsContext, x: number, y: number): void {
-    if (this.isDirty) {
-      this.redrawViewport();
-      this.canvas.setAttribute("forceUpload", "true");
-      this.isDirty = false;
-    }
+    // if (this.isDirty) {
+    this.redrawViewport();
+    this.canvas.setAttribute("forceUpload", "true");
+    this.isDirty = false;
+    // }
     ex.drawImage(this.canvas, x, y, this.width, this.height);
   }
 
@@ -74,36 +74,82 @@ export class DungeonViewportGraphic extends Graphic {
 
     ctx.clearRect(0, 0, width, height);
 
+    // Read lighting configuration from dungeon definition (with defaults)
+    const lightingConfig = this.dungeon.lighting;
+    const ambientLight = lightingConfig?.ambientLight ?? 0.15;
+    const maxLightingDistance = lightingConfig?.maxLightingDistance ?? 12.0;
+    const pointLights = lightingConfig?.lights ?? [];
+    const activeLights = [...pointLights];
+    const halfHeight = height / 2;
+
+    const hasPlayerLight = false;
+
+    if (hasPlayerLight) {
+      activeLights.push({
+        x: this.camera.x, // Or currentState.player.position.x + 0.5
+        y: this.camera.y, // Or currentState.player.position.y + 0.5
+        radius: 4, // How far the player's lantern reaches
+        color: "#ffaa44", // Warm lantern glow
+        intensity: 1.0, // Brightness multiplier
+        flicker: {
+          enabled: true, // Give the handheld torch/lantern a natural live flicker!
+          speed: 8,
+          intensity: 0.08,
+        },
+      });
+    }
     // -------------------------------------------------------------
-    // 1. Ceiling & Floor (Fill Patterns)
+    // 1. Ceiling & Floor (Fill Patterns + Horizon Fog Overlays)
     // -------------------------------------------------------------
     const floorImg = this.textures.get(this.dungeon.defaultFloorTexture ?? "dirt");
     const ceilingImg = this.textures.get(this.dungeon.defaultCeilingTexture ?? "ceiling");
 
-    if (floorImg && ceilingImg) {
+    // Ceiling Pattern
+    if (ceilingImg) {
       const ceilingPattern = ctx.createPattern(ceilingImg, "repeat");
       if (ceilingPattern) {
         ctx.fillStyle = ceilingPattern;
-        ctx.fillRect(0, 0, width, height / 2);
-      }
-
-      const floorPattern = ctx.createPattern(floorImg, "repeat");
-      if (floorPattern) {
-        ctx.fillStyle = floorPattern;
-        ctx.fillRect(0, height / 2, width, height / 2);
+        ctx.fillRect(0, 0, width, halfHeight);
       }
     } else {
       ctx.fillStyle = "#202020";
-      ctx.fillRect(0, 0, width, height / 2);
-      ctx.fillStyle = "#101010";
-      ctx.fillRect(0, height / 2, width, height / 2);
+      ctx.fillRect(0, 0, width, halfHeight);
     }
 
+    // Floor Pattern
+    if (floorImg) {
+      const floorPattern = ctx.createPattern(floorImg, "repeat");
+      if (floorPattern) {
+        ctx.fillStyle = floorPattern;
+        ctx.fillRect(0, halfHeight, width, halfHeight);
+      }
+    } else {
+      ctx.fillStyle = "#101010";
+      ctx.fillRect(0, halfHeight, width, halfHeight);
+    }
+
+    if (ambientLight < 1.0) {
+      // --- Ceiling Fog Overlay (Aggressive: reaches deep dark quickly from horizon) ---
+      const ceilingGradient = ctx.createLinearGradient(0, 0, 0, halfHeight);
+      ceilingGradient.addColorStop(0.0, `rgba(0, 0, 0, 1.0)`); // Pitch black at the very top edge
+      ceilingGradient.addColorStop(0.2, `rgba(0, 0, 0, ${1.0 - ambientLight})`); // Reaches heavy fog early
+      ceilingGradient.addColorStop(1.0, `rgba(0, 0, 0, ${1.0 - ambientLight})`); // Solid dense fog at horizon
+      ctx.fillStyle = ceilingGradient;
+      ctx.fillRect(0, 0, width, halfHeight);
+
+      // --- Floor Fog Overlay (Aggressive: reaches deep dark quickly from horizon) ---
+      const floorGradient = ctx.createLinearGradient(0, halfHeight, 0, height);
+      floorGradient.addColorStop(0.0, `rgba(0, 0, 0, ${1.0 - ambientLight})`); // Solid dense fog at horizon
+      floorGradient.addColorStop(0.5, `rgba(0, 0, 0, ${1.0 - ambientLight})`); // Holds heavy fog down most of the floor
+      floorGradient.addColorStop(1.0, `rgba(0, 0, 0, 1.0)`); // Pitch black at the very bottom edge
+      ctx.fillStyle = floorGradient;
+      ctx.fillRect(0, halfHeight, width, halfHeight);
+    }
     // Depth buffer for depth testing billboards against wall depth
     const zBuffer = new Float32Array(width);
 
     // -------------------------------------------------------------
-    // 2. Wall Raycast Loop with Texture Slicing
+    // 2. Wall Raycast Loop with Texture Slicing & Lighting
     // -------------------------------------------------------------
     for (let screenX = 0; screenX < width; screenX++) {
       const normalizedX = (screenX + 0.5) / width;
@@ -135,6 +181,40 @@ export class DungeonViewportGraphic extends Graphic {
         textureKey = this.dungeon.defaultWallTexture ?? "stone";
       }
 
+      // --- LIGHT FACTOR CALCULATION ---
+      // 1. Base distance attenuation (fog fading out to maxLightingDistance)
+      let lightFactor = Math.max(0, 1.0 - correctedDistance / maxLightingDistance);
+      lightFactor = ambientLight + (1.0 - ambientLight) * lightFactor;
+      const now = performance.now() * 0.001;
+
+      // 2. Accumulate contributions from dynamic point lights (torches, etc.)
+      for (const light of activeLights) {
+        const distToLight = Math.hypot(hit.x - light.x, hit.y - light.y);
+        if (distToLight < light.radius) {
+          const attenuation = 1.0 - distToLight / light.radius;
+          let effectiveIntensity = light.intensity ?? 1.0;
+
+          // Per-light flicker calculation
+          if (light.flicker?.enabled) {
+            const speed = light.flicker.speed ?? 15.0;
+            const amount = light.flicker.intensity ?? 0.1;
+
+            const phase = ((light.x * 12.9898 + light.y * 78.233) % Math.PI) * 2;
+            const time = now * speed + phase;
+
+            // Combine overlapping sine waves for organic flame movement
+            const noise = Math.sin(time * 3.3) * 0.5 + Math.sin(time * 7.1) * 0.5;
+
+            effectiveIntensity = Math.max(0, effectiveIntensity + noise * amount);
+          }
+
+          lightFactor += attenuation * effectiveIntensity;
+        }
+      }
+
+      // Clamp overall lighting factor
+      lightFactor = Math.min(1.5, Math.max(ambientLight, lightFactor));
+
       const wallTexture = this.textures.get(textureKey);
 
       if (wallTexture) {
@@ -151,9 +231,24 @@ export class DungeonViewportGraphic extends Graphic {
           texX = wallTexture.width - texX - 1;
         }
 
+        // Draw base texture slice
         ctx.drawImage(wallTexture, texX, 0, 1, wallTexture.height, screenX, wallTop, 1, wallHeight);
+
+        // Apply shadow/light overlay stripe based on lightFactor
+        if (lightFactor < 1.0) {
+          const darkness = 1.0 - lightFactor;
+          ctx.fillStyle = `rgba(0, 0, 0, ${darkness})`;
+          ctx.fillRect(screenX, wallTop, 1, wallHeight);
+        } else if (lightFactor > 1.0) {
+          const brightness = lightFactor - 1.0;
+          ctx.fillStyle = `rgba(255, 200, 100, ${Math.min(0.5, brightness)})`; // Warm torch glow tint
+          ctx.fillRect(screenX, wallTop, 1, wallHeight);
+        }
       } else {
-        ctx.fillStyle = hit.side === "north" || hit.side === "south" ? "#888888" : "#666666";
+        // Fallback for solid colors (when texture image is missing)
+        const baseIntensity = hit.side === "north" || hit.side === "south" ? 136 : 102;
+        const shadedIntensity = Math.floor(baseIntensity * lightFactor);
+        ctx.fillStyle = `rgb(${shadedIntensity}, ${shadedIntensity}, ${shadedIntensity})`;
         ctx.fillRect(screenX, wallTop, 1, wallHeight);
       }
     }

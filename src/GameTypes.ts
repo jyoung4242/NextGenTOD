@@ -113,21 +113,43 @@ export interface DungeonEnemyPlacement {
   definitionId: string;
   position: DungeonPosition;
 }
+// Add these types in GameTypes.ts
+export interface DungeonLightSource {
+  x: number;
+  y: number;
+  radius: number;
+  color?: string;
+  intensity?: number;
+  flicker?: LightFlickerDefinition; // 💡 Configured per light source
+}
 
+export interface DungeonLightingDefinition {
+  ambientLight?: number;
+  maxLightingDistance?: number;
+  lights?: DungeonLightSource[];
+}
+
+export interface LightFlickerDefinition {
+  enabled: boolean;
+  speed?: number; // How fast it flickers (e.g., 10.0 to 20.0)
+  intensity?: number; // How strong the flicker fluctuation is (e.g., 0.05 to 0.15)
+}
+
+// Update DungeonDefinition interface:
 export interface DungeonDefinition {
   id: string;
-  defaultFloorTexture?: string; // e.g. "dirt"
-  defaultCeilingTexture?: string; // e.g. "ceiling"
-  defaultWallTexture?: string; // e.g. "stone"
+  defaultFloorTexture?: string;
+  defaultCeilingTexture?: string;
+  defaultWallTexture?: string;
   nodes: Record<string, DungeonNodeDefinition>;
   connections: DungeonConnectionDefinition[];
   grid: DungeonGridDefinition;
   items?: DungeonItemPlacement[];
   enemies?: DungeonEnemyPlacement[];
   cutsceneTriggers?: CutsceneTriggerDefinition[];
-  // 🚀 Lifecycle Cutscene Hooks
-  onEnterCutsceneId?: string; // Cutscene triggered when entering the dungeon
-  onExitCutsceneId?: string; // Cutscene triggered when leaving the dungeon
+  lighting?: DungeonLightingDefinition; // 💡 Added here
+  onEnterCutsceneId?: string;
+  onExitCutsceneId?: string;
 }
 export interface DungeonConnectionDefinition {
   id: string;

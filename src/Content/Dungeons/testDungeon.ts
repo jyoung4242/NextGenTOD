@@ -38,6 +38,84 @@ export const testDungeon: DungeonDefinition = {
     //   position: { x: 11, y: 2 },
     // },
   ],
+  lighting: {
+    ambientLight: 0.2, // Base ambient brightness so walls are faintly visible
+    maxLightingDistance: 2, // Distance where walls fade completely into shadow
+    lights: [
+      {
+        x: 1,
+        y: 1,
+        radius: 3.0,
+        color: "#ff8833", // Warm torch glow near start
+        intensity: 0.4,
+        flicker: {
+          enabled: true,
+          speed: 8.0,
+          intensity: 0.08,
+        },
+      },
+      {
+        x: 6,
+        y: 2,
+        radius: 2.0,
+        color: "#ff8833", // Warm torch glow near start
+        intensity: 1.0,
+        flicker: {
+          enabled: true,
+          speed: 5.0,
+          intensity: 0.12,
+        },
+      },
+      {
+        x: 13,
+        y: 1,
+        radius: 3.0,
+        color: "#ff8833", // Warm torch glow near start
+        intensity: 0.5,
+        flicker: {
+          enabled: true,
+          speed: 5.0,
+          intensity: 0.12,
+        },
+      },
+      {
+        x: 13,
+        y: 4,
+        radius: 3.0,
+        color: "#ff8833", // Warm torch glow near start
+        intensity: 0.5,
+        flicker: {
+          enabled: true,
+          speed: 5.0,
+          intensity: 0.12,
+        },
+      },
+      {
+        x: 5,
+        y: 12,
+        radius: 3.0,
+        color: "#ff8833", // Warm torch glow near start
+        intensity: 0.5,
+        flicker: {
+          enabled: true,
+          speed: 5.0,
+          intensity: 0.12,
+        },
+      },
+      {
+        x: 12.0,
+        y: 8.0,
+        radius: 5.0,
+        color: "#ffaa44", // Torch near the boss room entrance
+        intensity: 0.5,
+        flicker: {
+          enabled: true,
+          speed: 7.5,
+          intensity: 0.1,
+        },
+      },
+    ],
+  },
   nodes: {
     start: {
       id: "start",
