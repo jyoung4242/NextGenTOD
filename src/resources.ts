@@ -13,6 +13,8 @@ import playertoken from "./Assets/player_token.png"; // replace this
 import icons from "./Assets/64x64.png";
 import throwIcon from "./Assets/throw.png";
 import portal from "./Assets/portal.png";
+import portalISO from "./Assets/portaliso.png";
+import torchSS from "./Assets/torch.png";
 
 export const Resources = {
   goblin: new ImageSource(goblin),
@@ -28,6 +30,8 @@ export const Resources = {
   icons: new ImageSource(icons),
   throw: new ImageSource(throwIcon),
   portal: new ImageSource(portal),
+  portalISO: new ImageSource(portalISO),
+  torchSS: new ImageSource(torchSS),
 };
 
 export const loader = new Loader();
@@ -50,6 +54,8 @@ export function getLoadedTextures(): Map<string, HTMLImageElement> {
   map.set("goblinToken", Resources.goblinToken.image);
   map.set("playerToken", Resources.playerToken.image);
   map.set("portal", Resources.portal.image);
+  map.set("portaliso", Resources.portalISO.image);
+  map.set("torch", Resources.torchSS.image);
   return map;
 }
 
@@ -62,6 +68,7 @@ export const iconSS = SpriteSheet.fromImageSource({
     spriteHeight: 64,
   },
 });
+
 export const attackSprite = iconSS.getSprite(15, 41);
 export const magicSprite = iconSS.getSprite(15, 51);
 export const itemSprite = iconSS.getSprite(14, 59);
