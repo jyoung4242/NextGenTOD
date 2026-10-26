@@ -12,19 +12,22 @@ export interface GameSessionState {
   encounter?: EncounterState;
 }
 
+// GameTypes.ts
+
 export interface GameState {
   game: GameSessionState;
   player: PlayerState;
+  inventory: InventoryState;
   dungeon: {
     current: string;
-    registry: Record<string, DungeonState>; // 👈 Multi-level runtime state cache
+    registry: Record<string, DungeonState>;
   };
   quests: {
     active: Record<string, QuestProgress>;
     completed: string[];
   };
   progression: ProgressionState;
-  storypoints: Record<string, unknown>; // 👈 Top-level storypoints narrative blackboard (supports any data type)
+  storypoints: Record<string, unknown>;
 }
 
 //#endregion gamestate
@@ -227,6 +230,8 @@ export interface EntityPosition {
   y: number;
 }
 
+// GameTypes.ts
+
 export interface PlayerState {
   hp: number;
   maxHp: number;
@@ -235,7 +240,6 @@ export interface PlayerState {
   position: EntityPosition;
   facing: Direction;
   keyring: string[];
-  inventory: InventoryState;
   skills: Record<string, SkillState>;
 }
 
@@ -291,8 +295,9 @@ export interface EnemyState {
 // ********************************
 
 //#region itemtypes
+// GameTypes.ts
 
-export type ItemCategory = "consumable" | "equipment" | "material" | "junk";
+export type ItemCategory = "consumable" | "equipment" | "material" | "junk" | "key";
 
 export interface ItemDefinition {
   id: string;
@@ -498,6 +503,34 @@ export interface CutsceneTriggerDefinition {
 }
 
 //#endregion cutscenetypes
+
+// ********************************
+// UI Types
+// ********************************
+
+//#region uiTypes
+
+// UI/ToastTypes.ts
+export type ToastCategory = "quest" | "item" | "enemy" | "dungeon" | "progression";
+
+export interface ToastMessage {
+  id: string;
+  category: ToastCategory;
+  title: string;
+  message: string;
+  duration?: number; // Duration in ms (default: 3500)
+}
+
+export interface ActiveToastInstance {
+  data: ToastMessage;
+  elapsed: number;
+  duration: number;
+  alpha: number;
+  targetY: number;
+  currentY: number;
+}
+
+//#endregion uiTypes
 
 // ********************************
 // Helper Functions

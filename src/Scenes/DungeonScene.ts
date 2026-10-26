@@ -19,6 +19,7 @@ import { DialogUI } from "../UI/DialogUI";
 import { CutSceneSystem, CutsceneTriggerSystem } from "../Lib/Managers/CutScenes";
 import { QuestManager } from "../Lib/Managers/QuestManager";
 import { getLoadedTextures } from "../resources";
+import { ToastManager } from "../UI/ToastManager"; // 👈 Import ToastManager
 
 export class DungeonScene extends Scene {
   dCamera?: DungeonCamera;
@@ -37,6 +38,10 @@ export class DungeonScene extends Scene {
   questManager!: QuestManager;
   private dungeonManager = new DungeonManager();
   private dungeonDef!: DungeonDefinition;
+
+  // 🚀 Persistent ToastManager instance stored directly on the scene
+  private toastManager!: ToastManager;
+  private initialQuestToastsShown = false;
 
   constructor(
     private readonly state: StateStore<GameState>,
@@ -66,13 +71,17 @@ export class DungeonScene extends Scene {
     this.dialogUI = new DialogUI(this.inputMapper);
     this.encounterTriggerSystem = new EncounterTriggerSystem(this.state, this.content);
 
-    // 🚀 Initialize QuestManager and load ALL quests dynamically from ContentRegistry
+    // Initialize QuestManager and load quests
     this.questManager = new QuestManager(this.state);
     for (const [id, questDef] of this.content.quests.entries()) {
       this.questManager.registerQuestData(questDef);
     }
 
-    // 🚀 Initialize Cutscenes and load ALL cutscenes dynamically from ContentRegistry
+    // 🚀 Initialize ToastManager once on setup
+    this.toastManager = new ToastManager(() => this.state, !this.initialQuestToastsShown);
+    this.initialQuestToastsShown = true;
+
+    // Initialize Cutscenes
     this.cutSceneSystem = new CutSceneSystem(this.world, () => this.state, this.questManager);
     this.cutsceneTriggerSystem = new CutsceneTriggerSystem(this.state, this.cutSceneSystem);
     this.world.add(this.cutSceneSystem);
@@ -173,6 +182,9 @@ export class DungeonScene extends Scene {
     this.proximitySystem = new ProximitySystem(this.state, this.content);
     this.encounterTriggerSystem = new EncounterTriggerSystem(this.state, this.content);
 
+    // 🚀 Re-attach the persistent ToastHUD rendering element to the scene graph without recreating subscriptions
+    this.add(this.toastManager.getHUD());
+
     if (this.dungeonDef.onEnterCutsceneId) {
       const storyPoints = this.state.get("storypoints") || {};
       const flagKey = `dungeon_entered_${currentDungeonId}`;
@@ -189,13 +201,13 @@ export class DungeonScene extends Scene {
     }
   }
 
-  public async onDeactivate(context: SceneActivationContext) {
+  public async onDeactivate(_context: SceneActivationContext) {
     if (this.dungeonDef && this.dungeonDef.onExitCutsceneId) {
       this.state.update("game", g => ({ ...g, mode: "paused" as GameMode }));
       await this.cutSceneSystem.startCutScene(this.dungeonDef.onExitCutsceneId);
       this.state.update("game", g => ({ ...g, mode: "playing" as GameMode }));
     }
-    this.clear();
+    this.clear(); // Clears scene actors/render elements, but leaves toastManager intact on the dungeon scene instance!
   }
 
   private async handleTurnTick(): Promise<void> {
@@ -209,7 +221,9 @@ export class DungeonScene extends Scene {
 
     if (triggered) return;
 
+    // 🚀 Fixed destructuring variable name here:
     const { alertedEnemies, triggeredEncounter } = this.proximitySystem.updateProximity();
+
     if (triggeredEncounter) {
       this.cutSceneSystem.registerCutScene("goblin-encounter", {
         id: "goblin-encounter",
@@ -229,7 +243,7 @@ export class DungeonScene extends Scene {
     }
   }
 
-  onPreUpdate(engine: Engine, elapsed: number): void {
+  onPreUpdate(_engine: Engine, _elapsed: number): void {
     const mode = this.state.get("game.mode");
     const encounter = this.state.get("game.encounter");
 

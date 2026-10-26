@@ -90,7 +90,6 @@ export class DialogRunner {
       return;
     }
 
-    console.warn("Rendering current dialog node:", currentNode.data.portrait);
     const portrait = this.resolvePortrait(currentNode.data.portrait);
     const hasChoices = Boolean(currentNode.data.choices && currentNode.data.choices.length > 0);
     const advanceMode = typeof currentNode.data.autoNextNodeId === "string" ? "next" : "close";
@@ -143,7 +142,6 @@ export class DialogRunner {
       // case "chasm":
       //   return Resources.chasm.toSprite();
       case "goblin":
-        console.warn("Resolving portrait for goblin");
         return Resources.goblin.toSprite();
       case "none":
       default:

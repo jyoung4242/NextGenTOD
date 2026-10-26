@@ -1,4 +1,4 @@
-//GameState.ts
+// GameState.ts
 
 import { EventEmitter } from "excalibur";
 
@@ -42,6 +42,32 @@ type ChangeEventMap<State> = {
   change: ChangePayload<State>;
   [key: `change:${string}`]: ChangePayload<State>;
 };
+
+// ─── Inventory Domain Types ──────────────────────────────────────────────────
+
+export type ItemCategory = "consumable" | "equipment" | "material" | "junk" | "key";
+
+export interface ItemDefinition {
+  id: string;
+  name: string;
+  description: string;
+  category: ItemCategory;
+  stackable: boolean;
+  maxStackSize?: number;
+  weight: number;
+  icon?: string;
+}
+
+export interface ItemInstance {
+  instanceId: string;
+  definitionId: string;
+  quantity: number;
+}
+
+export interface InventoryState {
+  items: ItemInstance[];
+  maxWeight: number;
+}
 
 // ─── StateStore Interface ────────────────────────────────────────────────────
 
@@ -168,8 +194,6 @@ export function createStateStore<State extends object>(initialState: State): Sta
   const _initial: Readonly<State> = deepFreeze(deepClone(initialState));
   let _state: Readonly<State> = _initial;
 
-  // ExcaliburJS EventEmitter is typed with a map of eventName -> data type.
-  // We use a loosely typed emitter here since we emit dynamic path-keyed events.
   const _emitter = new EventEmitter<ChangeEventMap<State>>();
 
   function _emit(path: string, previousValue: unknown, value: unknown, previousState: Readonly<State>): void {
@@ -188,7 +212,6 @@ export function createStateStore<State extends object>(initialState: State): Sta
     return deepFreeze(setAtPath(deepClone(currentState), segments, value));
   }
 
-  // Overloaded get
   function get(): Readonly<State>;
   function get<K extends Path<State>>(path: K): Readonly<PathValue<State, K>>;
   function get<K extends Path<State>>(path?: K): Readonly<State> | Readonly<PathValue<State, K>> {
@@ -339,9 +362,43 @@ export function createStateStore<State extends object>(initialState: State): Sta
   return { get, select, set, update, patch, batch, on, off, subscribe, serialize, reset };
 }
 
-import type { GameState } from "./GameTypes";
+// ─── Initial Game State (Top-Level Inventory) ────────────────────────────────
 
-// GameState.ts
+export interface GameState {
+  game: {
+    mode: string;
+    time: number;
+  };
+  player: {
+    hp: number;
+    maxHp: number;
+    stamina: number;
+    maxStamina: number;
+    position: {
+      nodeId?: string;
+      x: number;
+      y: number;
+    };
+    facing: string;
+    keyring: string[];
+    skills: Record<string, { level: number; xp: number; unlocked?: boolean }>;
+  };
+  inventory: InventoryState; // Promoted to top-level property
+  dungeon: {
+    current: string;
+    registry: Record<string, unknown>;
+  };
+  quests: {
+    active: Record<string, unknown>;
+    completed: string[];
+  };
+  progression: {
+    experience: number;
+    level: number;
+    skillPoints: number;
+  };
+  storypoints?: Record<string, unknown>;
+}
 
 export function createInitialGameState(): GameState {
   return {
@@ -360,11 +417,11 @@ export function createInitialGameState(): GameState {
       },
       facing: "east",
       keyring: [],
-      inventory: {
-        items: [],
-        maxWeight: 50,
-      },
       skills: {},
+    },
+    inventory: {
+      items: [],
+      maxWeight: 50,
     },
     dungeon: {
       current: "test-dungeon",

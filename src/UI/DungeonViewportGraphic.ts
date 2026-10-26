@@ -175,7 +175,7 @@ export class DungeonViewportGraphic extends Graphic {
     // Collect Uncollected Items
     const uncollectedItems = (this.dungeon.items ?? []).filter(item => {
       const coordKey = `${item.position.x},${item.position.y}`;
-      return !currentState.containers[coordKey]?.opened;
+      return !currentState.containers?.[coordKey]?.opened;
     });
 
     for (const item of uncollectedItems) {
@@ -195,7 +195,8 @@ export class DungeonViewportGraphic extends Graphic {
     }
 
     // Collect Active Enemies
-    const activeEnemies = Object.values(currentState.enemies).filter(enemy => enemy.alive && enemy.state !== "dead");
+    const enemiesCache = currentState.enemies ?? {};
+    const activeEnemies = Object.values(enemiesCache).filter(enemy => enemy && enemy.alive && enemy.state !== "dead");
 
     for (const enemy of activeEnemies) {
       const enemyDef = this.content?.getEnemy(enemy.definitionId);
