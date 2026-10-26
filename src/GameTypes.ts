@@ -15,19 +15,40 @@ export interface GameSessionState {
 // GameTypes.ts
 
 export interface GameState {
-  game: GameSessionState;
-  player: PlayerState;
-  inventory: InventoryState;
+  game: {
+    mode: string;
+    time: number;
+    encounter?: EncounterState;
+  };
+  player: {
+    hp: number;
+    maxHp: number;
+    stamina: number;
+    maxStamina: number;
+    position: {
+      nodeId?: string;
+      x: number;
+      y: number;
+    };
+    facing: string;
+    keyring: string[];
+    skills: Record<string, { level: number; xp: number; unlocked?: boolean }>;
+  };
+  inventory: InventoryState; // Promoted to top-level property
   dungeon: {
     current: string;
-    registry: Record<string, DungeonState>;
+    registry: Record<string, unknown>;
   };
   quests: {
-    active: Record<string, QuestProgress>;
+    active: Record<string, unknown>;
     completed: string[];
   };
-  progression: ProgressionState;
-  storypoints: Record<string, unknown>;
+  progression: {
+    experience: number;
+    level: number;
+    skillPoints: number;
+  };
+  storypoints?: Record<string, unknown>;
 }
 
 //#endregion gamestate

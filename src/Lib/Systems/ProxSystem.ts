@@ -1,6 +1,6 @@
 // Systems/ProxSystem.ts
 import { StateStore } from "../../GameState";
-import { GameState, EnemyState } from "../../GameTypes";
+import { GameState, EnemyState, DungeonState } from "../../GameTypes";
 import { ContentRegistry } from "../../Content/ContentRegistry";
 
 export interface DetectionResult {
@@ -19,7 +19,7 @@ export class ProximitySystem {
 
     // 1. Resolve active dungeon ID and runtime state from registry
     const activeDungeonId = state.dungeon.current;
-    const activeDungeonState = state.dungeon.registry[activeDungeonId];
+    const activeDungeonState: DungeonState = state.dungeon.registry[activeDungeonId] as DungeonState;
     if (!activeDungeonState) return { alertedEnemies: [] };
 
     const { x: playerX, y: playerY } = state.player.position;
@@ -43,7 +43,7 @@ export class ProximitySystem {
         const distance = Math.sqrt(dx * dx + dy * dy);
 
         // Immediate tile contact check
-        if (distance <= 3.0 && !triggeredEncounter) {
+        if (distance <= 4.0 && !triggeredEncounter) {
           triggeredEncounter = instanceId;
         }
 
