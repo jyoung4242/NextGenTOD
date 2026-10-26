@@ -12,7 +12,7 @@ export const TEST_ENEMIES: EnemyDefinition[] = [
     health: 15,
     attack: 4,
     defense: 1,
-    detectionRadius: 3,
+    detectionRadius: 4,
     yOffset: 0.75, // Adjust the offset to raise the sprite above the floor
     xpReward: 10,
   },

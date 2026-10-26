@@ -1,7 +1,15 @@
 // DungeonScene.ts
 import { Scene, Label, vec, Color, toDegrees, Keys, Axes, Buttons, Engine, SceneActivationContext } from "excalibur";
 import { StateStore } from "../GameState";
-import { createDungeonCamera, DungeonCamera, DungeonDefinition, GameMode, GameState } from "../GameTypes";
+import {
+  createDungeonCamera,
+  DungeonCamera,
+  DungeonDefinition,
+  DungeonState,
+  GameMode,
+  GameState,
+  TurnParticipant,
+} from "../GameTypes";
 import { ContentRegistry } from "../Content/ContentRegistry";
 import { Dungeon, DungeonManager } from "../Lib/Managers/DungeonManager";
 import { DungeonViewport } from "../UI/DungeonViewport";
@@ -87,6 +95,7 @@ export class DungeonScene extends Scene {
     this.world.add(this.cutSceneSystem);
     this.cutSceneSystem.setDialogUI(this.dialogUI);
     this.cutSceneSystem.setEncounterTriggerSystem(this.encounterTriggerSystem);
+
     for (const [id, manifest] of this.content.cutscenes.entries()) {
       this.cutSceneSystem.registerCutScene(id, manifest);
     }
@@ -103,7 +112,7 @@ export class DungeonScene extends Scene {
 
     const vp = new DungeonViewport({
       dungeon: definition,
-      getState: () => currentDungeon,
+      getState: () => currentDungeon as DungeonState,
       camera: this.dCamera!,
       width: 960,
       height: 540,
@@ -141,7 +150,7 @@ export class DungeonScene extends Scene {
       getState: () => {
         const currentDungeonId = this.state.get("dungeon").current;
         const currentDungeon = this.state.get("dungeon").registry[currentDungeonId];
-        return currentDungeon;
+        return currentDungeon as DungeonState;
       },
       camera: this.dCamera!,
       width: 960,
@@ -157,7 +166,7 @@ export class DungeonScene extends Scene {
       getState: () => {
         const currentDungeonId = this.state.get("dungeon").current;
         const currentDungeon = this.state.get("dungeon").registry[currentDungeonId];
-        return currentDungeon;
+        return currentDungeon as DungeonState;
       },
       camera: this.dCamera!,
       position: vec(16, 16),
@@ -184,6 +193,7 @@ export class DungeonScene extends Scene {
 
     // 🚀 Re-attach the persistent ToastHUD rendering element to the scene graph without recreating subscriptions
     this.add(this.toastManager.getHUD());
+    this.cutSceneSystem.init();
 
     if (this.dungeonDef.onEnterCutsceneId) {
       const storyPoints = this.state.get("storypoints") || {};
@@ -229,21 +239,28 @@ export class DungeonScene extends Scene {
     }
 
     if (triggeredEncounter) {
-      this.cutSceneSystem.registerCutScene("goblin-encounter", {
-        id: "goblin-encounter",
-        commands: [
-          {
-            type: "dialog",
-            args: { path: "/public/Dialog/goblin.json", scene: this, dialog: this.dialogUI },
-          },
-          {
-            type: "encounter",
-            args: { enemyInstanceId: triggeredEncounter },
-          },
-        ],
-      });
+      // Check dungeon definition cutscene triggers for an encounter_start tied to this enemy target
+      const encounterTrigger = this.dungeonDef?.cutsceneTriggers?.find(
+        t => t.triggerType === "encounter_start" && t.targetId === triggeredEncounter,
+      );
 
-      this.cutSceneSystem.startCutScene("goblin-encounter");
+      if (encounterTrigger) {
+        const storyPoints = this.state.get("storypoints") || {};
+        const flagKey = `cutscene_played_${encounterTrigger.id}`;
+
+        if (!storyPoints[flagKey]) {
+          this.state.update("game", g => ({ ...g, mode: "paused" as GameMode }));
+          await this.cutSceneSystem.startCutScene(encounterTrigger.cutsceneId);
+          this.state.update("game", g => ({ ...g, mode: "playing" as GameMode }));
+
+          this.state.update("storypoints", points => ({
+            ...points,
+            [flagKey]: true,
+          }));
+
+          this.encounterTriggerSystem.checkAndTriggerEncounter(encounterTrigger.targetId as string);
+        }
+      }
     }
   }
 

@@ -233,6 +233,12 @@ export const testDungeon: DungeonDefinition = {
       position: { x: 14, y: 9 },
       triggerType: "tile_enter",
     },
+    {
+      id: "goblinThreat",
+      cutsceneId: "goblin-encounter-cutscene",
+      triggerType: "encounter_start",
+      targetId: "enemy_hallway_1",
+    },
   ],
 
   grid: dungeonFromAscii(

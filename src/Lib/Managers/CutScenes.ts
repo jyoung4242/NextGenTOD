@@ -114,6 +114,10 @@ export class CutSceneSystem extends System {
     this.registerCoreCommands();
   }
 
+  init() {
+    this.world.scene.add(this.director);
+  }
+
   public setDialogUI(ui: DialogUI): void {
     this.dialogUI = ui;
   }
@@ -292,6 +296,7 @@ export class CutSceneSystem extends System {
       const { path } = args;
       let scene = this.world.scene;
       let dialog = (scene as DungeonScene).dialogUI as DialogUI;
+
       await this.director.actions.runAction(new DialogAction(scene, dialog, path)).toPromise();
     });
 
@@ -377,7 +382,6 @@ export class CutSceneSystem extends System {
     this.registerCommand("encounter_flee", async (args, ctx) => {
       const summaryTitle = "Escaped!";
       const summaryDescription = "You managed to escape safely from the danger.";
-      console.log(`[Cutscene] Encounter Flee -> ${summaryTitle}`);
 
       let scene = this.world.scene;
       let dialog = (scene as any).dialogUI as DialogUI;
@@ -405,7 +409,6 @@ export class CutSceneSystem extends System {
     this.registerCommand("encounter_defeat", async (args, ctx) => {
       const summaryTitle = "Defeated...";
       const summaryDescription = "Your vision fades to black as you succumb to your wounds.";
-      console.log(`[Cutscene] Encounter Defeat -> ${summaryTitle}`);
 
       let scene = this.world.scene;
       let dialog = (scene as any).dialogUI as DialogUI;
@@ -432,7 +435,6 @@ export class CutSceneSystem extends System {
     // Register the command handler on your CutSceneSystem
     this.registerCommand("start_quest", async (args, context) => {
       const { questId } = args;
-      console.log(`[Cutscene Command] Starting quest: ${questId}`);
       this.questMgr.startQuest(questId);
     });
 
@@ -469,6 +471,9 @@ export class CutsceneTriggerSystem {
 
     for (const trigger of triggers) {
       if (!trigger) continue;
+      if (trigger.triggerType && trigger.triggerType !== "tile_enter") {
+        continue;
+      }
       // 1. Check if player is on the exact trigger coordinate
       if (trigger.position!.x === playerX && trigger.position!.y === playerY) {
         // 2. Read from top-level 'storypoints' instead of 'quests.flags'
@@ -488,7 +493,6 @@ export class CutsceneTriggerSystem {
 
         // 3. Pause gameplay mode & fire the cutscene
         this.state.update("game", g => ({ ...g, mode: "paused" as GameMode }));
-        console.log(trigger.cutsceneId);
 
         await this.cutSceneSystem.startCutScene(trigger.cutsceneId);
         this.state.update("game", g => ({ ...g, mode: "playing" as GameMode }));

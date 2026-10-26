@@ -13,6 +13,14 @@ export const cryptDungeon: DungeonDefinition = {
       quantity: 1,
     },
   ],
+  cutsceneTriggers: [
+    {
+      id: "goblinThreat2",
+      cutsceneId: "goblin-encounter-cutscene",
+      triggerType: "encounter_start",
+      targetId: "enemy_hallway_3",
+    },
+  ],
   enemies: [
     {
       id: "enemy_hallway_3",
