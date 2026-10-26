@@ -243,21 +243,38 @@ export const testDungeon: DungeonDefinition = {
 
   grid: dungeonFromAscii(
     `
-################
-#   #  #      ##
+#t###t##########
+#   #  #      t#
 #             ##
-#   #  #      ##
+#   #  #      t#
 #####  #########
 #####  #########
 #####  #########     
-#####  #########
+#####  ######t##
 #####         ##
-#####          p
+####t          p
 ################
 `,
     {
       tileMap: {
-        p: "portal",
+        p: [
+          { textureKey: "stone", alpha: 1.0 },
+          { textureKey: "portaliso", alpha: 0.9, blendMode: "screen" },
+        ],
+        t: [
+          { textureKey: "stone", alpha: 1.0 },
+          {
+            textureKey: "torch", // Corresponds to Resources.torchSS in resources.ts
+            alpha: 1.0,
+            blendMode: "source-over", // Transparently blends black background pixels around the flame
+            animation: {
+              frameCount: 4, // Adjust to match your torch sprite strip layout (e.g., 4 horizontal frames)
+              fps: 8, // Animation playback speed
+              frameWidth: 128, // Pixel width of a single frame in torch.png
+              frameHeight: 128, // Pixel height of the frame
+            },
+          },
+        ],
       },
     },
   ),

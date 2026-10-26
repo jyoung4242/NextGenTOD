@@ -1,6 +1,6 @@
 // UI/DungeonViewportGraphic.ts
 import { ExcaliburGraphicsContext, Graphic } from "excalibur";
-import { DungeonDefinition, DungeonCamera, DungeonState } from "../GameTypes";
+import { DungeonDefinition, DungeonCamera, DungeonState, WallLayer } from "../GameTypes";
 import { DungeonRaycaster } from "./DungeonRaycaster";
 import { ContentRegistry } from "../Content/ContentRegistry";
 
@@ -24,7 +24,6 @@ export class DungeonViewportGraphic extends Graphic {
 
   private canvas: HTMLCanvasElement;
   private ctx: CanvasRenderingContext2D;
-  private isDirty: boolean = true;
 
   public constructor(options: DungeonViewportGraphicOptions) {
     super({ width: options.width, height: options.height });
@@ -54,15 +53,13 @@ export class DungeonViewportGraphic extends Graphic {
   }
 
   public flagDirty(): void {
-    this.isDirty = true;
+    // Retained for API compatibility if called externally
   }
 
   protected _drawImage(ex: ExcaliburGraphicsContext, x: number, y: number): void {
-    // if (this.isDirty) {
+    // Always redraw every frame to support real-time animated textures (torches, portals, etc.)
     this.redrawViewport();
     this.canvas.setAttribute("forceUpload", "true");
-    this.isDirty = false;
-    // }
     ex.drawImage(this.canvas, x, y, this.width, this.height);
   }
 
@@ -86,18 +83,19 @@ export class DungeonViewportGraphic extends Graphic {
 
     if (hasPlayerLight) {
       activeLights.push({
-        x: this.camera.x, // Or currentState.player.position.x + 0.5
-        y: this.camera.y, // Or currentState.player.position.y + 0.5
-        radius: 4, // How far the player's lantern reaches
-        color: "#ffaa44", // Warm lantern glow
-        intensity: 1.0, // Brightness multiplier
+        x: this.camera.x,
+        y: this.camera.y,
+        radius: 4,
+        color: "#ffaa44",
+        intensity: 1.0,
         flicker: {
-          enabled: true, // Give the handheld torch/lantern a natural live flicker!
+          enabled: true,
           speed: 8,
           intensity: 0.08,
         },
       });
     }
+
     // -------------------------------------------------------------
     // 1. Ceiling & Floor (Fill Patterns + Horizon Fog Overlays)
     // -------------------------------------------------------------
@@ -129,27 +127,29 @@ export class DungeonViewportGraphic extends Graphic {
     }
 
     if (ambientLight < 1.0) {
-      // --- Ceiling Fog Overlay (Aggressive: reaches deep dark quickly from horizon) ---
+      // --- Ceiling Fog Overlay ---
       const ceilingGradient = ctx.createLinearGradient(0, 0, 0, halfHeight);
-      ceilingGradient.addColorStop(0.0, `rgba(0, 0, 0, 1.0)`); // Pitch black at the very top edge
-      ceilingGradient.addColorStop(0.2, `rgba(0, 0, 0, ${1.0 - ambientLight})`); // Reaches heavy fog early
-      ceilingGradient.addColorStop(1.0, `rgba(0, 0, 0, ${1.0 - ambientLight})`); // Solid dense fog at horizon
+      ceilingGradient.addColorStop(0.0, `rgba(0, 0, 0, 1.0)`);
+      ceilingGradient.addColorStop(0.2, `rgba(0, 0, 0, ${1.0 - ambientLight})`);
+      ceilingGradient.addColorStop(1.0, `rgba(0, 0, 0, ${1.0 - ambientLight})`);
       ctx.fillStyle = ceilingGradient;
       ctx.fillRect(0, 0, width, halfHeight);
 
-      // --- Floor Fog Overlay (Aggressive: reaches deep dark quickly from horizon) ---
+      // --- Floor Fog Overlay ---
       const floorGradient = ctx.createLinearGradient(0, halfHeight, 0, height);
-      floorGradient.addColorStop(0.0, `rgba(0, 0, 0, ${1.0 - ambientLight})`); // Solid dense fog at horizon
-      floorGradient.addColorStop(0.5, `rgba(0, 0, 0, ${1.0 - ambientLight})`); // Holds heavy fog down most of the floor
-      floorGradient.addColorStop(1.0, `rgba(0, 0, 0, 1.0)`); // Pitch black at the very bottom edge
+      floorGradient.addColorStop(0.0, `rgba(0, 0, 0, ${1.0 - ambientLight})`);
+      floorGradient.addColorStop(0.5, `rgba(0, 0, 0, ${1.0 - ambientLight})`);
+      floorGradient.addColorStop(1.0, `rgba(0, 0, 0, 1.0)`);
       ctx.fillStyle = floorGradient;
       ctx.fillRect(0, halfHeight, width, halfHeight);
     }
+
     // Depth buffer for depth testing billboards against wall depth
     const zBuffer = new Float32Array(width);
+    const currentTime = performance.now() * 0.001; // Current time in seconds for animations
 
     // -------------------------------------------------------------
-    // 2. Wall Raycast Loop with Texture Slicing & Lighting
+    // 2. Wall Raycast Loop with Composite, Animated Texture Slicing & Lighting
     // -------------------------------------------------------------
     for (let screenX = 0; screenX < width; screenX++) {
       const normalizedX = (screenX + 0.5) / width;
@@ -173,38 +173,50 @@ export class DungeonViewportGraphic extends Graphic {
       const wallHeight = projectionPlane / correctedDistance;
       const wallTop = (height - wallHeight) / 2;
 
-      let textureKey = hit.wall.textureKey;
+      // --- UNIFIED COMPOSITE LAYER & TEXTURE RESOLUTION ---
+      let activeLayers: WallLayer[] = [];
 
       if (hit.wall.type === "door") {
-        textureKey = "door";
-      } else if (!textureKey) {
-        textureKey = this.dungeon.defaultWallTexture ?? "stone";
+        if (hit.wall.layers && hit.wall.layers.length > 0) {
+          activeLayers = hit.wall.layers;
+        } else {
+          const doorTex = Array.isArray(hit.wall.textureKey) ? hit.wall.textureKey[0] : (hit.wall.textureKey ?? "door");
+          activeLayers = [{ textureKey: doorTex, alpha: 1.0, blendMode: "source-over" }];
+        }
+      } else if (hit.wall.layers && hit.wall.layers.length > 0) {
+        activeLayers = hit.wall.layers;
+      } else if (hit.wall.textureKey) {
+        if (Array.isArray(hit.wall.textureKey)) {
+          activeLayers = hit.wall.textureKey.map((key, index) => ({
+            textureKey: key,
+            alpha: 1.0,
+            blendMode: index > 0 ? "screen" : "source-over",
+          }));
+        } else {
+          activeLayers = [{ textureKey: hit.wall.textureKey, alpha: 1.0, blendMode: "source-over" }];
+        }
+      } else {
+        const defaultKey = this.dungeon.defaultWallTexture ?? "stone";
+        activeLayers = [{ textureKey: defaultKey, alpha: 1.0, blendMode: "source-over" }];
       }
 
       // --- LIGHT FACTOR CALCULATION ---
-      // 1. Base distance attenuation (fog fading out to maxLightingDistance)
       let lightFactor = Math.max(0, 1.0 - correctedDistance / maxLightingDistance);
       lightFactor = ambientLight + (1.0 - ambientLight) * lightFactor;
       const now = performance.now() * 0.001;
 
-      // 2. Accumulate contributions from dynamic point lights (torches, etc.)
       for (const light of activeLights) {
         const distToLight = Math.hypot(hit.x - light.x, hit.y - light.y);
         if (distToLight < light.radius) {
           const attenuation = 1.0 - distToLight / light.radius;
           let effectiveIntensity = light.intensity ?? 1.0;
 
-          // Per-light flicker calculation
           if (light.flicker?.enabled) {
             const speed = light.flicker.speed ?? 15.0;
             const amount = light.flicker.intensity ?? 0.1;
-
             const phase = ((light.x * 12.9898 + light.y * 78.233) % Math.PI) * 2;
             const time = now * speed + phase;
-
-            // Combine overlapping sine waves for organic flame movement
             const noise = Math.sin(time * 3.3) * 0.5 + Math.sin(time * 7.1) * 0.5;
-
             effectiveIntensity = Math.max(0, effectiveIntensity + noise * amount);
           }
 
@@ -212,13 +224,23 @@ export class DungeonViewportGraphic extends Graphic {
         }
       }
 
-      // Clamp overall lighting factor
       lightFactor = Math.min(1.5, Math.max(ambientLight, lightFactor));
 
-      const wallTexture = this.textures.get(textureKey);
+      // --- RENDER COMPOSITE & ANIMATED LAYER STACK FOR THIS COLUMN SLICE ---
+      let renderedAny = false;
+      for (const layer of activeLayers) {
+        const wallTexture = this.textures.get(layer.textureKey);
+        if (!wallTexture) continue;
 
-      if (wallTexture) {
+        renderedAny = true;
         let texX = Math.floor(hit.wallOffset * wallTexture.width);
+
+        // Handle Animated Texture Frame Selection
+        if (layer.animation) {
+          const { frameCount, fps, frameWidth } = layer.animation;
+          const currentFrame = Math.floor(currentTime * fps) % frameCount;
+          texX = currentFrame * frameWidth + Math.floor(hit.wallOffset * frameWidth);
+        }
 
         const rayDirX = Math.cos(rayAngle);
         const rayDirY = Math.sin(rayAngle);
@@ -228,28 +250,43 @@ export class DungeonViewportGraphic extends Graphic {
           (hit.side === "north" && rayDirY < 0) ||
           (hit.side === "south" && rayDirY > 0)
         ) {
-          texX = wallTexture.width - texX - 1;
+          if (layer.animation) {
+            const { frameCount, fps, frameWidth } = layer.animation;
+            const currentFrame = Math.floor(currentTime * fps) % frameCount;
+            texX = currentFrame * frameWidth + (frameWidth - 1 - Math.floor(hit.wallOffset * frameWidth));
+          } else {
+            texX = wallTexture.width - texX - 1;
+          }
         }
 
-        // Draw base texture slice
-        ctx.drawImage(wallTexture, texX, 0, 1, wallTexture.height, screenX, wallTop, 1, wallHeight);
+        ctx.save();
+        ctx.globalAlpha = layer.alpha ?? 1.0;
+        ctx.globalCompositeOperation = layer.blendMode ?? "source-over";
 
-        // Apply shadow/light overlay stripe based on lightFactor
+        const sourceHeight = layer.animation ? layer.animation.frameHeight : wallTexture.height;
+
+        ctx.drawImage(wallTexture, texX, 0, 1, sourceHeight, screenX, wallTop, 1, wallHeight);
+
+        ctx.restore();
+      }
+
+      // Fallback for solid colors if textures are missing
+      if (!renderedAny) {
+        const baseIntensity = hit.side === "north" || hit.side === "south" ? 136 : 102;
+        const shadedIntensity = Math.floor(baseIntensity * lightFactor);
+        ctx.fillStyle = `rgb(${shadedIntensity}, ${shadedIntensity}, ${shadedIntensity})`;
+        ctx.fillRect(screenX, wallTop, 1, wallHeight);
+      } else {
+        // Apply lighting/shadow overlay stripe based on lightFactor over the composite stack
         if (lightFactor < 1.0) {
           const darkness = 1.0 - lightFactor;
           ctx.fillStyle = `rgba(0, 0, 0, ${darkness})`;
           ctx.fillRect(screenX, wallTop, 1, wallHeight);
         } else if (lightFactor > 1.0) {
           const brightness = lightFactor - 1.0;
-          ctx.fillStyle = `rgba(255, 200, 100, ${Math.min(0.5, brightness)})`; // Warm torch glow tint
+          ctx.fillStyle = `rgba(255, 200, 100, ${Math.min(0.5, brightness)})`;
           ctx.fillRect(screenX, wallTop, 1, wallHeight);
         }
-      } else {
-        // Fallback for solid colors (when texture image is missing)
-        const baseIntensity = hit.side === "north" || hit.side === "south" ? 136 : 102;
-        const shadedIntensity = Math.floor(baseIntensity * lightFactor);
-        ctx.fillStyle = `rgb(${shadedIntensity}, ${shadedIntensity}, ${shadedIntensity})`;
-        ctx.fillRect(screenX, wallTop, 1, wallHeight);
       }
     }
 

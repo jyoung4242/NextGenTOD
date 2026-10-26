@@ -199,9 +199,26 @@ export interface DoorState {
   locked: boolean;
 }
 
+export interface LayerAnimationDefinition {
+  frameCount: number; // e.g. 4 frames of torch animation horizontally
+  fps: number; // e.g. 8 frames per second
+  frameWidth: number; // Pixel width of a single frame in the sprite sheet
+  frameHeight: number; // Pixel height of a single frame
+}
+
+export interface WallLayer {
+  textureKey: string;
+  alpha?: number;
+  blendMode?: GlobalCompositeOperation;
+  scaleX?: number;
+  scaleY?: number;
+  animation?: LayerAnimationDefinition; // <--- NEW: Animated texture support
+}
+
 export interface WallDefinition {
   type: "wall" | "door" | "none";
-  textureKey?: string; // or materialId?: string
+  textureKey?: string | string[];
+  layers?: WallLayer[]; // <--- NEW: Composite layers for custom walls / portals
   doorId?: string;
 }
 
@@ -233,8 +250,7 @@ export interface DungeonAsciiOptions {
   wall?: string;
   floor?: string;
   wallMaterialId?: string; // Default wall texture
-  // Add a map for special characters to texture keys
-  tileMap?: Record<string, string>;
+  tileMap?: Record<string, string | string[] | WallLayer[]>;
 }
 
 export interface DungeonAsciiResult {
@@ -628,10 +644,10 @@ function createCustomWall(
   wall: string,
   floor: string,
   defaultTexture: string,
-  tileMap: Record<string, string>,
+  tileMap: Record<string, string | string[] | WallLayer[]>,
 ): WallDefinition {
   if (x < 0 || y < 0 || y >= lines.length || x >= width) {
-    return { type: "wall", textureKey: defaultTexture };
+    return { type: "wall", layers: [{ textureKey: defaultTexture, alpha: 1.0 }] };
   }
 
   const char = lines[y][x];
@@ -640,10 +656,34 @@ function createCustomWall(
     return { type: "none" };
   }
 
-  // If the character is in our custom tileMap, use that texture; otherwise default
-  const textureKey = tileMap[char] ?? defaultTexture;
+  const mapped = tileMap[char];
 
-  return { type: "wall", textureKey };
+  if (!mapped) {
+    return { type: "wall", layers: [{ textureKey: defaultTexture, alpha: 1.0 }] };
+  }
+
+  // Case A: Mapped is an array of explicit WallLayer objects (with animation/blend modes)
+  if (Array.isArray(mapped) && mapped.length > 0 && typeof mapped[0] === "object" && "textureKey" in mapped[0]) {
+    return { type: "wall", layers: mapped as WallLayer[] };
+  }
+
+  // Case B: Mapped is a string array (e.g. ["stone", "torch"])
+  if (Array.isArray(mapped)) {
+    return {
+      type: "wall",
+      layers: (mapped as string[]).map((key, index) => ({
+        textureKey: key,
+        alpha: 1.0,
+        blendMode: index > 0 ? "screen" : "source-over", // Automatically screen-blend overlays
+      })),
+    };
+  }
+
+  // Case C: Mapped is a single string
+  return {
+    type: "wall",
+    layers: [{ textureKey: mapped as string, alpha: 1.0 }],
+  };
 }
 
 function createWall(
@@ -653,7 +693,7 @@ function createWall(
   width: number,
   wall: string,
   floor: string,
-  textureKey: string,
+  textureKey: string[],
 ): WallDefinition {
   if (isFloor(lines, x, y, width, wall, floor)) {
     return { type: "none" };
