@@ -20,20 +20,7 @@ export interface GameState {
     time: number;
     encounter?: EncounterState;
   };
-  player: {
-    hp: number;
-    maxHp: number;
-    stamina: number;
-    maxStamina: number;
-    position: {
-      nodeId?: string;
-      x: number;
-      y: number;
-    };
-    facing: string;
-    keyring: string[];
-    skills: Record<string, { level: number; xp: number; unlocked?: boolean }>;
-  };
+  player: PlayerState;
   inventory: InventoryState; // Promoted to top-level property
   dungeon: {
     current: string;
@@ -273,29 +260,28 @@ export interface DungeonAsciiMarker {
 // ********************************
 
 //#region playertypes
-export interface SkillDefinition {
-  id: string;
-  name: string;
-  category: string;
-  staminaCost: number;
-  manaCost: number;
-  basePower: number;
-  targetType: "self" | "single_enemy" | "area";
-  range: number;
-}
 
 export interface EntityPosition {
   x: number;
   y: number;
 }
 
-// GameTypes.ts
-
 export interface PlayerState {
+  //Calculated stats
   hp: number;
   maxHp: number;
   stamina: number;
   maxStamina: number;
+  mana: number;
+  maxMana: number;
+
+  //Core Stats
+  constitution: number;
+  agility: number;
+  wisdom: number;
+  perception: number;
+
+  //inventory and position
   position: EntityPosition;
   facing: Direction;
   keyring: string[];
@@ -590,6 +576,21 @@ export interface ActiveToastInstance {
 }
 
 //#endregion uiTypes
+
+// ********************************
+// Skill Types
+// ********************************
+
+// Content/SkillRegistry.ts
+export type CoreCharacteristic = "hp" | "stam" | "agil" | "per" | "wisdom";
+
+export interface SkillDefinition {
+  id: string;
+  name: string;
+  category: "combat" | "defense" | "armor" | "magic";
+  supportedCharacteristics: CoreCharacteristic[];
+  basePowerMultiplier: number;
+}
 
 // ********************************
 // Helper Functions

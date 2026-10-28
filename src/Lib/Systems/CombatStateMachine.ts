@@ -1,11 +1,10 @@
 // Systems/CombatStateMachine.ts
 import { StateStore } from "../../GameState";
-import { GameState, CombatAction, EnemyState, PlayerState, EncounterState, getDungeonCell } from "../../GameTypes";
+import { GameState, CombatAction, EnemyState, PlayerState, EncounterState, getDungeonCell, DungeonState } from "../../GameTypes";
 import { ContentRegistry } from "../../Content/ContentRegistry";
 import { CombatRulesEngine } from "./CombatRulesEngine";
 import { CutSceneSystem } from "../Managers/CutScenes";
 import { LootDrop, LootManager } from "../Managers/LootManager";
-import { ProgressionSystem } from "./ProgressionSystem";
 
 export class CombatStateMachine {
   constructor(
@@ -24,7 +23,8 @@ export class CombatStateMachine {
 
   private isTileBlocked(targetX: number, targetY: number, state: GameState, excludeEntityId?: string): boolean {
     const activeDungeonId = state.dungeon.current;
-    const activeDungeonState = state.dungeon.registry?.[activeDungeonId];
+    const activeDungeonState = state.dungeon.registry?.[activeDungeonId] as DungeonState;
+    if (!activeDungeonState) return false;
 
     if (activeDungeonState) {
       const dungeonDef = this.contentRegistry.getDungeon(activeDungeonId);
@@ -65,7 +65,7 @@ export class CombatStateMachine {
     }
 
     const activeDungeonId = state.dungeon.current;
-    const activeDungeonState = state.dungeon.registry?.[activeDungeonId];
+    const activeDungeonState = state.dungeon.registry?.[activeDungeonId] as DungeonState;
     if (!activeDungeonState) return;
 
     const enemyIds = encounter.enemyInstanceIds ?? (encounter.activeEnemyInstanceId ? [encounter.activeEnemyInstanceId] : []);
@@ -300,7 +300,7 @@ export class CombatStateMachine {
     if (!encounter || encounter.isResolved) return;
 
     const activeDungeonId = state.dungeon.current;
-    const activeDungeonState = state.dungeon.registry?.[activeDungeonId];
+    const activeDungeonState = state.dungeon.registry?.[activeDungeonId] as DungeonState;
     if (!activeDungeonState) return;
 
     const enemy = activeDungeonState.enemies?.[enemyInstanceId];
@@ -405,7 +405,7 @@ export class CombatStateMachine {
     if (!encounter) return true;
 
     const activeDungeonId = state.dungeon.current;
-    const activeDungeonState = state.dungeon.registry?.[activeDungeonId];
+    const activeDungeonState = state.dungeon.registry?.[activeDungeonId] as DungeonState;
     if (!activeDungeonState) return true;
 
     const enemyIds = encounter.enemyInstanceIds ?? (encounter.activeEnemyInstanceId ? [encounter.activeEnemyInstanceId] : []);

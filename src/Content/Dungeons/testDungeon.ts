@@ -259,7 +259,7 @@ export const testDungeon: DungeonDefinition = {
       tileMap: {
         p: [
           { textureKey: "stone", alpha: 1.0 },
-          { textureKey: "portaliso", alpha: 0.9, blendMode: "screen" },
+          { textureKey: "portaliso", alpha: 0.9, blendMode: "source-over" },
         ],
         t: [
           { textureKey: "stone", alpha: 1.0 },
