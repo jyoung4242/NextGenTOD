@@ -55,6 +55,7 @@ const game = new Engine({
   height: 540,
   displayMode: DisplayMode.Fixed,
   pixelArt: true,
+  fixedUpdateFps: 20,
 });
 
 export const inputMapper = new InputMapSystem(game);
