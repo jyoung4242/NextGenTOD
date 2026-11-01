@@ -297,6 +297,7 @@ export class CombatStateMachine {
 
     // 🚀 Trigger the end cutscene AFTER the batch has successfully committed to the store
     if (pendingCutsceneId) {
+      console.log(`[Combat Log] Triggering end cutscene: ${pendingCutsceneId}`);
       this.triggerEndCutscene(pendingCutsceneId);
     }
   }
@@ -494,6 +495,7 @@ export class CombatStateMachine {
 
   private async triggerEndCutscene(cutsceneId: string): Promise<void> {
     this.store.set("game.mode", "paused");
+    console.log("cutscene system", this.cutSceneSystem);
 
     if (this.cutSceneSystem) {
       try {

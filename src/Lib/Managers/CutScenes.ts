@@ -194,6 +194,7 @@ export class CutSceneSystem extends System {
       system: this,
     };
 
+    console.log(`[CutSceneSystem] Starting cutscene: ${cutsceneId}`);
     try {
       // CRITICAL: We use a standard for...of loop and 'await' each step
       for (const command of manifest.commands) {
@@ -202,6 +203,7 @@ export class CutSceneSystem extends System {
         const impl = this.commandRegistry.get(command.type);
 
         if (impl) {
+          debugger;
           await impl(command.args, context);
         }
       }

@@ -176,19 +176,24 @@ export class PauseMenuSPA extends ScreenElement {
 
     const currentTab = this.tabs[this.activeTabIndex];
 
+    // 1. Pause Menu Global Navigation & Toggling
     if (event.button === Buttons.Face2) {
       this.hide();
     } else if (event.button === Buttons.LeftBumper || event.button === Buttons.DpadLeft) {
       this.previousTab();
     } else if (event.button === Buttons.RightBumper || event.button === Buttons.DpadRight) {
       this.nextTab();
-    } else if (currentTab instanceof InventoryFormTab) {
+    }
+    // 2. Tab-Specific Actions (Inventory Form Cursor, Focus & Action Handling)
+    else if (currentTab instanceof InventoryFormTab) {
       if (event.button === Buttons.DpadUp) {
         currentTab.moveCursor(-1);
       } else if (event.button === Buttons.DpadDown) {
         currentTab.moveCursor(1);
+      } else if (event.button === Buttons.Face3 || event.button === Buttons.LeftTrigger) {
+        currentTab.switchFocus(); // Toggle focus between Inventory list and Equipment slots
       } else if (event.button === Buttons.Face1) {
-        // currentTab.equipSelectedItem();
+        currentTab.handleAction(); // Equips if in inventory panel, Unequips if in equipment panel
       }
     }
   };
@@ -220,18 +225,18 @@ export class PauseMenuSPA extends ScreenElement {
     }
   }
 
-  public reAddTabs(): void {
-    debugger;
-    console.log("[Pause Tabs]: contentPanelContainer children: ", this.contentPanelContainer.children);
-    this.tabs.forEach((tab, index) => {
-      //test if tab already added
-      console.log("[Pause Tabs]: checking tab: ", tab);
-      if (!this.contentPanelContainer.children.includes(tab)) {
-        console.log("[Pause Tabs]: readding tab: ", tab);
-        this.addTab(tab);
-      }
-    });
-  }
+  // public reAddTabs(): void {
+  //   debugger;
+  //   console.log("[Pause Tabs]: contentPanelContainer children: ", this.contentPanelContainer.children);
+  //   this.tabs.forEach((tab, index) => {
+  //     //test if tab already added
+  //     console.log("[Pause Tabs]: checking tab: ", tab);
+  //     if (!this.contentPanelContainer.children.includes(tab)) {
+  //       console.log("[Pause Tabs]: readding tab: ", tab);
+  //       this.addTab(tab);
+  //     }
+  //   });
+  // }
 
   public toggle(currentContext: string): void {
     if (this.isOpen) {

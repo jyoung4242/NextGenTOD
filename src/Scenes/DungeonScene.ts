@@ -101,8 +101,8 @@ export class DungeonScene extends Scene {
     );
     this.pauseMenu.addTab(new CharacterFormTab(this.state, this.content));
     this.pauseMenu.addTab(new QuestsFormTab(this.state));
-    this.pauseMenu.addTab(new MapFormTab());
-    this.pauseMenu.addTab(new SettingsFormTab());
+    // this.pauseMenu.addTab(new MapFormTab());
+    // this.pauseMenu.addTab(new SettingsFormTab());
 
     // Initialize Cutscenes
     this.cutSceneSystem = new CutSceneSystem(this.world, () => this.state, this.questManager);
