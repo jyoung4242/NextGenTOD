@@ -49,8 +49,8 @@ export class PauseMenuSPA extends ScreenElement {
       z: 1000,
     });
 
-    this.headerLinksContainer = new ScreenElement({ pos: vec(20, 20) });
-    this.contentPanelContainer = new ScreenElement({ pos: vec(20, 70) });
+    this.headerLinksContainer = new ScreenElement({ name: "headerLinksContainer", pos: vec(20, 20) });
+    this.contentPanelContainer = new ScreenElement({ name: "contentPanelContainer", pos: vec(20, 70) });
 
     this.addChild(this.headerLinksContainer);
     this.addChild(this.contentPanelContainer);
@@ -218,6 +218,19 @@ export class PauseMenuSPA extends ScreenElement {
     if (index === 0) {
       this.selectTab(0);
     }
+  }
+
+  public reAddTabs(): void {
+    debugger;
+    console.log("[Pause Tabs]: contentPanelContainer children: ", this.contentPanelContainer.children);
+    this.tabs.forEach((tab, index) => {
+      //test if tab already added
+      console.log("[Pause Tabs]: checking tab: ", tab);
+      if (!this.contentPanelContainer.children.includes(tab)) {
+        console.log("[Pause Tabs]: readding tab: ", tab);
+        this.addTab(tab);
+      }
+    });
   }
 
   public toggle(currentContext: string): void {

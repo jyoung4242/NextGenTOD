@@ -79,6 +79,10 @@ export class ContentRegistry {
     return definition;
   }
 
+  getAllSkills(): SkillDefinition[] {
+    return Array.from(this.skills.values());
+  }
+
   // Add getQuest
   getQuest(id: string): QuestDefinitionData {
     const definition = this.quests.get(id);

@@ -97,7 +97,7 @@ export class DungeonScene extends Scene {
     this.pauseMenu.addTab(
       new InventoryFormTab(this.state, this.content, new EquipmentSystem(this.state, this.content, this.toastManager)),
     );
-    this.pauseMenu.addTab(new CharacterFormTab());
+    this.pauseMenu.addTab(new CharacterFormTab(this.state, this.content));
     this.pauseMenu.addTab(new QuestsFormTab());
     this.pauseMenu.addTab(new MapFormTab());
     this.pauseMenu.addTab(new SettingsFormTab());
@@ -248,6 +248,7 @@ export class DungeonScene extends Scene {
       await this.cutSceneSystem.startCutScene(this.dungeonDef.onExitCutsceneId);
       this.state.update("game", g => ({ ...g, mode: "playing" as GameMode }));
     }
+
     this.clear(); // Clears scene actors/render elements, but leaves toastManager intact on the dungeon scene instance!
   }
 
