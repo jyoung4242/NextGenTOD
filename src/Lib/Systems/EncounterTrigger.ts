@@ -1,6 +1,6 @@
 // Systems/EncounterTrigger.ts
 import { StateStore } from "../../GameState";
-import { GameState } from "../../GameTypes";
+import { DungeonState, GameState } from "../../GameTypes";
 import { ContentRegistry } from "../../Content/ContentRegistry";
 
 export class EncounterTriggerSystem {
@@ -15,7 +15,7 @@ export class EncounterTriggerSystem {
 
     // 1. Resolve active dungeon ID and active dungeon runtime state from the registry
     const activeDungeonId = state.dungeon.current;
-    const activeDungeonState = state.dungeon.registry[activeDungeonId];
+    const activeDungeonState = state.dungeon.registry[activeDungeonId] as DungeonState;
     if (!activeDungeonState) return false;
 
     const enemy = activeDungeonState.enemies?.[triggeredEnemyInstanceId];

@@ -286,6 +286,8 @@ export interface PlayerState {
   facing: Direction;
   keyring: string[];
   skills: Record<string, SkillState>;
+
+  equipment: EquipmentState;
 }
 
 export interface SkillState {
@@ -341,7 +343,15 @@ export interface EnemyState {
 
 //#region itemtypes
 // GameTypes.ts
+export type EquipmentSlot = "head" | "chest" | "mainHand" | "offHand" | "accessory";
 
+export interface EquipmentState {
+  head?: ItemInstance;
+  chest?: ItemInstance;
+  mainHand?: ItemInstance;
+  offHand?: ItemInstance;
+  accessory?: ItemInstance;
+}
 export type ItemCategory = "consumable" | "equipment" | "material" | "junk" | "key";
 
 export interface ItemDefinition {
@@ -354,6 +364,9 @@ export interface ItemDefinition {
   weight: number;
   icon?: string;
   textureKey?: string;
+  equipmentSlot?: EquipmentSlot; // If you keep slot here or attached locally
+  requiredSkill?: string; // e.g., "oneHanded", "armorHeavy"
+  minLevel?: number; // e.g., 2
 }
 
 export interface ItemInstance {

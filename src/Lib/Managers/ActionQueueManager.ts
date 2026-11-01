@@ -1,5 +1,5 @@
 // Systems/ActionQueueManager.ts
-import { CombatAction, TurnParticipant } from "../../GameTypes";
+import { CombatAction, DungeonState, TurnParticipant } from "../../GameTypes";
 import { CombatStateMachine } from "../Systems/CombatStateMachine";
 import { EnemyAISystem } from "../Systems/EnemyAISystem";
 
@@ -34,7 +34,8 @@ export class ActionQueueManager {
 
     if (encounter && encounter.enemyInstanceIds) {
       const activeDungeonId = currentState.dungeon.current;
-      const dungeonEnemies = currentState.dungeon.registry?.[activeDungeonId]?.enemies;
+      const activeDungeon = currentState.dungeon.registry?.[activeDungeonId] as DungeonState;
+      const dungeonEnemies = activeDungeon.enemies;
 
       for (const enemyId of encounter.enemyInstanceIds) {
         const enemyState = dungeonEnemies?.[enemyId];

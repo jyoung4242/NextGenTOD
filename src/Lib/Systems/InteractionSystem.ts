@@ -1,7 +1,7 @@
 // InteractionSystem.ts
 import { DungeonManager } from "../Managers/DungeonManager";
 import { StateStore } from "../../GameState";
-import { GameState, Direction } from "../../GameTypes";
+import { GameState, Direction, DungeonState } from "../../GameTypes";
 import { InventorySystem } from "./InventorySystem";
 import { ContentRegistry } from "../../Content/ContentRegistry";
 import { QuestManager } from "../Managers/QuestManager";
@@ -78,7 +78,7 @@ export class InteractionSystem {
   private handleDoorInteraction(doorId: string): InteractionResult {
     const state = this.store.get();
     const activeDungeonId = state.dungeon.current;
-    const activeDungeonState = state.dungeon.registry[activeDungeonId];
+    const activeDungeonState = state.dungeon.registry[activeDungeonId] as DungeonState;
 
     if (!activeDungeonState) {
       return { handled: false, type: "door", message: "Active dungeon state not found." };
@@ -141,7 +141,7 @@ export class InteractionSystem {
     const coordKey = `${cellX},${cellY}`;
     const state = this.store.get();
     const activeDungeonId = state.dungeon.current;
-    const activeDungeonState = state.dungeon.registry[activeDungeonId];
+    const activeDungeonState = state.dungeon.registry[activeDungeonId] as DungeonState;
 
     if (!activeDungeonState) {
       return { handled: false, type: "none", message: "Active dungeon state not found." };

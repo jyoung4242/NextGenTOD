@@ -1,16 +1,18 @@
 // Systems/CombatStateMachine.ts
-import { StateStore } from "../../GameState";
+import { BatchContext, StateStore } from "../../GameState";
 import { GameState, CombatAction, EnemyState, PlayerState, EncounterState, getDungeonCell, DungeonState } from "../../GameTypes";
 import { ContentRegistry } from "../../Content/ContentRegistry";
 import { CombatRulesEngine } from "./CombatRulesEngine";
 import { CutSceneSystem } from "../Managers/CutScenes";
 import { LootDrop, LootManager } from "../Managers/LootManager";
+import { ToastManager } from "../../UI/ToastManager";
 
 export class CombatStateMachine {
   constructor(
     private readonly store: StateStore<GameState>,
     private readonly contentRegistry: ContentRegistry,
     private readonly cutSceneSystem?: CutSceneSystem,
+    private readonly toastmgr?: ToastManager,
   ) {}
 
   public getStore(): StateStore<GameState> {
@@ -114,8 +116,12 @@ export class CombatStateMachine {
             }
           }
 
+          // 1. Determine active weapon skill
+          const weaponSkill = this.getEquippedWeaponSkill();
+
+          // 2. Resolve attack passing the dynamic weapon skill
           const enemyDef = this.contentRegistry.getEnemy(enemy.definitionId);
-          const attackResult = CombatRulesEngine.resolveMeleeAttack(state.player, enemy, enemyDef);
+          const attackResult = CombatRulesEngine.resolveMeleeAttack(state.player, enemy, enemyDef, weaponSkill);
           logMessage = attackResult.logMessage;
           console.log(`[Combat Log] ${logMessage}`);
 
@@ -123,7 +129,8 @@ export class CombatStateMachine {
 
           if (attackResult.isHit && attackResult.damage > 0) {
             newHp = Math.max(0, enemy.hp - attackResult.damage);
-            this.awardSkillXP("oneHanded", 15);
+            // 3. Award XP to the active weapon skill
+            this.awardSkillXP(ctx, weaponSkill, 15);
           }
 
           const updatedEnemies: Record<string, EnemyState> = {
@@ -170,7 +177,7 @@ export class CombatStateMachine {
           logMessage = `Player cast ${skillId} on enemy for ${spellDamage} damage!`;
           console.log(`[Combat Log] ${logMessage}`);
 
-          this.awardSkillXP("destruction", 20);
+          this.awardSkillXP(ctx, "destruction", 20);
 
           const updatedEnemies: Record<string, EnemyState> = {
             ...activeDungeonState.enemies,
@@ -261,7 +268,7 @@ export class CombatStateMachine {
         case "defend": {
           logMessage = "Player takes a defensive stance, raising block readiness.";
           console.log(`[Combat Log] ${logMessage}`);
-          this.awardSkillXP("block", 10);
+          this.awardSkillXP(ctx, "block", 10);
           break;
         }
 
@@ -499,7 +506,7 @@ export class CombatStateMachine {
     this.store.set("game.mode", "playing");
   }
 
-  private awardSkillXP(skillId: string, amount: number): void {
+  private awardSkillXP(ctx: BatchContext<GameState>, skillId: string, amount: number): void {
     const state = this.store.get();
     const currentSkill = state.player.skills[skillId] ?? { level: 1, xp: 0, unlocked: true };
     const newXp = currentSkill.xp + amount;
@@ -507,18 +514,39 @@ export class CombatStateMachine {
     const newLevel = newXp >= 100 ? currentSkill.level + 1 : currentSkill.level;
     const finalXp = newXp % 100;
 
-    const updatedPlayer: PlayerState = {
-      ...state.player,
-      skills: {
-        ...state.player.skills,
-        [skillId]: {
-          ...currentSkill,
-          level: newLevel,
-          xp: finalXp,
-        },
-      },
-    };
+    // console.log(`[AWARD SKILL]: xp gained, ${currentSkill.xp} by ${amount}, new level: ${newLevel}, final xp: ${finalXp}`);
+    console.log(this.toastmgr, newLevel, currentSkill.level);
 
-    this.store.set("player", updatedPlayer);
+    if (this.toastmgr && newLevel > currentSkill.level) {
+      console.log(`[AWARD SKILL]: level up toast triggered for ${skillId} at level ${newLevel}`);
+      this.toastmgr.show("progression", "Skill Level Up!", `${skillId} reached Level ${newLevel}!`);
+    }
+
+    // Use store.batch with ctx.set safely since it relies on store.get() above
+
+    ctx.set(`player.skills.${skillId}` as any, {
+      ...currentSkill,
+      level: newLevel,
+      xp: finalXp,
+      unlocked: true,
+    });
+  }
+
+  /**
+   * Determines which skill should gain XP based on the equipped weapon.
+   */
+  private getEquippedWeaponSkill(): string {
+    const state = this.store.get();
+    const mainHandItemInstance = state.player.equipment?.mainHand;
+
+    if (mainHandItemInstance) {
+      const itemDef = this.contentRegistry.getItem(mainHandItemInstance.definitionId);
+      if (itemDef?.requiredSkill) {
+        return itemDef.requiredSkill;
+      }
+    }
+
+    // Fallback if no weapon is equipped or item does not explicitly specify a required skill
+    return "oneHanded";
   }
 }
