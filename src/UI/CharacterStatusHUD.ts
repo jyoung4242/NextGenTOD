@@ -1,7 +1,7 @@
 // Graphics/CharacterStatusGraphic.ts
 import { Graphic, ExcaliburGraphicsContext, ScreenElement, vec } from "excalibur";
 import { StateStore } from "../GameState";
-import { GameState } from "../GameTypes";
+import { DungeonState, GameState } from "../GameTypes";
 
 export class CharacterStatusHUD extends ScreenElement {
   private statusGraphic: CharacterStatusGraphic;
@@ -87,7 +87,7 @@ export class CharacterStatusGraphic extends Graphic {
     // Resolve active enemy using game.encounter data and active dungeon registry
     const targetId = encounter?.currentTargetId ?? encounter?.activeEnemyInstanceId ?? null;
     const activeDungeonId = state.dungeon?.current;
-    const dungeonState = activeDungeonId ? state.dungeon?.registry?.[activeDungeonId] : undefined;
+    const dungeonState = activeDungeonId ? (state.dungeon?.registry?.[activeDungeonId] as DungeonState) : undefined;
     const enemy = targetId && dungeonState ? dungeonState.enemies?.[targetId] : null;
     const enemyHp = enemy?.hp ?? 0;
 
@@ -109,8 +109,6 @@ export class CharacterStatusGraphic extends Graphic {
 
   private redrawHUD(): void {
     const state = this.getState();
-    const encounter = state.game.encounter;
-    if (!encounter) return;
 
     const { ctx } = this;
     ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
@@ -119,16 +117,8 @@ export class CharacterStatusGraphic extends Graphic {
     this.renderPlayerPanel(ctx, state);
 
     // --- 2. RENDER ENEMY HUD (Top-Right) ---
-    const targetId = encounter.currentTargetId ?? encounter.activeEnemyInstanceId;
     const activeDungeonId = state.dungeon?.current;
-    const dungeonState = activeDungeonId ? state.dungeon?.registry?.[activeDungeonId] : undefined;
-
-    if (targetId && dungeonState) {
-      const enemy = dungeonState.enemies?.[targetId];
-      if (enemy && enemy.alive) {
-        this.renderEnemyPanel(ctx, enemy, this.canvas.width - this.PANEL_WIDTH - this.PADDING, this.PADDING);
-      }
-    }
+    const dungeonState = activeDungeonId ? (state.dungeon?.registry?.[activeDungeonId] as DungeonState) : undefined;
   }
 
   private renderPlayerPanel(ctx: CanvasRenderingContext2D, state: GameState): void {
@@ -162,28 +152,5 @@ export class CharacterStatusGraphic extends Graphic {
     ctx.fillRect(x + 12, y + 48, 216, 6);
     ctx.fillStyle = "#3b82f6";
     ctx.fillRect(x + 12, y + 48, 216 * stamPercent, 6);
-  }
-
-  private renderEnemyPanel(ctx: CanvasRenderingContext2D, enemy: any, x: number, y: number): void {
-    // Background Panel
-    ctx.fillStyle = "rgba(15, 23, 42, 0.85)";
-    ctx.fillRect(x, y, this.PANEL_WIDTH, this.PANEL_HEIGHT);
-    ctx.strokeStyle = "#334155";
-    ctx.lineWidth = 2;
-    ctx.strokeRect(x, y, this.PANEL_WIDTH, this.PANEL_HEIGHT);
-
-    const maxHp = enemy.maxHp ?? 100;
-    const hpPercent = Math.max(0, Math.min(1, enemy.hp / maxHp));
-
-    // Enemy Name Text
-    ctx.fillStyle = "#f87171";
-    ctx.font = "bold 14px sans-serif";
-    ctx.fillText(`${(enemy.definitionId ?? "Enemy").toUpperCase()} (HP: ${enemy.hp}/${maxHp})`, x + 12, y + 25);
-
-    // Enemy HP Bar Track & Fill
-    ctx.fillStyle = "#1e293b";
-    ctx.fillRect(x + 12, y + 38, 216, 12);
-    ctx.fillStyle = "#ef4444";
-    ctx.fillRect(x + 12, y + 38, 216 * hpPercent, 12);
   }
 }

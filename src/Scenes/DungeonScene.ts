@@ -27,6 +27,7 @@ import { MapFormTab } from "../UI/pausetabs/mapTab";
 import { QuestsFormTab } from "../UI/pausetabs/questTab";
 import { SettingsFormTab } from "../UI/pausetabs/settingstab";
 import { EquipmentSystem } from "../Lib/Systems/EquipmentSystem";
+import { CharacterStatusHUD } from "../UI/DungeonHUD";
 
 export class DungeonScene extends Scene {
   dCamera?: DungeonCamera;
@@ -45,6 +46,7 @@ export class DungeonScene extends Scene {
   questManager!: QuestManager;
   private dungeonManager = new DungeonManager();
   private dungeonDef!: DungeonDefinition;
+  private statusHUD!: CharacterStatusHUD;
 
   // 🚀 Persistent ToastManager instance stored directly on the scene
   private toastManager!: ToastManager;
@@ -149,7 +151,9 @@ export class DungeonScene extends Scene {
     this.inputMapper.switchContext(INPUT_CONTEXT.Dungeon);
     this.inputMapper.inputMapEmitter.on("gamepadButton", this.pauseMenuHandlerGpad);
     this.inputMapper.inputMapEmitter.on("keyPress", this.pauseMenuHandler);
-
+    // --- 🚀 INSTANTIATE & ADD STATUS HUD WRAPPER ---
+    this.statusHUD = new CharacterStatusHUD(this.state, 540);
+    this.add(this.statusHUD);
     this.add(this.pauseMenu);
     const currentDungeonId = this.state.get("dungeon").current;
     const definition = this.content.getDungeon(currentDungeonId);
