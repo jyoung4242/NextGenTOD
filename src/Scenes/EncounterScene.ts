@@ -1,7 +1,7 @@
 // Scenes/EncounterScene.ts
 import { Scene, Actor, vec, Axes, Buttons, Keys, Vector, Color } from "excalibur";
 import { StateStore } from "../GameState";
-import { GameState, CombatAction, EnemyState } from "../GameTypes";
+import { GameState, CombatAction, EnemyState, DungeonState } from "../GameTypes";
 import { ContentRegistry } from "../Content/ContentRegistry";
 import { DungeonGridRenderer } from "../UI/DungeonGridRenderer";
 import { ActionCarouselUI, ActionCardData } from "../UI/UICarousel";
@@ -18,6 +18,7 @@ import { CutSceneSystem } from "../Lib/Managers/CutScenes";
 import { QuestManager } from "../Lib/Managers/QuestManager";
 import { EncounterTriggerSystem } from "../Lib/Systems/EncounterTrigger";
 import { DialogUI } from "../UI/DialogUI";
+import { ToastManager } from "../UI/ToastManager";
 
 export class EncounterScene extends Scene {
   private playerActor?: Actor;
@@ -45,6 +46,9 @@ export class EncounterScene extends Scene {
   public dialogUI: DialogUI | null = null;
   private cutSceneSystem!: CutSceneSystem;
   private questManager!: QuestManager;
+
+  // 🚀 Persistent ToastManager instance stored directly on the scene
+  private toastManager!: ToastManager;
 
   private unubscribeStore?: () => void;
 
@@ -134,6 +138,9 @@ export class EncounterScene extends Scene {
 
     this.dialogUI = new DialogUI(this.inputMapper);
     this.questManager = new QuestManager(this.store);
+    // 🚀 Initialize ToastManager once on setup
+    this.toastManager = new ToastManager(() => this.store, false);
+    this.add(this.toastManager.getHUD());
     for (const [id, questDef] of this.contentRegistry.quests.entries()) {
       this.questManager.registerQuestData(questDef);
     }
@@ -180,7 +187,7 @@ export class EncounterScene extends Scene {
     });
 
     // Pass the CutSceneSystem into the CombatStateMachine
-    this.stateMachine = new CombatStateMachine(this.store, this.contentRegistry, this.cutSceneSystem);
+    this.stateMachine = new CombatStateMachine(this.store, this.contentRegistry, this.cutSceneSystem, this.toastManager);
   }
 
   public onActivate(): void {
@@ -194,7 +201,7 @@ export class EncounterScene extends Scene {
       return;
     }
 
-    this.stateMachine = new CombatStateMachine(this.store, this.contentRegistry, this.cutSceneSystem);
+    this.stateMachine = new CombatStateMachine(this.store, this.contentRegistry, this.cutSceneSystem, this.toastManager);
     this.queueManager = new ActionQueueManager(this.stateMachine);
 
     this.gridRenderer = new DungeonGridRenderer({
@@ -288,7 +295,8 @@ export class EncounterScene extends Scene {
 
     // Resolve active dungeon registry enemies slice
     const activeDungeonId = state.dungeon.current;
-    const dungeonEnemies = state.dungeon.registry?.[activeDungeonId]?.enemies;
+    const activeDungeon = state.dungeon.registry?.[activeDungeonId] as DungeonState;
+    const dungeonEnemies = activeDungeon.enemies;
 
     // Priority: currentTargetId -> activeEnemyInstanceId -> first living enemy
     const enemyIds = encounter.enemyInstanceIds ?? [];
@@ -578,8 +586,10 @@ export class EncounterScene extends Scene {
     const encounter = state.game.encounter;
     if (!encounter) return undefined;
 
+    // Resolve active dungeon registry enemies slice
     const activeDungeonId = state.dungeon.current;
-    const dungeonEnemies = state.dungeon.registry?.[activeDungeonId]?.enemies;
+    const activeDungeon = state.dungeon.registry?.[activeDungeonId] as DungeonState;
+    const dungeonEnemies = activeDungeon.enemies;
 
     const enemyIds = encounter.enemyInstanceIds ?? [];
 
@@ -598,10 +608,7 @@ export class EncounterScene extends Scene {
     this.enemyActors.clear();
     const state = this.store.get();
     const activeDungeonId = state.dungeon.current;
-    const activeDungeonState = state.dungeon.registry?.[activeDungeonId];
-    // Fallback check to support both registry structure and legacy flat structures if any linger
-    console.log(activeDungeonState);
-
+    const activeDungeonState = state.dungeon.registry?.[activeDungeonId] as DungeonState;
     const dungeonEnemies = activeDungeonState?.enemies ?? (state.dungeon as any).enemies ?? {};
 
     const tokenSize = this.TILE_SIZE * 0.75;
@@ -675,8 +682,10 @@ export class EncounterScene extends Scene {
     const encounter = state.game.encounter;
     if (!encounter) return;
 
+    // Resolve active dungeon registry enemies slice
     const activeDungeonId = state.dungeon.current;
-    const dungeonEnemies = state.dungeon.registry?.[activeDungeonId]?.enemies;
+    const activeDungeon = state.dungeon.registry?.[activeDungeonId] as DungeonState;
+    const dungeonEnemies = activeDungeon.enemies;
 
     const { minX, minY } = encounter.arenaBounds;
 
@@ -713,8 +722,10 @@ export class EncounterScene extends Scene {
     const encounter = state.game.encounter;
     if (!encounter) return;
 
+    // Resolve active dungeon registry enemies slice
     const activeDungeonId = state.dungeon.current;
-    const dungeonEnemies = state.dungeon.registry?.[activeDungeonId]?.enemies;
+    const activeDungeon = state.dungeon.registry?.[activeDungeonId] as DungeonState;
+    const dungeonEnemies = activeDungeon.enemies;
 
     // Priority target ID
     const targetId = encounter.currentTargetId ?? encounter.activeEnemyInstanceId;

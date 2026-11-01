@@ -1,15 +1,7 @@
 // DungeonScene.ts
-import { Scene, Label, vec, Color, toDegrees, Keys, Axes, Buttons, Engine, SceneActivationContext } from "excalibur";
+import { Scene, vec, toDegrees, Keys, Axes, Buttons, Engine, SceneActivationContext, KeyEvent } from "excalibur";
 import { StateStore } from "../GameState";
-import {
-  createDungeonCamera,
-  DungeonCamera,
-  DungeonDefinition,
-  DungeonState,
-  GameMode,
-  GameState,
-  TurnParticipant,
-} from "../GameTypes";
+import { createDungeonCamera, DungeonCamera, DungeonDefinition, DungeonState, GameMode, GameState } from "../GameTypes";
 import { ContentRegistry } from "../Content/ContentRegistry";
 import { Dungeon, DungeonManager } from "../Lib/Managers/DungeonManager";
 import { DungeonViewport } from "../UI/DungeonViewport";
@@ -28,6 +20,13 @@ import { CutSceneSystem, CutsceneTriggerSystem } from "../Lib/Managers/CutScenes
 import { QuestManager } from "../Lib/Managers/QuestManager";
 import { getLoadedTextures } from "../resources";
 import { ToastManager } from "../UI/ToastManager"; // 👈 Import ToastManager
+import { PauseMenuSPA } from "../UI/UIPauseMenu";
+import { InventoryFormTab } from "../UI/pausetabs/InventoryForm";
+import { CharacterFormTab } from "../UI/pausetabs/characterTab";
+import { MapFormTab } from "../UI/pausetabs/mapTab";
+import { QuestsFormTab } from "../UI/pausetabs/questTab";
+import { SettingsFormTab } from "../UI/pausetabs/settingstab";
+import { EquipmentSystem } from "../Lib/Systems/EquipmentSystem";
 
 export class DungeonScene extends Scene {
   dCamera?: DungeonCamera;
@@ -50,6 +49,7 @@ export class DungeonScene extends Scene {
   // 🚀 Persistent ToastManager instance stored directly on the scene
   private toastManager!: ToastManager;
   private initialQuestToastsShown = false;
+  private pauseMenu!: PauseMenuSPA;
 
   constructor(
     private readonly state: StateStore<GameState>,
@@ -64,7 +64,7 @@ export class DungeonScene extends Scene {
     this.inputMapper.registerMap({
       name: INPUT_CONTEXT.Dungeon,
       inputMap: {
-        KeyPresses: new Set([Keys.W, Keys.S, Keys.A, Keys.D, Keys.E]),
+        KeyPresses: new Set([Keys.W, Keys.S, Keys.A, Keys.D, Keys.E, Keys.Backquote]),
         GamepadButtonsTriggers: new Set([
           Buttons.Face1,
           Buttons.Face2,
@@ -72,10 +72,13 @@ export class DungeonScene extends Scene {
           Buttons.DpadDown,
           Buttons.DpadLeft,
           Buttons.DpadRight,
+          Buttons.Start,
         ]),
         GamepadAxesTriggers: new Set([Axes.LeftStickX, Axes.LeftStickY]),
       },
     });
+    // Inside your Scene setup (e.g., DungeonScene.ts)
+
     this.dialogUI = new DialogUI(this.inputMapper);
     this.encounterTriggerSystem = new EncounterTriggerSystem(this.state, this.content);
 
@@ -88,6 +91,16 @@ export class DungeonScene extends Scene {
     // 🚀 Initialize ToastManager once on setup
     this.toastManager = new ToastManager(() => this.state, !this.initialQuestToastsShown);
     this.initialQuestToastsShown = true;
+    this.pauseMenu = new PauseMenuSPA(this.inputMapper);
+    // Register expandable form links
+    // Register all module form views
+    this.pauseMenu.addTab(
+      new InventoryFormTab(this.state, this.content, new EquipmentSystem(this.state, this.content, this.toastManager)),
+    );
+    this.pauseMenu.addTab(new CharacterFormTab());
+    this.pauseMenu.addTab(new QuestsFormTab());
+    this.pauseMenu.addTab(new MapFormTab());
+    this.pauseMenu.addTab(new SettingsFormTab());
 
     // Initialize Cutscenes
     this.cutSceneSystem = new CutSceneSystem(this.world, () => this.state, this.questManager);
@@ -134,7 +147,10 @@ export class DungeonScene extends Scene {
 
   public async onActivate(): Promise<void> {
     this.inputMapper.switchContext(INPUT_CONTEXT.Dungeon);
+    this.inputMapper.inputMapEmitter.on("gamepadButton", this.pauseMenuHandlerGpad);
+    this.inputMapper.inputMapEmitter.on("keyPress", this.pauseMenuHandler);
 
+    this.add(this.pauseMenu);
     const currentDungeonId = this.state.get("dungeon").current;
     const definition = this.content.getDungeon(currentDungeonId);
     if (!definition) {
@@ -211,7 +227,22 @@ export class DungeonScene extends Scene {
     }
   }
 
+  pauseMenuHandler = (event: { ctx: string; key: Keys }) => {
+    if (event.ctx == INPUT_CONTEXT.Dungeon && event.key === Keys.Backquote) {
+      this.pauseMenu.toggle(INPUT_CONTEXT.Dungeon);
+    }
+  };
+
+  pauseMenuHandlerGpad = (event: { ctx: string; button: number }) => {
+    if (event.ctx == INPUT_CONTEXT.Dungeon && event.button == Buttons.Start) {
+      this.pauseMenu.toggle(INPUT_CONTEXT.Dungeon);
+    }
+  };
+
   public async onDeactivate(_context: SceneActivationContext) {
+    this.inputMapper.inputMapEmitter.off("gamepadButton", this.pauseMenuHandlerGpad);
+    this.inputMapper.inputMapEmitter.off("keyPress", this.pauseMenuHandler);
+
     if (this.dungeonDef && this.dungeonDef.onExitCutsceneId) {
       this.state.update("game", g => ({ ...g, mode: "paused" as GameMode }));
       await this.cutSceneSystem.startCutScene(this.dungeonDef.onExitCutsceneId);
@@ -262,6 +293,7 @@ export class DungeonScene extends Scene {
         }
       }
     }
+    this.add(this.pauseMenu!);
   }
 
   onPreUpdate(_engine: Engine, _elapsed: number): void {

@@ -363,44 +363,6 @@ export function createStateStore<State extends object>(initialState: State): Sta
   return { get, select, set, update, patch, batch, on, off, subscribe, serialize, reset };
 }
 
-// ─── Initial Game State (Top-Level Inventory) ────────────────────────────────
-
-// export interface GameState {
-//   game: {
-//     mode: string;
-//     time: number;
-//   };
-//   player: {
-//     hp: number;
-//     maxHp: number;
-//     stamina: number;
-//     maxStamina: number;
-//     position: {
-//       nodeId?: string;
-//       x: number;
-//       y: number;
-//     };
-//     facing: string;
-//     keyring: string[];
-//     skills: Record<string, { level: number; xp: number; unlocked?: boolean }>;
-//   };
-//   inventory: InventoryState; // Promoted to top-level property
-//   dungeon: {
-//     current: string;
-//     registry: Record<string, unknown>;
-//   };
-//   quests: {
-//     active: Record<string, unknown>;
-//     completed: string[];
-//   };
-//   progression: {
-//     experience: number;
-//     level: number;
-//     skillPoints: number;
-//   };
-//   storypoints?: Record<string, unknown>;
-// }
-
 export function createInitialGameState(): GameState {
   return {
     game: {
@@ -412,16 +374,49 @@ export function createInitialGameState(): GameState {
       maxHp: 100,
       stamina: 100,
       maxStamina: 100,
+      mana: 100,
+      maxMana: 100,
       position: {
         x: 2.5,
         y: 2.5,
       },
       facing: "east",
-      keyring: [],
-      skills: {},
+      // Prepopulate the keyring with a starting key if desired
+      keyring: ["iron_dungeon_key"],
+      skills: {
+        oneHanded: { level: 1, xp: 95, unlocked: true },
+      },
+      constitution: 1,
+      agility: 1,
+      perception: 1,
+      wisdom: 1,
+      // Prepopulate equipment slots for testing UI rendering
+      equipment: {
+        mainHand: undefined,
+        chest: undefined,
+        head: undefined,
+        offHand: undefined,
+        accessory: undefined,
+      },
     },
     inventory: {
-      items: [],
+      items: [
+        {
+          instanceId: "inst_sword_1",
+          definitionId: "weapon_iron_sword",
+          quantity: 1,
+        },
+        {
+          instanceId: "inst_sword_2",
+          definitionId: "weapon_wooden_sword",
+          quantity: 1,
+        },
+        {
+          instanceId: "inst_armor_1",
+          definitionId: "armor_leather_chest",
+          quantity: 1,
+        },
+      ],
       maxWeight: 50,
     },
     dungeon: {

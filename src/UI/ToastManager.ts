@@ -148,7 +148,7 @@ export class ToastHUD extends ScreenElement {
     super({
       pos: position ?? vec(960 - 340, 20), // Top-right anchoring (960x540 canvas width)
       anchor: vec(0, 0),
-      z: 100, // Rendered above standard HUD
+      z: 1005, // Rendered above standard HUD
     });
 
     this.toastGraphic = new ToastGraphic();

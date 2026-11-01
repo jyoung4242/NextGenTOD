@@ -20,12 +20,12 @@ export interface DefenseRollResult {
 
 export class CombatRulesEngine {
   /**
-   * Helper: Derives player offensive power dynamically from skills.
+   * Helper: Derives player offensive power dynamically from the given weapon skill.
    */
-  public static getPlayerAttackPower(player: PlayerState): number {
-    const oneHandedLevel = player.skills?.["oneHanded"]?.level ?? 1;
+  public static getPlayerAttackPower(player: PlayerState, weaponSkillId: string = "oneHanded"): number {
+    const skillLevel = player.skills?.[weaponSkillId]?.level ?? 1;
     // Base attribute equivalent + skill contribution
-    return 2 + Math.floor(oneHandedLevel * 1.5);
+    return 2 + Math.floor(skillLevel * 1.5);
   }
 
   /**
@@ -38,17 +38,22 @@ export class CombatRulesEngine {
   }
 
   /**
-   * Evaluates a physical melee attack using a d20 roll system, factoring in skill-derived stats.
+   * Evaluates a physical melee attack using a d20 roll system, factoring in weapon-skill-derived stats.
    */
-  public static resolveMeleeAttack(player: PlayerState, enemy: EnemyState, enemyDef?: EnemyDefinition): AttackRollResult {
+  public static resolveMeleeAttack(
+    player: PlayerState,
+    enemy: EnemyState,
+    enemyDef?: EnemyDefinition,
+    weaponSkillId: string = "oneHanded",
+  ): AttackRollResult {
     // 1. Roll 1d20
     const roll = Math.floor(Math.random() * 20) + 1;
     const isCrit = roll === 20;
     const isFumble = roll === 1;
 
-    // 2. Gather derived modifiers from skills
-    const oneHandedLevel = player.skills?.["oneHanded"]?.level ?? 1;
-    const attackModifier = CombatRulesEngine.getPlayerAttackPower(player);
+    // 2. Gather derived modifiers from actively equipped weapon skill
+    const skillLevel = player.skills?.[weaponSkillId]?.level ?? 1;
+    const attackModifier = CombatRulesEngine.getPlayerAttackPower(player, weaponSkillId);
     const totalAttack = roll + attackModifier;
 
     // 3. Enemy Defense / Armor Class (AC) approximation
@@ -76,7 +81,7 @@ export class CombatRulesEngine {
 
     // 5. Damage Calculation using skill-based scaling
     const baseWeaponDamage = 6;
-    const strengthBonus = Math.floor(oneHandedLevel / 3);
+    const strengthBonus = Math.floor(skillLevel / 3);
     let rawDamage = baseWeaponDamage + strengthBonus;
 
     if (isCrit) {
