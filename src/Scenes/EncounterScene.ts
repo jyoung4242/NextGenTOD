@@ -267,6 +267,7 @@ export class EncounterScene extends Scene {
     this.carouselUI.pos = vec(80, 260);
     this.carouselUI.graphics.isVisible = false;
     this.add(this.carouselUI);
+    this.cutSceneSystem.init();
   }
 
   public spawnFloatingText(text: string, gridX: number, gridY: number, color?: Color): void {
