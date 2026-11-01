@@ -714,7 +714,7 @@ export class EncounterScene extends Scene {
   }
 
   public onDeactivate(): void {
-    this.clear();
+    this.clear(false);
   }
 
   private handleCombatLogFCT(message: string): void {
