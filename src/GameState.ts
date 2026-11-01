@@ -384,7 +384,7 @@ export function createInitialGameState(): GameState {
       // Prepopulate the keyring with a starting key if desired
       keyring: ["iron_dungeon_key"],
       skills: {
-        oneHanded: { level: 1, xp: 95, unlocked: true },
+        oneHanded: { level: 1, xp: 10, unlocked: true },
       },
       constitution: 1,
       agility: 1,

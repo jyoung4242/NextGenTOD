@@ -33,7 +33,7 @@ export class InventoryFormTab extends TabElement {
     private equipmentSystem: EquipmentSystem,
   ) {
     super();
-
+    this.name = "InventoryFormTab";
     this.headerLabel = new Label({
       text: "=== EQUIPMENT & INVENTORY ===",
       pos: vec(0, 0),

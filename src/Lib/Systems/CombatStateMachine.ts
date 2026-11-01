@@ -6,6 +6,7 @@ import { CombatRulesEngine } from "./CombatRulesEngine";
 import { CutSceneSystem } from "../Managers/CutScenes";
 import { LootDrop, LootManager } from "../Managers/LootManager";
 import { ToastManager } from "../../UI/ToastManager";
+import { SkillProgressionUtility } from "./SkillProgressionUtility";
 
 export class CombatStateMachine {
   constructor(
@@ -130,7 +131,7 @@ export class CombatStateMachine {
           if (attackResult.isHit && attackResult.damage > 0) {
             newHp = Math.max(0, enemy.hp - attackResult.damage);
             // 3. Award XP to the active weapon skill
-            this.awardSkillXP(ctx, weaponSkill, 15);
+            this.awardSkillXP(ctx, weaponSkill, 1);
           }
 
           const updatedEnemies: Record<string, EnemyState> = {
@@ -177,7 +178,7 @@ export class CombatStateMachine {
           logMessage = `Player cast ${skillId} on enemy for ${spellDamage} damage!`;
           console.log(`[Combat Log] ${logMessage}`);
 
-          this.awardSkillXP(ctx, "destruction", 20);
+          this.awardSkillXP(ctx, "destruction", 1);
 
           const updatedEnemies: Record<string, EnemyState> = {
             ...activeDungeonState.enemies,
@@ -268,7 +269,7 @@ export class CombatStateMachine {
         case "defend": {
           logMessage = "Player takes a defensive stance, raising block readiness.";
           console.log(`[Combat Log] ${logMessage}`);
-          this.awardSkillXP(ctx, "block", 10);
+          this.awardSkillXP(ctx, "block", 1);
           break;
         }
 
@@ -506,28 +507,37 @@ export class CombatStateMachine {
     this.store.set("game.mode", "playing");
   }
 
-  private awardSkillXP(ctx: BatchContext<GameState>, skillId: string, amount: number): void {
+  // Inside CombatStateMachine.ts
+
+  private awardSkillXP(ctx: BatchContext<GameState>, skillId: string, amount: number = 1): void {
     const state = this.store.get();
     const currentSkill = state.player.skills[skillId] ?? { level: 1, xp: 0, unlocked: true };
-    const newXp = currentSkill.xp + amount;
 
-    const newLevel = newXp >= 100 ? currentSkill.level + 1 : currentSkill.level;
-    const finalXp = newXp % 100;
+    // Loop through action increments if multiple actions are awarded at once
+    let currentLevel = currentSkill.level;
+    let currentXp = currentSkill.xp;
+    let didLevelUp = false;
 
-    // console.log(`[AWARD SKILL]: xp gained, ${currentSkill.xp} by ${amount}, new level: ${newLevel}, final xp: ${finalXp}`);
-    console.log(this.toastmgr, newLevel, currentSkill.level);
-
-    if (this.toastmgr && newLevel > currentSkill.level) {
-      console.log(`[AWARD SKILL]: level up toast triggered for ${skillId} at level ${newLevel}`);
-      this.toastmgr.show("progression", "Skill Level Up!", `${skillId} reached Level ${newLevel}!`);
+    for (let i = 0; i < amount; i++) {
+      const result = SkillProgressionUtility.awardSkillAction(currentLevel, currentXp);
+      if (result.level > currentLevel) {
+        didLevelUp = true;
+      }
+      currentLevel = result.level;
+      currentXp = result.xp;
     }
 
-    // Use store.batch with ctx.set safely since it relies on store.get() above
+    console.log(`[AWARD SKILL]: ${skillId} progressed by ${amount} action(s). New level: ${currentLevel}, XP progress: ${currentXp}`);
 
+    if (this.toastmgr && didLevelUp) {
+      this.toastmgr.show("progression", "Skill Level Up!", `${skillId} reached Level ${currentLevel}!`);
+    }
+
+    // Update store reactively using the active batch context
     ctx.set(`player.skills.${skillId}` as any, {
       ...currentSkill,
-      level: newLevel,
-      xp: finalXp,
+      level: currentLevel,
+      xp: currentXp,
       unlocked: true,
     });
   }

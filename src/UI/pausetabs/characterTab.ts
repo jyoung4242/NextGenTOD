@@ -1,31 +1,64 @@
 // UI/PauseMenu/Tabs/CharacterFormTab.ts
-import { Label, vec, Color } from "excalibur";
+import { Label, Actor, vec, Color, ScreenElement } from "excalibur";
 import { TabElement } from "./tabelement";
+import { SkillDisplayUtility, SkillDisplayModel } from "../../Lib/Systems/SkillDisplayUtility";
+import { ContentRegistry } from "../../Content/ContentRegistry";
+import { StateStore } from "../../GameState";
+import { GameState } from "../../GameTypes";
 
 export class CharacterFormTab extends TabElement {
   public tabid = "character";
   public title = "Character";
 
-  constructor() {
-    super();
+  private skillListContainer: Actor;
 
+  constructor(
+    private store: StateStore<GameState>,
+    private contentRegistry: ContentRegistry,
+  ) {
+    super();
+    this.name = "CharacterTab";
     const titleLabel = new Label({
-      text: "=== CHARACTER PROPERTIES SHEET ===",
+      text: "=== CHARACTER SKILLS & PROPERTIES ===",
       pos: vec(0, 0),
       color: Color.fromRGB(241, 245, 249),
     });
+    this.addChild(titleLabel);
 
-    const statsLabel = new Label({
-      text: "Level: 2\nHP: 45 / 50\nMana: 20 / 20\nAttack Power: 12\nDefense: 5\nExperience: 1,450 / 2,000",
+    // Container to hold dynamic skill entries
+    this.skillListContainer = new Actor({
+      name: "skillListContainer",
       pos: vec(0, 30),
-      color: Color.fromRGB(148, 163, 184),
+      z: 1000,
+      width: 400, // Adjust the width as needed
+      height: 300, // Adjust the height as needed
     });
 
-    this.addChild(titleLabel);
-    this.addChild(statsLabel);
+    this.addChild(this.skillListContainer);
   }
 
   public onOpen(): void {
-    // Refresh stats from player state service if needed
+    // Clear previous skill list items
+    this.skillListContainer.removeAllChildren();
+    if (!this.store || !this.contentRegistry) return;
+    // Fetch UI-ready skill models using our utility
+    const skills: SkillDisplayModel[] = SkillDisplayUtility.getPlayerSkillDisplays(this.store.get(), this.contentRegistry);
+
+    let yOffset = 0;
+    for (const skill of skills) {
+      // Create a text row for each skill (Name, Level, and Progress percentage/bar text)
+      const progressText = skill.isMaxLevel
+        ? "[ MAX LEVEL ]"
+        : `[${skill.currentXp}/${skill.xpNeededForNext} XP] (${skill.progressPercent}%)`;
+
+      const skillRowLabel = new Label({
+        text: `${skill.name.padEnd(16, ".")} Lvl ${skill.level.toString().padStart(3, "0")}  ${progressText}`,
+        pos: vec(0, yOffset),
+        color: skill.isMaxLevel ? Color.fromRGB(250, 204, 21) : Color.fromRGB(148, 163, 184),
+      });
+
+      this.skillListContainer.addChild(skillRowLabel);
+      yOffset += 24; // Spacing between skill rows
+    }
   }
 }
