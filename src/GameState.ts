@@ -368,27 +368,28 @@ export function createStateStore<State extends object>(initialState: State): Sta
 export function createInitialGameState(): GameState {
   return {
     game: {
-      mode: "playing",
+      mode: "playercreation",
       time: 0,
     },
     player: {
-      hp: 100,
-      maxHp: 100,
-      stamina: 100,
-      maxStamina: 100,
-      mana: 100, // 👈 Ensure player has starting mana
-      maxMana: 100,
+      name: "Unnamed",
+      hp: 1,
+      maxHp: 1,
+      stamina: 1,
+      maxStamina: 1,
+      mana: 1,
+      maxMana: 1,
       position: {
         x: 2.5,
         y: 2.5,
       },
       facing: "east",
-      keyring: ["iron_dungeon_key"],
+      keyring: [],
       skills: {
-        oneHanded: { level: 1, xp: 10, unlocked: true },
-        blackMagic: { level: 1, xp: 10, unlocked: true }, // 👈 Added for testing spells
-        whiteMagic: { level: 2, xp: 0, unlocked: true }, // 👈 Added for testing healing spells
+        unarmed: { level: 1, xp: 10, unlocked: true },
+        throw: { level: 1, xp: 0, unlocked: true },
       },
+      strength: 1,
       constitution: 1,
       agility: 1,
       perception: 1,
@@ -401,20 +402,12 @@ export function createInitialGameState(): GameState {
         accessory: undefined,
       },
       spellBook: {
-        activeSpellId: "fireball",
-        spells: {
-          fireball: { level: 1, xp: 10, unlocked: true },
-        },
+        activeSpellId: "none",
+        spells: {},
       },
     },
     inventory: {
-      items: [
-        {
-          instanceId: "inst_sword_1",
-          definitionId: "weapon_iron_sword",
-          quantity: 1,
-        },
-      ],
+      items: [],
       maxWeight: 50,
     },
     dungeon: {

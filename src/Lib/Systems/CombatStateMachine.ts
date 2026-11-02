@@ -682,8 +682,12 @@ export class CombatStateMachine {
       if (itemDef?.requiredSkill) {
         return itemDef.requiredSkill;
       }
+    } else {
+      //unarmed skill if no weapon is equipped
+      console.log(`[equipped]: 'unarmed'`);
+      return "unarmed";
     }
-
+    console.log(`[equipped]: ${mainHandItemInstance}`);
     // Fallback if no weapon is equipped or item does not explicitly specify a required skill
     return "oneHanded";
   }

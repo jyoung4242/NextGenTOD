@@ -317,7 +317,6 @@ export class CutSceneSystem extends System {
       const encounter = game?.encounter;
       if (!encounter) return;
 
-      debugger;
       const combatLog = encounter.combatLog ?? [];
       const victory = encounter.isResolved && !combatLog.some(log => typeof log === "string" && log.toLowerCase().includes("fled"));
       const summaryTitle = victory ? "Victory!" : "Escaped!";

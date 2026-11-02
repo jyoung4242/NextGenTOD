@@ -731,7 +731,6 @@ export class EncounterScene extends Scene {
     // Case A: The log entry is a structured object containing affectedTargets or structuredResult
     if (typeof logEntry === "object" && logEntry !== null) {
       // 1. Handle multi-target or single-target affected targets (Spells, AoE, structured actions)
-      debugger;
       if (Array.isArray(logEntry.affectedTargets) && logEntry.affectedTargets.length > 0) {
         for (const targetHit of logEntry.affectedTargets) {
           const targetPos = encounter.enemyPositions?.[targetHit.targetId];

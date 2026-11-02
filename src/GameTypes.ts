@@ -4,7 +4,7 @@
 //Game State
 // ******************************
 //#region gamestate
-export type GameMode = "playing" | "encounter" | "paused" | "dead" | "victory" | "game_over";
+export type GameMode = "playing" | "encounter" | "paused" | "dead" | "victory" | "game_over" | "playercreation";
 
 export interface GameSessionState {
   mode: GameMode;
@@ -267,15 +267,19 @@ export interface EntityPosition {
 }
 
 export interface PlayerState {
+  //meta data
+  name: string;
+
   // Calculated stats
   hp: number;
   maxHp: number;
   stamina: number;
   maxStamina: number;
-  mana: number; // <--- Ensure mana and maxMana exist
+  mana: number;
   maxMana: number;
 
   // Core Stats
+  strength: number;
   constitution: number;
   agility: number;
   wisdom: number;
@@ -610,6 +614,8 @@ export interface ActiveToastInstance {
 // Skill Types
 // ********************************
 
+//#region skillTypes
+
 // Content/SkillRegistry.ts
 export type CoreCharacteristic = "hp" | "stam" | "agil" | "per" | "wisdom";
 
@@ -620,11 +626,13 @@ export interface SkillDefinition {
   supportedCharacteristics: CoreCharacteristic[];
   basePowerMultiplier: number;
 }
+//#endregion skillTypes
 
 // ********************************
 // Magic Types
 // ********************************
 
+//#region magicTypes
 export type TargetMode = "single_enemy" | "self" | "aoe" | "party" | "direct_enemy";
 export type MagicType = "blackMagic" | "whiteMagic" | "chaosMagic";
 
@@ -639,6 +647,7 @@ export interface SpellDefinition {
   range: number; // Range on the tactical grid
   description?: string; // Flavor text or effect description
 }
+//#endregion magicTypes
 
 // ********************************
 // Helper Functions
