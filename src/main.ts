@@ -1,6 +1,6 @@
 // main.ts
 import "./style.css";
-import { Engine, DisplayMode } from "excalibur";
+import { Engine, DisplayMode, Color } from "excalibur";
 import { createInitialGameState, createStateStore, type StateStore } from "./GameState";
 import { type GameState } from "./GameTypes";
 import { ContentRegistry } from "./Content/ContentRegistry";
@@ -18,6 +18,7 @@ import { registerSkills } from "./Content/Skills/SkillsRegistry";
 import { applyConnectionsToGrid } from "./Lib/Managers/DungeonManager";
 import { registerCutscenes } from "./Content/Cutscenes";
 import { registerSpells } from "./Content/Magic/spellRegistry";
+import { CharacterCreationScene } from "./Scenes/PlayerCreation";
 
 export const INPUT_CONTEXT = {
   Dungeon: "dungeon",
@@ -32,6 +33,7 @@ export const SCENES = {
   Dungeon: "dungeon",
   Encounter: "encounter",
   GameOver: "gameover",
+  PlayerCreation: "playercreation",
 } as const;
 
 export const content = new ContentRegistry();
@@ -58,6 +60,7 @@ const game = new Engine({
   displayMode: DisplayMode.Fixed,
   pixelArt: true,
   fixedUpdateFps: 20,
+  backgroundColor: Color.fromHex("#222222"),
 });
 
 export const inputMapper = new InputMapSystem(game);
@@ -66,8 +69,9 @@ export const inputMapper = new InputMapSystem(game);
 game.addScene(SCENES.Dungeon, new DungeonScene(state, content, inputMapper));
 game.addScene(SCENES.Encounter, new EncounterScene(state, content, inputMapper));
 game.addScene(SCENES.GameOver, new GameOverScene(state, content));
+game.addScene(SCENES.PlayerCreation, new CharacterCreationScene(state, content, inputMapper));
 
-game.goToScene(SCENES.Dungeon);
+game.goToScene(SCENES.PlayerCreation);
 await game.start(loader);
 
 // Mode routing listener
@@ -78,6 +82,8 @@ state.subscribe("game.mode", payload => {
     game.goToScene(SCENES.Dungeon);
   } else if (payload.value === "game_over") {
     game.goToScene(SCENES.GameOver);
+  } else if (payload.value === "playercreation") {
+    game.goToScene(SCENES.PlayerCreation);
   }
 });
 

@@ -225,19 +225,6 @@ export class PauseMenuSPA extends ScreenElement {
     }
   }
 
-  // public reAddTabs(): void {
-  //   debugger;
-  //   console.log("[Pause Tabs]: contentPanelContainer children: ", this.contentPanelContainer.children);
-  //   this.tabs.forEach((tab, index) => {
-  //     //test if tab already added
-  //     console.log("[Pause Tabs]: checking tab: ", tab);
-  //     if (!this.contentPanelContainer.children.includes(tab)) {
-  //       console.log("[Pause Tabs]: readding tab: ", tab);
-  //       this.addTab(tab);
-  //     }
-  //   });
-  // }
-
   public toggle(currentContext: string): void {
     if (this.isOpen) {
       this.hide();
