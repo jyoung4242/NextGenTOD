@@ -363,6 +363,8 @@ export function createStateStore<State extends object>(initialState: State): Sta
   return { get, select, set, update, patch, batch, on, off, subscribe, serialize, reset };
 }
 
+// GameState.ts
+
 export function createInitialGameState(): GameState {
   return {
     game: {
@@ -374,23 +376,23 @@ export function createInitialGameState(): GameState {
       maxHp: 100,
       stamina: 100,
       maxStamina: 100,
-      mana: 100,
+      mana: 100, // 👈 Ensure player has starting mana
       maxMana: 100,
       position: {
         x: 2.5,
         y: 2.5,
       },
       facing: "east",
-      // Prepopulate the keyring with a starting key if desired
       keyring: ["iron_dungeon_key"],
       skills: {
         oneHanded: { level: 1, xp: 10, unlocked: true },
+        blackMagic: { level: 1, xp: 10, unlocked: true }, // 👈 Added for testing spells
+        whiteMagic: { level: 2, xp: 0, unlocked: true }, // 👈 Added for testing healing spells
       },
       constitution: 1,
       agility: 1,
       perception: 1,
       wisdom: 1,
-      // Prepopulate equipment slots for testing UI rendering
       equipment: {
         mainHand: undefined,
         chest: undefined,
@@ -398,22 +400,18 @@ export function createInitialGameState(): GameState {
         offHand: undefined,
         accessory: undefined,
       },
+      spellBook: {
+        activeSpellId: "fireball",
+        spells: {
+          fireball: { level: 1, xp: 10, unlocked: true },
+        },
+      },
     },
     inventory: {
       items: [
         {
           instanceId: "inst_sword_1",
           definitionId: "weapon_iron_sword",
-          quantity: 1,
-        },
-        {
-          instanceId: "inst_sword_2",
-          definitionId: "weapon_wooden_sword",
-          quantity: 1,
-        },
-        {
-          instanceId: "inst_armor_1",
-          definitionId: "armor_leather_chest",
           quantity: 1,
         },
       ],

@@ -203,7 +203,6 @@ export class CutSceneSystem extends System {
         const impl = this.commandRegistry.get(command.type);
 
         if (impl) {
-          debugger;
           await impl(command.args, context);
         }
       }
@@ -318,9 +317,9 @@ export class CutSceneSystem extends System {
       const encounter = game?.encounter;
       if (!encounter) return;
 
+      debugger;
       const combatLog = encounter.combatLog ?? [];
-      const victory = encounter.isResolved && !combatLog.some(log => log.includes("fled"));
-
+      const victory = encounter.isResolved && !combatLog.some(log => typeof log === "string" && log.toLowerCase().includes("fled"));
       const summaryTitle = victory ? "Victory!" : "Escaped!";
 
       // 🎯 Extract rewards captured during combat resolution

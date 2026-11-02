@@ -1,4 +1,11 @@
-import { DungeonDefinition, EnemyDefinition, ItemDefinition, SkillDefinition, QuestDefinitionData } from "../GameTypes";
+import {
+  DungeonDefinition,
+  EnemyDefinition,
+  ItemDefinition,
+  SkillDefinition,
+  QuestDefinitionData,
+  SpellDefinition,
+} from "../GameTypes";
 import { CutsceneManifest } from "../Lib/Managers/CutScenes";
 
 export class ContentRegistry {
@@ -8,6 +15,7 @@ export class ContentRegistry {
   readonly skills = new Map<string, SkillDefinition>();
   readonly quests = new Map<string, QuestDefinitionData>();
   readonly cutscenes = new Map<string, CutsceneManifest>();
+  readonly spells = new Map<string, SpellDefinition>();
 
   private register<T extends { id: string }>(registry: Map<string, T>, definition: T, type: string): void {
     if (registry.has(definition.id)) {
@@ -100,5 +108,20 @@ export class ContentRegistry {
       throw new Error(`Unknown cutscene: ${id}`);
     }
     return definition;
+  }
+  registerSpell(definition: SpellDefinition): void {
+    this.register(this.spells, definition, "spell");
+  }
+
+  getSpell(id: string): SpellDefinition {
+    const definition = this.spells.get(id);
+    if (!definition) {
+      throw new Error(`Unknown spell: ${id}`);
+    }
+    return definition;
+  }
+
+  getAllSpells(): SpellDefinition[] {
+    return Array.from(this.spells.values());
   }
 }
