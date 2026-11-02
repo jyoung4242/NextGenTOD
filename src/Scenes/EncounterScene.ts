@@ -230,6 +230,7 @@ export class EncounterScene extends Scene {
       }
 
       // 🎯 Parse new combat log entries and spawn Floating Combat Text
+      console.log("Combat log changed:", payload);
       const prevLog = payload.previousValue?.combatLog ?? [];
       const currentLog = payload.value?.combatLog ?? [];
 
@@ -718,39 +719,76 @@ export class EncounterScene extends Scene {
     this.clear(false);
   }
 
-  private handleCombatLogFCT(message: string): void {
+  // Inside EncounterScene.ts
+
+  private handleCombatLogFCT(logEntry: string | any): void {
     const state = this.store.get();
     const encounter = state.game.encounter;
     if (!encounter) return;
 
-    // Resolve active dungeon registry enemies slice
-    const activeDungeonId = state.dungeon.current;
-    const activeDungeon = state.dungeon.registry?.[activeDungeonId] as DungeonState;
-    const dungeonEnemies = activeDungeon.enemies;
-
-    // Priority target ID
-    const targetId = encounter.currentTargetId ?? encounter.activeEnemyInstanceId;
-    const targetPos = targetId ? encounter.enemyPositions?.[targetId] : undefined;
     const playerPos = encounter.playerPosition ?? state.player?.position;
 
-    // 1. Match Damage dealt to Enemy (e.g., "for 8 damage!")
-    const damageMatch = message.match(/for (\d+) damage/i);
+    // Case A: The log entry is a structured object containing affectedTargets or structuredResult
+    if (typeof logEntry === "object" && logEntry !== null) {
+      // 1. Handle multi-target or single-target affected targets (Spells, AoE, structured actions)
+      debugger;
+      if (Array.isArray(logEntry.affectedTargets) && logEntry.affectedTargets.length > 0) {
+        for (const targetHit of logEntry.affectedTargets) {
+          const targetPos = encounter.enemyPositions?.[targetHit.targetId];
+          if (targetPos && targetHit.damage > 0) {
+            this.spawnFloatingText(`-${targetHit.damage}`, targetPos.x, targetPos.y, Color.Red);
+          }
+        }
+        return;
+      } else if (!logEntry.isHit && logEntry.damage == 0) {
+        const targetPos = logEntry.log.structuredResult.targetPos;
+        if (targetPos) {
+          this.spawnFloatingText(`Missed!`, targetPos.x, targetPos.y, Color.White);
+        }
+      }
+
+      // 2. Handle generic structured result object if present
+      console.log(`[FCT]: `, logEntry.structuredResult);
+
+      if (logEntry.structuredResult) {
+        const { damage, isHit } = logEntry.structuredResult;
+        const targetId = encounter.currentTargetId ?? encounter.activeEnemyInstanceId;
+        const targetPos = targetId ? encounter.enemyPositions?.[targetId] : undefined;
+
+        if (targetPos && isHit && damage > 0) {
+          this.spawnFloatingText(`-${damage}`, targetPos.x, targetPos.y, Color.Red);
+          return;
+        } else if (targetPos && !isHit) {
+          this.spawnFloatingText(`Missed!`, targetPos.x, targetPos.y, Color.White);
+        }
+      }
+    }
+
+    // Case B: Fallback if the log entry is a standard string (for simple actions like melee/throw/flee)
+    const message = typeof logEntry === "string" ? logEntry : (logEntry?.log?.logmessage ?? "");
+    if (!message) return;
+
+    const targetId = encounter.currentTargetId ?? encounter.activeEnemyInstanceId;
+    const targetPos = targetId ? encounter.enemyPositions?.[targetId] : undefined;
+
+    // 1. Match item throw / standard damage (e.g., "Player threw an item for 8 damage!")
+    const damageMatch = message.match(/for\s+(\d+)\s+damage/i);
     if (damageMatch && targetPos) {
       const damageVal = damageMatch[1];
       this.spawnFloatingText(`-${damageVal}`, targetPos.x, targetPos.y, Color.Red);
       return;
     }
 
-    // 2. Match Player Healing (e.g., "restored 25 HP!")
-    const healMatch = message.match(/restored (\d+) HP/i);
+    // 2. Match Player Healing
+    const healMatch = message.match(/restored\s+(\d+)\s+HP/i);
     if (healMatch && playerPos) {
       const healVal = healMatch[1];
       this.spawnFloatingText(`+${healVal}`, playerPos.x, playerPos.y, Color.Green);
       return;
     }
 
-    // 3. Match Enemy Attack on Player (e.g., "Goblin strikes for 12 damage!")
-    const playerDamageMatch = message.match(/strikes for (\d+) damage/i) || message.match(/dealt (\d+) damage/i);
+    // 3. Match Enemy Attack on Player
+    const playerDamageMatch = message.match(/strikes for\s+(\d+)\s+damage/i) || message.match(/counter-attacks for\s+(\d+)\s+damage/i);
     if (playerDamageMatch && playerPos) {
       const damageVal = playerDamageMatch[1];
       this.spawnFloatingText(`-${damageVal}`, playerPos.x, playerPos.y, Color.fromRGB(255, 100, 100));

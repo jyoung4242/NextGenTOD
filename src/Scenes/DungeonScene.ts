@@ -28,6 +28,7 @@ import { QuestsFormTab } from "../UI/pausetabs/questTab";
 import { SettingsFormTab } from "../UI/pausetabs/settingstab";
 import { EquipmentSystem } from "../Lib/Systems/EquipmentSystem";
 import { CharacterStatusHUD } from "../UI/DungeonHUD";
+import { SpellbookFormTab } from "../UI/pausetabs/Spellbook";
 
 export class DungeonScene extends Scene {
   dCamera?: DungeonCamera;
@@ -100,6 +101,7 @@ export class DungeonScene extends Scene {
       new InventoryFormTab(this.state, this.content, new EquipmentSystem(this.state, this.content, this.toastManager)),
     );
     this.pauseMenu.addTab(new CharacterFormTab(this.state, this.content));
+    this.pauseMenu.addTab(new SpellbookFormTab(this.state, this.content));
     this.pauseMenu.addTab(new QuestsFormTab(this.state));
     // this.pauseMenu.addTab(new MapFormTab());
     // this.pauseMenu.addTab(new SettingsFormTab());

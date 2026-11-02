@@ -24,7 +24,7 @@ export interface GameState {
   inventory: InventoryState; // Promoted to top-level property
   dungeon: {
     current: string;
-    registry: Record<string, unknown>;
+    registry: Record<string, DungeonState>;
   };
   quests: {
     active: Record<string, unknown>;
@@ -267,27 +267,31 @@ export interface EntityPosition {
 }
 
 export interface PlayerState {
-  //Calculated stats
+  // Calculated stats
   hp: number;
   maxHp: number;
   stamina: number;
   maxStamina: number;
-  mana: number;
+  mana: number; // <--- Ensure mana and maxMana exist
   maxMana: number;
 
-  //Core Stats
+  // Core Stats
   constitution: number;
   agility: number;
   wisdom: number;
   perception: number;
 
-  //inventory and position
+  // Inventory, position, and magic
   position: EntityPosition;
   facing: Direction;
   keyring: string[];
   skills: Record<string, SkillState>;
-
   equipment: EquipmentState;
+
+  spellBook: {
+    activeSpellId?: string; // <--- ADD THIS: Tracks the currently equipped combat spell
+    spells: Record<string, SkillState>; // <--- ADD THIS: Tracks all known spells and their states
+  };
 }
 
 export interface SkillState {
@@ -492,6 +496,7 @@ export interface CombatAction {
   type: "attack" | "skill" | "item" | "defend" | "flee" | "throw" | "spell" | "move" | "ranged";
   targetId?: string;
   skillId?: string;
+  spellId?: string;
   itemId?: string;
   targetTile?: TacticalPosition;
 }
@@ -501,6 +506,17 @@ export interface ArenaBounds {
   maxX: number;
   minY: number;
   maxY: number;
+}
+
+// GameTypes.ts (or wherever your types live)
+export interface CombatEventResult {
+  actorId: string; // Who performed the action (player or enemy ID)
+  targetId: string; // Who received the effect
+  actionType: string; // "attack" | "spell" | "item" | "heal" | "counter"
+  damage?: number; // Amount of damage dealt (if any)
+  healing?: number; // Amount of healing done (if any)
+  isCritical?: boolean; // Was it a critical hit?
+  isMiss?: boolean; // Did it miss?
 }
 
 export interface EncounterState {
@@ -603,6 +619,25 @@ export interface SkillDefinition {
   category: "combat" | "defense" | "armor" | "magic";
   supportedCharacteristics: CoreCharacteristic[];
   basePowerMultiplier: number;
+}
+
+// ********************************
+// Magic Types
+// ********************************
+
+export type TargetMode = "single_enemy" | "self" | "aoe" | "party" | "direct_enemy";
+export type MagicType = "blackMagic" | "whiteMagic" | "chaosMagic";
+
+export interface SpellDefinition {
+  id: string; // Unique identifier, e.g., "fireball", "greater_heal"
+  name: string; // Display name
+  category: MagicType; // Must match a skill category ID (e.g., "blackMagic", "whiteMagic")
+  minLevelRequirement: number; // Minimum skill level needed to cast/unlock
+  targetMode: TargetMode; // Target mode (AOE, direct enemy, self, party)
+  manaCost: number; // Mana required to cast
+  basePower: number; // Base damage or healing value
+  range: number; // Range on the tactical grid
+  description?: string; // Flavor text or effect description
 }
 
 // ********************************
