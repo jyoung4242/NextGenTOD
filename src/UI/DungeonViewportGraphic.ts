@@ -220,13 +220,9 @@ export class DungeonViewportGraphic extends Graphic {
     // -------------------------------------------------------------
     // 3. Render Walls, Open Doors, and Billboards Interleaved by Depth
     // -------------------------------------------------------------
-    // To ensure open doors render AFTER billboards (or back-to-front accurately),
-    // we split hits into background walls/closed doors (drawn first) and open doors (drawn last).
-
     for (const col of columnHits) {
       const { screenX, rayAngle, hits } = col;
 
-      // Separate into background elements vs open door elements
       const backgroundHits: RaycastHit[] = [];
       const openDoorHits: RaycastHit[] = [];
 
@@ -277,7 +273,7 @@ export class DungeonViewportGraphic extends Graphic {
       );
     }
 
-    // Pass 3: Draw Open Doors / Gates LAST so they correctly overlay over entities standing in/behind them
+    // Pass 3: Draw Open Doors / Gates LAST so they correctly overlay over entities
     for (const col of columnHits) {
       const { screenX, rayAngle, hits } = col;
       for (const hit of hits) {
@@ -348,20 +344,36 @@ export class DungeonViewportGraphic extends Graphic {
         }
       }
     } else if (hit.wall.layers && hit.wall.layers.length > 0) {
-      activeLayers = hit.wall.layers;
+      // Renderer takes control of any generic/missing layer texture keys and assigns consistent variants from pool
+      activeLayers = hit.wall.layers.map(layer => ({
+        ...layer,
+        textureKey:
+          !layer.textureKey || layer.textureKey === "wall" || layer.textureKey === "stone"
+            ? getConsistentWallTexture(hit.cellX, hit.cellY, hit.side, this.dungeon.wallTextures)
+            : layer.textureKey,
+      }));
     } else if (hit.wall.textureKey) {
       if (Array.isArray(hit.wall.textureKey)) {
         activeLayers = hit.wall.textureKey.map((key, index) => ({
-          textureKey: key,
+          textureKey:
+            !key || key === "wall" || key === "stone"
+              ? getConsistentWallTexture(hit.cellX, hit.cellY, hit.side, this.dungeon.wallTextures)
+              : key,
           alpha: 1.0,
           blendMode: index > 0 ? "screen" : "source-over",
         }));
       } else {
-        activeLayers = [{ textureKey: hit.wall.textureKey, alpha: 1.0, blendMode: "source-over" }];
+        const key = hit.wall.textureKey;
+        const resolvedKey =
+          !key || key === "wall" || key === "stone"
+            ? getConsistentWallTexture(hit.cellX, hit.cellY, hit.side, this.dungeon.wallTextures)
+            : key;
+        activeLayers = [{ textureKey: resolvedKey, alpha: 1.0, blendMode: "source-over" }];
       }
     } else {
-      const defaultKey = this.dungeon.defaultWallTexture ?? "stone";
-      activeLayers = [{ textureKey: defaultKey, alpha: 1.0, blendMode: "source-over" }];
+      // Renderer-controlled consistent wall texture assignment
+      const resolvedKey = getConsistentWallTexture(hit.cellX, hit.cellY, hit.side, this.dungeon.wallTextures);
+      activeLayers = [{ textureKey: resolvedKey, alpha: 1.0, blendMode: "source-over" }];
     }
 
     let lightFactor = Math.max(0, 1.0 - correctedDistance / maxLightingDistance);
@@ -507,4 +519,11 @@ export class DungeonViewportGraphic extends Graphic {
       }
     }
   }
+}
+
+// Helper for stable, consistent texture selection per wall face using coordinates and side
+function getConsistentWallTexture(cellX: number, cellY: number, side: string, wallPool?: string[]): string {
+  const pool = wallPool && wallPool.length > 0 ? wallPool : ["stone", "stone2", "stone3", "stone4"];
+  const seed = Math.abs((cellX * 73856093) ^ (cellY * 19349663) ^ (side.charCodeAt(0) * 83492791));
+  return pool[seed % pool.length];
 }
