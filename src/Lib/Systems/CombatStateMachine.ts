@@ -7,6 +7,7 @@ import { CutSceneSystem } from "../Managers/CutScenes";
 import { LootDrop, LootManager } from "../Managers/LootManager";
 import { ToastManager } from "../../UI/ToastManager";
 import { SkillProgressionUtility } from "./SkillProgressionUtility";
+import { PlayerStatUtility } from "./PlayerStatUtility";
 
 export class CombatStateMachine {
   constructor(
@@ -641,7 +642,6 @@ export class CombatStateMachine {
     const state = this.store.get();
     const currentSkill = state.player.skills[skillId] ?? { level: 1, xp: 0, unlocked: true };
 
-    // Loop through action increments if multiple actions are awarded at once
     let currentLevel = currentSkill.level;
     let currentXp = currentSkill.xp;
     let didLevelUp = false;
@@ -655,19 +655,37 @@ export class CombatStateMachine {
       currentXp = result.xp;
     }
 
-    console.log(`[AWARD SKILL]: ${skillId} progressed by ${amount} action(s). New level: ${currentLevel}, XP progress: ${currentXp}`);
-
     if (this.toastmgr && didLevelUp) {
       this.toastmgr.show("progression", "Skill Level Up!", `${skillId} reached Level ${currentLevel}!`);
     }
 
-    // Update store reactively using the active batch context
+    // 1. Update the skill in the state store first
     ctx.set(`player.skills.${skillId}` as any, {
       ...currentSkill,
       level: currentLevel,
       xp: currentXp,
       unlocked: true,
     });
+
+    // 2. Re-calculate dynamic pools based on updated skills & core stats
+    const updatedStateForCalc: GameState = {
+      ...state,
+      player: {
+        ...state.player,
+        skills: {
+          ...state.player.skills,
+          [skillId]: { level: currentLevel, xp: currentXp, unlocked: true },
+        },
+      },
+    };
+
+    const newMaxHp = PlayerStatUtility.calculateMaxHp(updatedStateForCalc);
+    const newMaxStam = PlayerStatUtility.calculateMaxStamina(updatedStateForCalc);
+    const newMaxMana = PlayerStatUtility.calculateMaxMana(updatedStateForCalc);
+
+    ctx.set("player.maxHp", newMaxHp);
+    ctx.set("player.maxStamina", newMaxStam);
+    ctx.set("player.maxMana", newMaxMana);
   }
 
   /**
