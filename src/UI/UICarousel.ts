@@ -4,19 +4,30 @@ import { drawText, CanvasTextConfig } from "canvas-txt";
 export interface ActionCardData {
   id: string;
   label: string;
-  sprite: Sprite;
+  sprite?: Sprite;
+  textureKey?: string;
+  isBack?: boolean;
 }
 
 export interface ActionCarouselOptions {
   gameActions: ActionCardData[];
+  getKnownSpells?: () => ActionCardData[];
   onActionSelected: (action: ActionCardData) => void;
+  onSpellSelected?: (spellId: string) => void;
+  textureMap?: Map<string, HTMLImageElement>;
 }
 
 export class ActionCarouselUI extends ScreenElement {
-  private currentIndex: number = 0; // Continuous floating index for infinite rolling
+  private currentIndex: number = 0;
   private gameActions: ActionCardData[];
+  private getKnownSpells?: () => ActionCardData[];
   private onActionSelected: (action: ActionCardData) => void;
+  private onSpellSelected?: (spellId: string) => void;
+  private textureMap: Map<string, HTMLImageElement>;
+
+  private currentItems: ActionCardData[];
   private carouselGraphic: CarouselLayoutGraphic;
+  private isSpellMode: boolean = false;
 
   constructor(options: ActionCarouselOptions) {
     super({
@@ -27,9 +38,13 @@ export class ActionCarouselUI extends ScreenElement {
     });
 
     this.gameActions = options.gameActions;
+    this.getKnownSpells = options.getKnownSpells;
     this.onActionSelected = options.onActionSelected;
+    this.onSpellSelected = options.onSpellSelected;
+    this.textureMap = options.textureMap || new Map();
 
-    this.carouselGraphic = new CarouselLayoutGraphic(this.gameActions);
+    this.currentItems = this.gameActions;
+    this.carouselGraphic = new CarouselLayoutGraphic(this.currentItems, this.textureMap);
     this.graphics.use(this.carouselGraphic);
   }
 
@@ -38,26 +53,69 @@ export class ActionCarouselUI extends ScreenElement {
   }
 
   public getSelectedAction(): ActionCardData {
-    const total = this.gameActions.length;
-    // Safely resolve active index accounting for infinite floating scrolling
+    const total = this.currentItems.length;
     const activeIndex = ((Math.round(this.currentIndex) % total) + total) % total;
-    return this.gameActions[activeIndex];
+    return this.currentItems[activeIndex];
   }
 
   public rotate(direction: number): void {
-    if (this.gameActions.length === 0) return;
-
-    // Increment continuously without hard clamping to array length bounds
+    if (this.currentItems.length === 0) return;
     this.currentIndex += direction;
     this.carouselGraphic.setTargetIndex(this.currentIndex);
   }
 
   public confirmSelection(): void {
-    const total = this.gameActions.length;
-    // Resolve the true active item using clean safe modulo handling negative numbers
+    if (this.currentItems.length === 0) return;
+
+    const total = this.currentItems.length;
     const activeIndex = ((Math.round(this.currentIndex) % total) + total) % total;
-    const selected = this.gameActions[activeIndex];
-    this.onActionSelected(selected);
+    const selected = this.currentItems[activeIndex];
+
+    if (!this.isSpellMode && selected.id === "magic") {
+      // Switch to Spell Selection Mode
+      const spells = this.getKnownSpells ? this.getKnownSpells() : [];
+      if (spells.length > 0) {
+        // Add a "Back" card at the end of the spell list using textureKey or cancel sprite
+        const backCard: ActionCardData = {
+          id: "back",
+          label: "Back",
+          textureKey: "cancel", // Make sure "cancel" is registered in your getLoadedTextures() map
+          isBack: true,
+        };
+        this.currentItems = [...spells, backCard];
+        this.currentIndex = 0;
+        this.carouselGraphic.updateItems(this.currentItems);
+        this.isSpellMode = true;
+      } else {
+        // If no spells known, fallback to regular action selection
+        this.onActionSelected(selected);
+      }
+      return;
+    }
+
+    if (this.isSpellMode && selected.id === "back") {
+      // Return to Main Action Mode
+      this.currentItems = this.gameActions;
+      this.currentIndex = 0;
+      this.carouselGraphic.updateItems(this.currentItems);
+      this.isSpellMode = false;
+      return;
+    }
+
+    if (this.isSpellMode) {
+      // Spell Selected
+      if (this.onSpellSelected) {
+        this.onSpellSelected(selected.id);
+      }
+      // Return to main mode after casting/selecting spell
+      this.currentItems = this.gameActions;
+      this.currentIndex = 0;
+      this.carouselGraphic.updateItems(this.currentItems);
+      this.isSpellMode = false;
+    } else {
+      // Regular Action Selected
+      this.onActionSelected(selected);
+    }
   }
 
   public override onPreUpdate(_engine: Engine, delta: number): void {
@@ -69,16 +127,18 @@ export class ActionCarouselUI extends ScreenElement {
 class CarouselLayoutGraphic extends Graphic {
   private targetIndex: number = 0;
   private displayIndex: number = 0;
-  private cards: CardGraphicCache[];
+  private cards: CardGraphicCache[] = [];
 
   private canvas: HTMLCanvasElement;
   private ctx: CanvasRenderingContext2D;
   private isDirty: boolean = true;
 
-  constructor(private actions: ActionCardData[]) {
+  constructor(
+    private items: ActionCardData[],
+    private textureMap: Map<string, HTMLImageElement>,
+  ) {
     super({ width: 800, height: 250 });
-
-    this.cards = actions.map(action => new CardGraphicCache(action));
+    this.rebuildCards();
 
     this.canvas = document.createElement("canvas");
     this.canvas.width = 800;
@@ -87,6 +147,19 @@ class CarouselLayoutGraphic extends Graphic {
     const context = this.canvas.getContext("2d");
     if (!context) throw new Error("Failed to get 2D context for CarouselLayoutGraphic");
     this.ctx = context;
+  }
+
+  public updateItems(newItems: ActionCardData[]): void {
+    this.items = newItems;
+    this.targetIndex = 0;
+    this.displayIndex = 0;
+    this.rebuildCards();
+    this.cards.forEach(c => c.markDirty());
+    this.isDirty = true;
+  }
+
+  private rebuildCards(): void {
+    this.cards = this.items.map(item => new CardGraphicCache(item, this.textureMap));
   }
 
   public setTargetIndex(index: number): void {
@@ -105,7 +178,7 @@ class CarouselLayoutGraphic extends Graphic {
   }
 
   clone(): Graphic {
-    return new CarouselLayoutGraphic(this.actions);
+    return new CarouselLayoutGraphic(this.items, this.textureMap);
   }
 
   protected _drawImage(ex: ExcaliburGraphicsContext, x: number, y: number): void {
@@ -123,19 +196,15 @@ class CarouselLayoutGraphic extends Graphic {
     ctx.clearRect(0, 0, this.width, this.height);
 
     const total = this.cards.length;
+    if (total === 0) return;
+
     const containerCenterX = 400;
     const cardWidth = 120;
-
-    // Render a window of cards around the current float index to simulate an infinite track
-    // We render roughly 5 slots (-2 to +2 around displayIndex)
     const centerSlot = Math.round(this.displayIndex);
 
     for (let slot = centerSlot - 3; slot <= centerSlot + 3; slot++) {
-      // Map virtual slot index to actual card array index using safe wrap-around modulo
       const arrayIndex = ((slot % total) + total) % total;
       const cardCache = this.cards[arrayIndex];
-
-      // Calculate exact visual offset relative to smooth displayIndex
       const offset = slot - this.displayIndex;
 
       const targetX = containerCenterX + offset * 135 - cardWidth / 2;
@@ -166,7 +235,10 @@ class CardGraphicCache {
   private width = 120;
   private height = 144;
 
-  constructor(private action: ActionCardData) {
+  constructor(
+    private action: ActionCardData,
+    private textureMap: Map<string, HTMLImageElement>,
+  ) {
     this.canvas = document.createElement("canvas");
     this.canvas.width = this.width;
     this.canvas.height = this.height;
@@ -174,6 +246,16 @@ class CardGraphicCache {
     const context = this.canvas.getContext("2d");
     if (!context) throw new Error("Failed to get 2D context for CardGraphicCache");
     this.ctx = context;
+
+    // Listen for image load completion so it redraws once texture data is ready
+    if (this.action.textureKey && this.textureMap.has(this.action.textureKey)) {
+      const img = this.textureMap.get(this.action.textureKey)!;
+      if (!img.complete) {
+        img.onload = () => {
+          this.isDirty = true;
+        };
+      }
+    }
   }
 
   public setHighlight(highlighted: boolean): void {
@@ -181,6 +263,10 @@ class CardGraphicCache {
       this.isHighlighted = highlighted;
       this.isDirty = true;
     }
+  }
+
+  public markDirty(): void {
+    this.isDirty = true;
   }
 
   public drawTo(targetCtx: CanvasRenderingContext2D, x: number, y: number): void {
@@ -217,8 +303,18 @@ class CardGraphicCache {
     ctx.arc(this.width / 2, spriteY + spriteSize / 2, 26, 0, Math.PI * 2);
     ctx.fill();
 
-    // 4. Draw Sprite
-    this.action.sprite._drawImage(exFakeContext(ctx), spriteX, spriteY);
+    // 4. Draw Sprite or Texture Image with safety checks for image readiness
+    if (this.action.sprite) {
+      this.action.sprite._drawImage(exFakeContext(ctx), spriteX, spriteY);
+    } else if (this.action.textureKey && this.textureMap.has(this.action.textureKey)) {
+      const img = this.textureMap.get(this.action.textureKey)!;
+      if (img.complete && img.naturalWidth !== 0) {
+        ctx.drawImage(img, spriteX, spriteY, spriteSize, spriteSize);
+      } else {
+        // Keep marking dirty until the texture asset finishes loading
+        this.isDirty = true;
+      }
+    }
 
     // 5. Label Text
     const textConfig: CanvasTextConfig = {
