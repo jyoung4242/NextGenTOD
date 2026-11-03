@@ -15,6 +15,9 @@ import throwIcon from "./Assets/throw.png";
 import portal from "./Assets/portal.png";
 import portalISO from "./Assets/portaliso.png";
 import torchSS from "./Assets/torch.png";
+import gate from "./Assets/gate.png"; // replace this
+import gateOpen from "./Assets/gate_open.png"; // replace this
+import doorOpen from "./Assets/door_open.png"; // replace this
 
 export const Resources = {
   goblin: new ImageSource(goblin),
@@ -32,6 +35,9 @@ export const Resources = {
   portal: new ImageSource(portal),
   portalISO: new ImageSource(portalISO),
   torchSS: new ImageSource(torchSS),
+  gate: new ImageSource(gate),
+  gateOpen: new ImageSource(gateOpen),
+  doorOpen: new ImageSource(doorOpen),
 };
 
 export const loader = new Loader();
@@ -56,6 +62,9 @@ export function getLoadedTextures(): Map<string, HTMLImageElement> {
   map.set("portal", Resources.portal.image);
   map.set("portaliso", Resources.portalISO.image);
   map.set("torch", Resources.torchSS.image);
+  map.set("gate", Resources.gate.image);
+  map.set("gate_open", Resources.gateOpen.image);
+  map.set("door_open", Resources.doorOpen.image);
   return map;
 }
 

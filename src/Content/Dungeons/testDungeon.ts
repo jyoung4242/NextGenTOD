@@ -177,7 +177,6 @@ export const testDungeon: DungeonDefinition = {
       exits: ["eastRoom"],
     },
   },
-
   connections: [
     {
       id: "start-to-hallway",
@@ -189,6 +188,9 @@ export const testDungeon: DungeonDefinition = {
         y: 2,
         direction: "west",
       },
+      skipRaycast: true,
+      closedTexture: "gate",
+      openTexture: "gate_open",
     },
     {
       id: "next-door",
@@ -200,6 +202,9 @@ export const testDungeon: DungeonDefinition = {
         y: 2,
         direction: "west",
       },
+      closedTexture: "door",
+      skipRaycast: true,
+      openTexture: "door_open",
       requiredKey: "key_east-to-boss",
     },
     {
@@ -240,7 +245,6 @@ export const testDungeon: DungeonDefinition = {
       targetId: "enemy_hallway_1",
     },
   ],
-
   grid: dungeonFromAscii(
     `
 #t###t##########

@@ -166,6 +166,9 @@ export interface DungeonConnectionDefinition {
   type: "open" | "door" | "stairs" | "locked" | "secret";
   requiredKey?: string;
   portal?: DungeonPortal;
+  skipRaycast?: boolean;
+  closedTexture?: string;
+  openTexture?: string;
 }
 
 export interface DungeonCellDefinition {
@@ -205,8 +208,10 @@ export interface WallLayer {
 export interface WallDefinition {
   type: "wall" | "door" | "none";
   textureKey?: string | string[];
-  layers?: WallLayer[]; // <--- NEW: Composite layers for custom walls / portals
+  layers?: WallLayer[];
   doorId?: string;
+  closedTexture?: string;
+  openTexture?: string;
 }
 
 export interface GridPosition {

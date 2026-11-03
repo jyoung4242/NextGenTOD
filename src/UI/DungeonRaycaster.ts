@@ -1,10 +1,26 @@
 // DungeonRaycaster.ts
-import { DungeonGridDefinition, DungeonCamera, RaycastHit, WallDefinition, getDungeonCell, DungeonState } from "../GameTypes";
+import {
+  DungeonGridDefinition,
+  DungeonCamera,
+  RaycastHit,
+  WallDefinition,
+  getDungeonCell,
+  DungeonState,
+  DungeonDefinition,
+} from "../GameTypes";
 
 type WallSide = "north" | "east" | "south" | "west";
 
 export class DungeonRaycaster {
-  public cast(grid: DungeonGridDefinition, state: DungeonState, camera: DungeonCamera, rayAngle: number): RaycastHit | undefined {
+  public cast(
+    grid: DungeonGridDefinition,
+    state: DungeonState,
+    dungeonDef: DungeonDefinition,
+    camera: DungeonCamera,
+    rayAngle: number,
+  ): RaycastHit[] {
+    const hits: RaycastHit[] = [];
+
     const rayDirX = Math.cos(rayAngle);
     const rayDirY = Math.sin(rayAngle);
 
@@ -42,7 +58,11 @@ export class DungeonRaycaster {
       west: "east",
     };
 
-    while (true) {
+    // Prevent infinite loops in open voids
+    let maxSteps = 50;
+
+    while (maxSteps > 0) {
+      maxSteps--;
       const prevX = mapX;
       const prevY = mapY;
       let wallSide: WallSide;
@@ -68,45 +88,58 @@ export class DungeonRaycaster {
       } else if (cell && cell[wallSide].type !== "none") {
         wall = cell[wallSide];
       } else if (!cell) {
-        // Fixed: Use textureKey instead of materialId to match WallDefinition
         wall = { type: "wall", textureKey: "void" };
       }
 
       if (!wall) continue;
-      if (!owner) return undefined;
+      if (!owner) break;
 
-      // ─── DOOR CHECK ───────────────────────────────────────────────────────
-      if (wall.type === "door" && wall.doorId) {
-        // Handle both root GameState and sub-state dungeon slice gracefully
-        const dungeonObj = (state as any).dungeon ?? state;
-        const activeDungeonId = dungeonObj?.current;
-
-        const registry = dungeonObj?.registry ?? dungeonObj?.states;
-        const activeDungeonState = activeDungeonId ? registry?.[activeDungeonId] : undefined;
-
-        // Fallback chain: registry doors -> direct dungeon doors -> root state doors
-        const doors = activeDungeonState?.doors ?? dungeonObj?.doors ?? (state as any).doors;
-        const doorState = doors?.[wall.doorId];
-
-        if (doorState?.open === true) {
-          continue; // Open door: skip solid hit and keep raycasting
-        }
-      }
-
-      // Calculate hit distance
+      // Calculate distance and hit coordinates
       const distance =
         wallSide === "west" || wallSide === "east"
           ? (mapX - camera.x + (1 - stepX) / 2) / rayDirX
           : (mapY - camera.y + (1 - stepY) / 2) / rayDirY;
 
-      // Calculate intersection world coordinates x & y
       const hitX = camera.x + rayDirX * distance;
       const hitY = camera.y + rayDirY * distance;
-
-      // Calculate wallOffset for texture alignment (0.0 to 1.0 across wall face)
       const wallOffset = wallSide === "west" || wallSide === "east" ? hitY - Math.floor(hitY) : hitX - Math.floor(hitX);
 
-      return {
+      // ─── CHECK CONNECTIONS FOR CUSTOM TEXTURES & SKIP RAYCAST ──────────────
+      let matchedConnection = dungeonDef.connections?.find(
+        conn => conn.portal && conn.portal.x === owner.x && conn.portal.y === owner.y && conn.portal.direction === wallSide,
+      );
+
+      let effectiveWall = { ...wall };
+      if (matchedConnection?.closedTexture) {
+        effectiveWall.layers = [{ textureKey: matchedConnection.closedTexture, alpha: 1.0 }];
+      }
+
+      // ─── DOOR / PASS-THROUGH LOGIC ───────────────────────────────────────
+      let isOpenDoor = false;
+      if (wall.type === "door" && wall.doorId) {
+        const doorState = state.doors[wall.doorId];
+        if (doorState?.open === true) {
+          isOpenDoor = true;
+        }
+      }
+
+      if (matchedConnection?.skipRaycast || isOpenDoor) {
+        // Record this pass-through hit (e.g. metal gate or open portal frame) but KEEP CASTING
+        hits.push({
+          distance,
+          x: hitX,
+          y: hitY,
+          cellX: owner.x,
+          cellY: owner.y,
+          side: wallSide,
+          wallOffset,
+          wall: effectiveWall,
+        });
+        continue; // Ray continues marching to find the solid wall behind it!
+      }
+
+      // Solid hit: record and terminate ray
+      hits.push({
         distance,
         x: hitX,
         y: hitY,
@@ -114,8 +147,11 @@ export class DungeonRaycaster {
         cellY: owner.y,
         side: wallSide,
         wallOffset,
-        wall,
-      };
+        wall: effectiveWall,
+      });
+      break;
     }
+
+    return hits;
   }
 }
