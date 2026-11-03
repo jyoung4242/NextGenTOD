@@ -1,6 +1,6 @@
 // UI/DungeonViewportGraphic.ts
 import { ExcaliburGraphicsContext, Graphic } from "excalibur";
-import { DungeonDefinition, DungeonCamera, DungeonState, WallLayer } from "../GameTypes";
+import { DungeonDefinition, DungeonCamera, DungeonState, WallLayer, RaycastHit } from "../GameTypes";
 import { DungeonRaycaster } from "./DungeonRaycaster";
 import { ContentRegistry } from "../Content/ContentRegistry";
 
@@ -57,7 +57,6 @@ export class DungeonViewportGraphic extends Graphic {
   }
 
   protected _drawImage(ex: ExcaliburGraphicsContext, x: number, y: number): void {
-    // Always redraw every frame to support real-time animated textures (torches, portals, etc.)
     this.redrawViewport();
     this.canvas.setAttribute("forceUpload", "true");
     ex.drawImage(this.canvas, x, y, this.width, this.height);
@@ -79,30 +78,12 @@ export class DungeonViewportGraphic extends Graphic {
     const activeLights = [...pointLights];
     const halfHeight = height / 2;
 
-    const hasPlayerLight = false;
-
-    if (hasPlayerLight) {
-      activeLights.push({
-        x: this.camera.x,
-        y: this.camera.y,
-        radius: 4,
-        color: "#ffaa44",
-        intensity: 1.0,
-        flicker: {
-          enabled: true,
-          speed: 8,
-          intensity: 0.08,
-        },
-      });
-    }
-
     // -------------------------------------------------------------
     // 1. Ceiling & Floor (Fill Patterns + Horizon Fog Overlays)
     // -------------------------------------------------------------
     const floorImg = this.textures.get(this.dungeon.defaultFloorTexture ?? "dirt");
     const ceilingImg = this.textures.get(this.dungeon.defaultCeilingTexture ?? "ceiling");
 
-    // Ceiling Pattern
     if (ceilingImg) {
       const ceilingPattern = ctx.createPattern(ceilingImg, "repeat");
       if (ceilingPattern) {
@@ -114,7 +95,6 @@ export class DungeonViewportGraphic extends Graphic {
       ctx.fillRect(0, 0, width, halfHeight);
     }
 
-    // Floor Pattern
     if (floorImg) {
       const floorPattern = ctx.createPattern(floorImg, "repeat");
       if (floorPattern) {
@@ -127,7 +107,6 @@ export class DungeonViewportGraphic extends Graphic {
     }
 
     if (ambientLight < 1.0) {
-      // --- Ceiling Fog Overlay ---
       const ceilingGradient = ctx.createLinearGradient(0, 0, 0, halfHeight);
       ceilingGradient.addColorStop(0.0, `rgba(0, 0, 0, 1.0)`);
       ceilingGradient.addColorStop(0.2, `rgba(0, 0, 0, ${1.0 - ambientLight})`);
@@ -135,163 +114,51 @@ export class DungeonViewportGraphic extends Graphic {
       ctx.fillStyle = ceilingGradient;
       ctx.fillRect(0, 0, width, halfHeight);
 
-      // --- Floor Fog Overlay ---
       const floorGradient = ctx.createLinearGradient(0, halfHeight, 0, height);
       floorGradient.addColorStop(0.0, `rgba(0, 0, 0, ${1.0 - ambientLight})`);
       floorGradient.addColorStop(0.5, `rgba(0, 0, 0, ${1.0 - ambientLight})`);
       floorGradient.addColorStop(1.0, `rgba(0, 0, 0, 1.0)`);
       ctx.fillStyle = floorGradient;
-      ctx.fillRect(0, halfHeight, width, halfHeight);
+      ctx.fillRect(0, halfHeight, width, height);
     }
 
-    // Depth buffer for depth testing billboards against wall depth
     const zBuffer = new Float32Array(width);
-    const currentTime = performance.now() * 0.001; // Current time in seconds for animations
+    const currentTime = performance.now() * 0.001;
 
-    // -------------------------------------------------------------
-    // 2. Wall Raycast Loop with Composite, Animated Texture Slicing & Lighting
-    // -------------------------------------------------------------
+    // Collect all raycast hits per column
+    const columnHits: { screenX: number; rayAngle: number; hits: RaycastHit[] }[] = [];
+
     for (let screenX = 0; screenX < width; screenX++) {
       const normalizedX = (screenX + 0.5) / width;
       const rayAngle = this.camera.angle - this.camera.fov / 2 + normalizedX * this.camera.fov;
+      const hits = this.raycaster.cast(this.dungeon.grid, currentState, this.dungeon, this.camera, rayAngle);
 
-      const hit = this.raycaster.cast(this.dungeon.grid, currentState, this.camera, rayAngle);
-
-      if (!hit) {
+      if (!hits || hits.length === 0) {
         zBuffer[screenX] = Infinity;
         continue;
       }
 
-      const correctedDistance = hit.distance * Math.cos(rayAngle - this.camera.angle);
-      if (correctedDistance <= 0) {
+      // Z-Buffer tracks the closest solid wall/closed door
+      const solidHit = hits.find(hit => {
+        if (hit.wall.type === "door" && hit.wall.doorId) {
+          const doorState = currentState.doors[hit.wall.doorId];
+          return doorState?.open !== true;
+        }
+        return true;
+      });
+
+      if (solidHit) {
+        const solidCorrectedDistance = solidHit.distance * Math.cos(rayAngle - this.camera.angle);
+        zBuffer[screenX] = solidCorrectedDistance > 0 ? solidCorrectedDistance : Infinity;
+      } else {
         zBuffer[screenX] = Infinity;
-        continue;
       }
 
-      zBuffer[screenX] = correctedDistance;
-
-      const wallHeight = projectionPlane / correctedDistance;
-      const wallTop = (height - wallHeight) / 2;
-
-      // --- UNIFIED COMPOSITE LAYER & TEXTURE RESOLUTION ---
-      let activeLayers: WallLayer[] = [];
-
-      if (hit.wall.type === "door") {
-        if (hit.wall.layers && hit.wall.layers.length > 0) {
-          activeLayers = hit.wall.layers;
-        } else {
-          const doorTex = Array.isArray(hit.wall.textureKey) ? hit.wall.textureKey[0] : (hit.wall.textureKey ?? "door");
-          activeLayers = [{ textureKey: doorTex, alpha: 1.0, blendMode: "source-over" }];
-        }
-      } else if (hit.wall.layers && hit.wall.layers.length > 0) {
-        activeLayers = hit.wall.layers;
-      } else if (hit.wall.textureKey) {
-        if (Array.isArray(hit.wall.textureKey)) {
-          activeLayers = hit.wall.textureKey.map((key, index) => ({
-            textureKey: key,
-            alpha: 1.0,
-            blendMode: index > 0 ? "screen" : "source-over",
-          }));
-        } else {
-          activeLayers = [{ textureKey: hit.wall.textureKey, alpha: 1.0, blendMode: "source-over" }];
-        }
-      } else {
-        const defaultKey = this.dungeon.defaultWallTexture ?? "stone";
-        activeLayers = [{ textureKey: defaultKey, alpha: 1.0, blendMode: "source-over" }];
-      }
-
-      // --- LIGHT FACTOR CALCULATION ---
-      let lightFactor = Math.max(0, 1.0 - correctedDistance / maxLightingDistance);
-      lightFactor = ambientLight + (1.0 - ambientLight) * lightFactor;
-      const now = performance.now() * 0.001;
-
-      for (const light of activeLights) {
-        const distToLight = Math.hypot(hit.x - light.x, hit.y - light.y);
-        if (distToLight < light.radius) {
-          const attenuation = 1.0 - distToLight / light.radius;
-          let effectiveIntensity = light.intensity ?? 1.0;
-
-          if (light.flicker?.enabled) {
-            const speed = light.flicker.speed ?? 15.0;
-            const amount = light.flicker.intensity ?? 0.1;
-            const phase = ((light.x * 12.9898 + light.y * 78.233) % Math.PI) * 2;
-            const time = now * speed + phase;
-            const noise = Math.sin(time * 3.3) * 0.5 + Math.sin(time * 7.1) * 0.5;
-            effectiveIntensity = Math.max(0, effectiveIntensity + noise * amount);
-          }
-
-          lightFactor += attenuation * effectiveIntensity;
-        }
-      }
-
-      lightFactor = Math.min(1.5, Math.max(ambientLight, lightFactor));
-
-      // --- RENDER COMPOSITE & ANIMATED LAYER STACK FOR THIS COLUMN SLICE ---
-      let renderedAny = false;
-      for (const layer of activeLayers) {
-        const wallTexture = this.textures.get(layer.textureKey);
-        if (!wallTexture) continue;
-
-        renderedAny = true;
-        let texX = Math.floor(hit.wallOffset * wallTexture.width);
-
-        // Handle Animated Texture Frame Selection
-        if (layer.animation) {
-          const { frameCount, fps, frameWidth } = layer.animation;
-          const currentFrame = Math.floor(currentTime * fps) % frameCount;
-          texX = currentFrame * frameWidth + Math.floor(hit.wallOffset * frameWidth);
-        }
-
-        const rayDirX = Math.cos(rayAngle);
-        const rayDirY = Math.sin(rayAngle);
-        if (
-          (hit.side === "west" && rayDirX > 0) ||
-          (hit.side === "east" && rayDirX < 0) ||
-          (hit.side === "north" && rayDirY < 0) ||
-          (hit.side === "south" && rayDirY > 0)
-        ) {
-          if (layer.animation) {
-            const { frameCount, fps, frameWidth } = layer.animation;
-            const currentFrame = Math.floor(currentTime * fps) % frameCount;
-            texX = currentFrame * frameWidth + (frameWidth - 1 - Math.floor(hit.wallOffset * frameWidth));
-          } else {
-            texX = wallTexture.width - texX - 1;
-          }
-        }
-
-        ctx.save();
-        ctx.globalAlpha = layer.alpha ?? 1.0;
-        ctx.globalCompositeOperation = layer.blendMode ?? "source-over";
-
-        const sourceHeight = layer.animation ? layer.animation.frameHeight : wallTexture.height;
-
-        ctx.drawImage(wallTexture, texX, 0, 1, sourceHeight, screenX, wallTop, 1, wallHeight);
-
-        ctx.restore();
-      }
-
-      // Fallback for solid colors if textures are missing
-      if (!renderedAny) {
-        const baseIntensity = hit.side === "north" || hit.side === "south" ? 136 : 102;
-        const shadedIntensity = Math.floor(baseIntensity * lightFactor);
-        ctx.fillStyle = `rgb(${shadedIntensity}, ${shadedIntensity}, ${shadedIntensity})`;
-        ctx.fillRect(screenX, wallTop, 1, wallHeight);
-      } else {
-        // Apply lighting/shadow overlay stripe based on lightFactor over the composite stack
-        if (lightFactor < 1.0) {
-          const darkness = 1.0 - lightFactor;
-          ctx.fillStyle = `rgba(0, 0, 0, ${darkness})`;
-          ctx.fillRect(screenX, wallTop, 1, wallHeight);
-        } else if (lightFactor > 1.0) {
-          const brightness = lightFactor - 1.0;
-          ctx.fillStyle = `rgba(255, 200, 100, ${Math.min(0.5, brightness)})`;
-          ctx.fillRect(screenX, wallTop, 1, wallHeight);
-        }
-      }
+      columnHits.push({ screenX, rayAngle, hits });
     }
 
     // -------------------------------------------------------------
-    // 3. Item & Enemy Billboards (Sorted Back-to-Front)
+    // 2. Prepare Billboards
     // -------------------------------------------------------------
     interface BillboardToRender {
       x: number;
@@ -304,7 +171,6 @@ export class DungeonViewportGraphic extends Graphic {
 
     const billboards: BillboardToRender[] = [];
 
-    // Collect Uncollected Items
     const uncollectedItems = (this.dungeon.items ?? []).filter(item => {
       const coordKey = `${item.position.x},${item.position.y}`;
       return !currentState.containers?.[coordKey]?.opened;
@@ -315,7 +181,6 @@ export class DungeonViewportGraphic extends Graphic {
       const worldY = item.position.y + 0.5;
       const dx = worldX - this.camera.x;
       const dy = worldY - this.camera.y;
-
       billboards.push({
         x: worldX,
         y: worldY,
@@ -326,7 +191,6 @@ export class DungeonViewportGraphic extends Graphic {
       });
     }
 
-    // Collect Active Enemies
     const enemiesCache = currentState.enemies ?? {};
     const activeEnemies = Object.values(enemiesCache).filter(enemy => enemy && enemy.alive && enemy.state !== "dead");
 
@@ -340,7 +204,6 @@ export class DungeonViewportGraphic extends Graphic {
       const worldY = enemy.position.y + 0.5;
       const dx = worldX - this.camera.x;
       const dy = worldY - this.camera.y;
-
       billboards.push({
         x: worldX,
         y: worldY,
@@ -351,10 +214,56 @@ export class DungeonViewportGraphic extends Graphic {
       });
     }
 
-    // Sort billboards from furthest to nearest (Painter's Algorithm)
+    // Sort billboards from furthest to nearest
     billboards.sort((a, b) => b.distanceSq - a.distanceSq);
 
-    // Render sorted billboards
+    // -------------------------------------------------------------
+    // 3. Render Walls, Open Doors, and Billboards Interleaved by Depth
+    // -------------------------------------------------------------
+    // To ensure open doors render AFTER billboards (or back-to-front accurately),
+    // we split hits into background walls/closed doors (drawn first) and open doors (drawn last).
+
+    for (const col of columnHits) {
+      const { screenX, rayAngle, hits } = col;
+
+      // Separate into background elements vs open door elements
+      const backgroundHits: RaycastHit[] = [];
+      const openDoorHits: RaycastHit[] = [];
+
+      for (const hit of hits) {
+        let isOpen = false;
+        if (hit.wall.type === "door" && hit.wall.doorId) {
+          const doorState = currentState.doors[hit.wall.doorId];
+          isOpen = doorState?.open === true;
+        }
+
+        if (isOpen) {
+          openDoorHits.push(hit);
+        } else {
+          backgroundHits.push(hit);
+        }
+      }
+
+      // Pass 1: Draw background walls & closed doors (furthest to closest)
+      backgroundHits.sort((a, b) => b.distance - a.distance);
+      for (const hit of backgroundHits) {
+        this.renderWallHit(
+          ctx,
+          hit,
+          rayAngle,
+          screenX,
+          projectionPlane,
+          ambientLight,
+          maxLightingDistance,
+          activeLights,
+          currentTime,
+          width,
+          height,
+        );
+      }
+    }
+
+    // Pass 2: Draw Billboards (Enemies/Items standing in rooms/doorways)
     for (const billboard of billboards) {
       this.renderBillboard(
         ctx,
@@ -367,6 +276,175 @@ export class DungeonViewportGraphic extends Graphic {
         billboard.yOffset,
       );
     }
+
+    // Pass 3: Draw Open Doors / Gates LAST so they correctly overlay over entities standing in/behind them
+    for (const col of columnHits) {
+      const { screenX, rayAngle, hits } = col;
+      for (const hit of hits) {
+        let isOpen = false;
+        if (hit.wall.type === "door" && hit.wall.doorId) {
+          const doorState = currentState.doors[hit.wall.doorId];
+          isOpen = doorState?.open === true;
+        }
+
+        if (isOpen) {
+          this.renderWallHit(
+            ctx,
+            hit,
+            rayAngle,
+            screenX,
+            projectionPlane,
+            ambientLight,
+            maxLightingDistance,
+            activeLights,
+            currentTime,
+            width,
+            height,
+          );
+        }
+      }
+    }
+  }
+
+  private renderWallHit(
+    ctx: CanvasRenderingContext2D,
+    hit: RaycastHit,
+    rayAngle: number,
+    screenX: number,
+    projectionPlane: number,
+    ambientLight: number,
+    maxLightingDistance: number,
+    activeLights: any[],
+    currentTime: number,
+    width: number,
+    height: number,
+  ): void {
+    const correctedDistance = hit.distance * Math.cos(rayAngle - this.camera.angle);
+    if (correctedDistance <= 0) return;
+
+    const wallHeight = projectionPlane / correctedDistance;
+    const wallTop = (height - wallHeight) / 2;
+
+    let activeLayers: WallLayer[] = [];
+
+    if (hit.wall.type === "door") {
+      const doorState = hit.wall.doorId ? this.getState().doors[hit.wall.doorId] : undefined;
+      const isOpen = doorState?.open ?? false;
+      const isLocked = doorState?.locked ?? false;
+
+      if (isOpen) {
+        const openTex = hit.wall.openTexture ?? "open_door_frame";
+        activeLayers = [{ textureKey: openTex, alpha: 1.0, blendMode: "source-over" }];
+      } else if (isLocked) {
+        const closedTex = hit.wall.closedTexture ?? "door_locked";
+        activeLayers = [{ textureKey: closedTex, alpha: 1.0, blendMode: "source-over" }];
+      } else {
+        if (hit.wall.layers && hit.wall.layers.length > 0) {
+          activeLayers = hit.wall.layers;
+        } else {
+          const closedTex =
+            hit.wall.closedTexture ?? (Array.isArray(hit.wall.textureKey) ? hit.wall.textureKey[0] : (hit.wall.textureKey ?? "door"));
+          activeLayers = [{ textureKey: closedTex, alpha: 1.0, blendMode: "source-over" }];
+        }
+      }
+    } else if (hit.wall.layers && hit.wall.layers.length > 0) {
+      activeLayers = hit.wall.layers;
+    } else if (hit.wall.textureKey) {
+      if (Array.isArray(hit.wall.textureKey)) {
+        activeLayers = hit.wall.textureKey.map((key, index) => ({
+          textureKey: key,
+          alpha: 1.0,
+          blendMode: index > 0 ? "screen" : "source-over",
+        }));
+      } else {
+        activeLayers = [{ textureKey: hit.wall.textureKey, alpha: 1.0, blendMode: "source-over" }];
+      }
+    } else {
+      const defaultKey = this.dungeon.defaultWallTexture ?? "stone";
+      activeLayers = [{ textureKey: defaultKey, alpha: 1.0, blendMode: "source-over" }];
+    }
+
+    let lightFactor = Math.max(0, 1.0 - correctedDistance / maxLightingDistance);
+    lightFactor = ambientLight + (1.0 - ambientLight) * lightFactor;
+    const now = performance.now() * 0.001;
+
+    for (const light of activeLights) {
+      const distToLight = Math.hypot(hit.x - light.x, hit.y - light.y);
+      if (distToLight < light.radius) {
+        const attenuation = 1.0 - distToLight / light.radius;
+        let effectiveIntensity = light.intensity ?? 1.0;
+
+        if (light.flicker?.enabled) {
+          const speed = light.flicker.speed ?? 15.0;
+          const amount = light.flicker.intensity ?? 0.1;
+          const phase = ((light.x * 12.9898 + light.y * 78.233) % Math.PI) * 2;
+          const time = now * speed + phase;
+          const noise = Math.sin(time * 3.3) * 0.5 + Math.sin(time * 7.1) * 0.5;
+          effectiveIntensity = Math.max(0, effectiveIntensity + noise * amount);
+        }
+
+        lightFactor += attenuation * effectiveIntensity;
+      }
+    }
+
+    lightFactor = Math.min(1.5, Math.max(ambientLight, lightFactor));
+
+    let renderedAny = false;
+    for (const layer of activeLayers) {
+      const wallTexture = this.textures.get(layer.textureKey);
+      if (!wallTexture) continue;
+
+      renderedAny = true;
+      let texX = Math.floor(hit.wallOffset * wallTexture.width);
+
+      if (layer.animation) {
+        const { frameCount, fps, frameWidth } = layer.animation;
+        const currentFrame = Math.floor(currentTime * fps) % frameCount;
+        texX = currentFrame * frameWidth + Math.floor(hit.wallOffset * frameWidth);
+      }
+
+      const rayDirX = Math.cos(rayAngle);
+      const rayDirY = Math.sin(rayAngle);
+      if (
+        (hit.side === "west" && rayDirX > 0) ||
+        (hit.side === "east" && rayDirX < 0) ||
+        (hit.side === "north" && rayDirY < 0) ||
+        (hit.side === "south" && rayDirY > 0)
+      ) {
+        if (layer.animation) {
+          const { frameCount, fps, frameWidth } = layer.animation;
+          const currentFrame = Math.floor(currentTime * fps) % frameCount;
+          texX = currentFrame * frameWidth + (frameWidth - 1 - Math.floor(hit.wallOffset * frameWidth));
+        } else {
+          texX = wallTexture.width - texX - 1;
+        }
+      }
+
+      ctx.save();
+      ctx.globalAlpha = layer.alpha ?? 1.0;
+      ctx.globalCompositeOperation = layer.blendMode ?? "source-over";
+
+      const sourceHeight = layer.animation ? layer.animation.frameHeight : wallTexture.height;
+      ctx.drawImage(wallTexture, texX, 0, 1, sourceHeight, screenX, wallTop, 1, wallHeight);
+      ctx.restore();
+    }
+
+    if (!renderedAny) {
+      const baseIntensity = hit.side === "north" || hit.side === "south" ? 136 : 102;
+      const shadedIntensity = Math.floor(baseIntensity * lightFactor);
+      ctx.fillStyle = `rgb(${shadedIntensity}, ${shadedIntensity}, ${shadedIntensity})`;
+      ctx.fillRect(screenX, wallTop, 1, wallHeight);
+    } else {
+      if (lightFactor < 1.0) {
+        const darkness = 1.0 - lightFactor;
+        ctx.fillStyle = `rgba(0, 0, 0, ${darkness})`;
+        ctx.fillRect(screenX, wallTop, 1, wallHeight);
+      } else if (lightFactor > 1.0) {
+        const brightness = lightFactor - 1.0;
+        ctx.fillStyle = `rgba(255, 200, 100, ${Math.min(0.5, brightness)})`;
+        ctx.fillRect(screenX, wallTop, 1, wallHeight);
+      }
+    }
   }
 
   private resolveItemTextureKey(itemId: string, keyId?: string): string {
@@ -375,7 +453,7 @@ export class DungeonViewportGraphic extends Graphic {
     if (this.content) {
       const itemDef = this.content.getItem(itemId);
       if (itemDef?.textureKey) {
-        return itemDef.textureKey;
+        return itemDef.textureKey.toString();
       }
     }
 

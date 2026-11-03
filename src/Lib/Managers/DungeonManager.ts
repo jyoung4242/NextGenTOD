@@ -196,6 +196,8 @@ export function createDungeonState(definition: DungeonDefinition, seed = 0, cont
   };
 }
 
+// DungeonManager.ts
+
 export function applyConnectionsToGrid(definition: DungeonDefinition): void {
   for (const conn of definition.connections) {
     if (conn.type === "door" && conn.portal) {
@@ -203,9 +205,12 @@ export function applyConnectionsToGrid(definition: DungeonDefinition): void {
       const cell = getDungeonCell(definition.grid, x, y);
 
       if (cell) {
+        // ─── COPY BOTH CLOSED & OPEN TEXTURES HERE ────────────────────────
         cell[direction] = {
           type: "door",
           doorId: conn.id,
+          closedTexture: conn.closedTexture,
+          openTexture: conn.openTexture, // <--- Add this line!
         };
 
         const oppositeDir: Record<Direction, Direction> = {
@@ -227,6 +232,8 @@ export function applyConnectionsToGrid(definition: DungeonDefinition): void {
           neighborCell[oppositeDir[direction]] = {
             type: "door",
             doorId: conn.id,
+            closedTexture: conn.closedTexture,
+            openTexture: conn.openTexture, // <--- Add this line here too!
           };
         }
       }
