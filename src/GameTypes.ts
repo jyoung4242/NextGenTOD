@@ -285,8 +285,20 @@ export interface PlayerState {
   equipment: EquipmentState;
   spellBook: {
     activeSpellId?: string;
-    spells: Record<string, SkillState>;
+    spells: string[];
   };
+}
+export interface SpellDefinition {
+  id: string;
+  name: string;
+  category: string;
+  minLevelRequirement: number;
+  targetMode: string;
+  manaCost: number;
+  basePower: number;
+  range: number;
+  description: string;
+  textureKey?: string;
 }
 
 export interface SkillState {

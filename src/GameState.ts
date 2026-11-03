@@ -388,6 +388,7 @@ export function createInitialGameState(): GameState {
       skills: {
         unarmed: { level: 1, xp: 10, unlocked: true },
         throw: { level: 1, xp: 0, unlocked: true },
+        blackMagic: { level: 1, xp: 0, unlocked: true },
       },
       strength: 1,
       constitution: 1,
@@ -402,8 +403,8 @@ export function createInitialGameState(): GameState {
         accessory: undefined,
       },
       spellBook: {
-        activeSpellId: "none",
-        spells: {},
+        activeSpellId: "lightning",
+        spells: ["lightning", "fireball"],
       },
     },
     inventory: {

@@ -21,6 +21,9 @@ import doorOpen from "./Assets/door_open.png"; // replace this
 import stone2 from "./Assets/wall2.png";
 import stone3 from "./Assets/wall3.png";
 import stone4 from "./Assets/wall4.png";
+import lightning from "./Assets/lightning.png"; // replace this
+import fireball from "./Assets/fireball.png"; // replace this\
+import cancel from "./Assets/cancel.png";
 
 export const Resources = {
   goblin: new ImageSource(goblin),
@@ -44,6 +47,9 @@ export const Resources = {
   stone2: new ImageSource(stone2),
   stone3: new ImageSource(stone3),
   stone4: new ImageSource(stone4),
+  lightning: new ImageSource(lightning),
+  fireball: new ImageSource(fireball),
+  cancel: new ImageSource(cancel),
 };
 
 export const loader = new Loader();
@@ -51,6 +57,25 @@ export const loader = new Loader();
 for (let res of Object.values(Resources)) {
   loader.addResource(res);
 }
+
+export const iconSS = SpriteSheet.fromImageSource({
+  image: Resources.icons,
+  grid: {
+    rows: 137,
+    columns: 16,
+    spriteWidth: 64,
+    spriteHeight: 64,
+  },
+});
+
+export const attackSprite = iconSS.getSprite(15, 41);
+export const magicSprite = iconSS.getSprite(15, 51);
+export const itemSprite = iconSS.getSprite(14, 59);
+export const defendSprite = iconSS.getSprite(7, 41);
+export const throwSprite = Resources.throw.toSprite();
+export const fleeSprite = iconSS.getSprite(1, 41);
+export const lightningSprite = await iconSS.getSpriteAsImage(15, 51);
+export const fireSprite = await iconSS.getSpriteAsImage(10, 47);
 
 // Map texture keys to preloaded HTMLImageElements for standard 2D Canvas rendering
 export function getLoadedTextures(): Map<string, HTMLImageElement> {
@@ -74,22 +99,8 @@ export function getLoadedTextures(): Map<string, HTMLImageElement> {
   map.set("stone2", Resources.stone2.image);
   map.set("stone3", Resources.stone3.image);
   map.set("stone4", Resources.stone4.image);
+  map.set("lightning", Resources.lightning.image);
+  map.set("fireball", Resources.fireball.image);
+  map.set("cancel", Resources.cancel.image);
   return map;
 }
-
-export const iconSS = SpriteSheet.fromImageSource({
-  image: Resources.icons,
-  grid: {
-    rows: 137,
-    columns: 16,
-    spriteWidth: 64,
-    spriteHeight: 64,
-  },
-});
-
-export const attackSprite = iconSS.getSprite(15, 41);
-export const magicSprite = iconSS.getSprite(15, 51);
-export const itemSprite = iconSS.getSprite(14, 59);
-export const defendSprite = iconSS.getSprite(7, 41);
-export const throwSprite = Resources.throw.toSprite();
-export const fleeSprite = iconSS.getSprite(1, 41);

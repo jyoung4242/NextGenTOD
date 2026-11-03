@@ -13,6 +13,19 @@ export const SPELL_DEFINITIONS: SpellDefinition[] = [
     basePower: 25,
     range: 4,
     description: "Hurls a blazing sphere of fire at a single enemy.",
+    textureKey: "fireball",
+  },
+  {
+    id: "lightning",
+    name: "Lightning",
+    category: "blackMagic",
+    minLevelRequirement: 1,
+    targetMode: "direct_enemy",
+    manaCost: 15,
+    basePower: 25,
+    range: 4,
+    description: "Strikes a single enemy with a bolt of lightning.",
+    textureKey: "lightning",
   },
   {
     id: "heal",
@@ -24,6 +37,7 @@ export const SPELL_DEFINITIONS: SpellDefinition[] = [
     basePower: 30,
     range: 0,
     description: "Restores minor health to the caster.",
+    textureKey: "heal",
   },
   {
     id: "inferno",
@@ -35,6 +49,7 @@ export const SPELL_DEFINITIONS: SpellDefinition[] = [
     basePower: 40,
     range: 3,
     description: "Engulfs an area in destructive flames, damaging all nearby foes.",
+    textureKey: "inferno",
   },
   {
     id: "group_heal",
@@ -46,6 +61,7 @@ export const SPELL_DEFINITIONS: SpellDefinition[] = [
     basePower: 20,
     range: 0,
     description: "Bathes the party in soothing light, restoring health to all allies.",
+    textureKey: "group_heal",
   },
 ];
 

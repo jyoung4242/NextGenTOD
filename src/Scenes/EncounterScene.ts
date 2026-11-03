@@ -9,7 +9,16 @@ import { INPUT_CONTEXT } from "../main";
 import { InputMapSystem } from "../Lib/Systems/InputMapper";
 import { ActionQueueManager } from "../Lib/Managers/ActionQueueManager";
 import { CombatStateMachine } from "../Lib/Systems/CombatStateMachine";
-import { attackSprite, defendSprite, fleeSprite, itemSprite, magicSprite, Resources, throwSprite } from "../resources";
+import {
+  attackSprite,
+  defendSprite,
+  fleeSprite,
+  itemSprite,
+  magicSprite,
+  Resources,
+  throwSprite,
+  getLoadedTextures,
+} from "../resources";
 import { TargetingSystem } from "../Lib/Systems/TargetingSystem";
 import { TargetReticle } from "../Actors/TargetReticle";
 import { CharacterStatusGraphic, CharacterStatusHUD } from "../UI/CharacterStatusHUD";
@@ -40,7 +49,7 @@ export class EncounterScene extends Scene {
 
   private targetReticle?: TargetReticle;
 
-  private statusHud?: CharacterStatusHUD; // 👈 Add field reference
+  private statusHud?: CharacterStatusHUD;
 
   // Cutscene & Dialogue Support
   public dialogUI: DialogUI | null = null;
@@ -159,7 +168,7 @@ export class EncounterScene extends Scene {
       id: "encounter-summary",
       commands: [
         {
-          type: "encounter_summary", // Handled by your custom command extension in CutScenes.ts
+          type: "encounter_summary",
           args: {},
         },
       ],
@@ -175,7 +184,8 @@ export class EncounterScene extends Scene {
         },
       ],
     });
-    // Register Flee Cutscene Manifest
+
+    // Register Defeat Cutscene Manifest
     this.cutSceneSystem.registerCutScene("encounter-defeat", {
       id: "encounter-defeat",
       commands: [
@@ -217,7 +227,7 @@ export class EncounterScene extends Scene {
 
     this.setupCombatEntities(encounter);
 
-    // 🎯 Listen for ANY changes to the encounter state or dungeon state and auto-update!
+    // Listen for changes to encounter state
     this.unubscribeStore = this.store.subscribe("game.encounter", payload => {
       this.updateActorPositions();
 
@@ -229,13 +239,10 @@ export class EncounterScene extends Scene {
           this.statusHud.graphics.current!.flagDirty();
       }
 
-      // 🎯 Parse new combat log entries and spawn Floating Combat Text
-      console.log("Combat log changed:", payload);
       const prevLog = payload.previousValue?.combatLog ?? [];
       const currentLog = payload.value?.combatLog ?? [];
 
       if (currentLog.length > prevLog.length) {
-        // Process all newly added log messages
         for (let i = prevLog.length; i < currentLog.length; i++) {
           const logMessage = currentLog[i];
           this.handleCombatLogFCT(logMessage);
@@ -250,7 +257,7 @@ export class EncounterScene extends Scene {
     // Initial positioning of target reticle
     this.updateTargetReticle();
 
-    // Instantiate and add Action Carousel UI (Hidden by default)
+    // Main game action list
     const actionList: ActionCardData[] = [
       { id: "attack", label: "Attack", sprite: attackSprite },
       { id: "magic", label: "Magic", sprite: magicSprite },
@@ -260,9 +267,44 @@ export class EncounterScene extends Scene {
       { id: "flee", label: "Flee", sprite: fleeSprite },
     ];
 
+    // Instantiate and add Action Carousel UI with Spell Selection support
     this.carouselUI = new ActionCarouselUI({
       gameActions: actionList,
-      onActionSelected: selected => this.executeCarouselAction(selected),
+      textureMap: getLoadedTextures(),
+
+      // Fetches player's known spells dynamically from store & registry
+      getKnownSpells: () => {
+        const knownSpellIds = this.store.get().player.spellBook?.spells || [];
+
+        return knownSpellIds.map(spellId => {
+          const spellDef = this.contentRegistry.getSpell(spellId);
+          return {
+            id: spellId,
+            label: spellDef?.name || spellId,
+            textureKey: spellDef?.textureKey,
+          };
+        });
+      },
+
+      onActionSelected: action => {
+        console.log(`[EncounterScene] Action selected: ${action.label}`);
+        this.executeCarouselAction(action);
+      },
+
+      // Executes spell action directly when confirmed in carousel
+      onSpellSelected: spellId => {
+        console.log(`[EncounterScene] Spell selected to cast: ${spellId}`);
+        this.store.set("player.spellBook.activeSpellId", spellId);
+
+        if (this.isCarouselOpen) {
+          this.closeCarousel();
+        }
+
+        const targetId = this.getActiveOrFirstEnemyId();
+        if (targetId) {
+          this.handlePlayerAction({ type: "spell", skillId: spellId, targetId });
+        }
+      },
     });
 
     this.carouselUI.pos = vec(80, 260);
@@ -276,17 +318,15 @@ export class EncounterScene extends Scene {
     if (!encounter) return;
 
     const { minX, minY } = encounter.arenaBounds;
-    // Convert grid coordinates to local pixels relative to the grid renderer
     const localX = (gridX - minX) * this.TILE_SIZE + this.TILE_SIZE / 2;
     const localY = (gridY - minY) * this.TILE_SIZE + this.TILE_SIZE / 2;
 
     const fct = new FloatingText({
       text,
-      pos: vec(localX, localY - 12), // Offset slightly above token center
+      pos: vec(localX, localY - 12),
       color: color ?? Color.Red,
     });
 
-    // Attach as child to gridRenderer so it zooms/pans with the tactical arena grid
     this.gridRenderer?.addChild(fct);
   }
 
@@ -295,12 +335,10 @@ export class EncounterScene extends Scene {
     const encounter = state.game.encounter;
     if (!encounter || !this.targetReticle) return;
 
-    // Resolve active dungeon registry enemies slice
     const activeDungeonId = state.dungeon.current;
     const activeDungeon = state.dungeon.registry?.[activeDungeonId] as DungeonState;
     const dungeonEnemies = activeDungeon.enemies;
 
-    // Priority: currentTargetId -> activeEnemyInstanceId -> first living enemy
     const enemyIds = encounter.enemyInstanceIds ?? [];
     const targetId = encounter.currentTargetId ?? encounter.activeEnemyInstanceId ?? enemyIds.find(id => dungeonEnemies?.[id]?.alive);
 
@@ -343,10 +381,8 @@ export class EncounterScene extends Scene {
   private triggerSelectedCarouselAction(): void {
     if (!this.isPlayerTurnValid() || !this.carouselUI) return;
 
-    const selectedAction = this.carouselUI.getSelectedAction();
-    console.log(`[EncounterScene] Executing selected carousel action: ${selectedAction.label} (${selectedAction.id})`);
-
-    this.executeCarouselAction(selectedAction);
+    // Delegates confirmation to the carousel UI (handles drill-down spell submenu & main action dispatching)
+    this.carouselUI.confirmSelection();
   }
 
   private executeCarouselAction(action: ActionCardData): void {
@@ -361,7 +397,7 @@ export class EncounterScene extends Scene {
         if (targetId) this.handlePlayerAction({ type: "attack", targetId });
         break;
       case "magic":
-        if (targetId) this.handlePlayerAction({ type: "spell", skillId: "fireball", targetId });
+        // Magic selection is handled by the carousel's internal spell submenu
         break;
       case "item":
         this.handlePlayerAction({ type: "item", itemId: "health_potion" });
@@ -588,7 +624,6 @@ export class EncounterScene extends Scene {
     const encounter = state.game.encounter;
     if (!encounter) return undefined;
 
-    // Resolve active dungeon registry enemies slice
     const activeDungeonId = state.dungeon.current;
     const activeDungeon = state.dungeon.registry?.[activeDungeonId] as DungeonState;
     const dungeonEnemies = activeDungeon.enemies;
@@ -643,14 +678,10 @@ export class EncounterScene extends Scene {
     }
 
     // 2. Spawn Enemy Tokens
-    console.log(encounter);
-
     const enemyIds = encounter.enemyInstanceIds ?? (encounter.activeEnemyInstanceId ? [encounter.activeEnemyInstanceId] : []);
-    console.log(dungeonEnemies);
 
     for (const enemyId of enemyIds) {
       const enemyState: EnemyState | undefined = dungeonEnemies?.[enemyId];
-      console.log(enemyState);
 
       if (enemyState && enemyState.alive) {
         const ePos = encounter.enemyPositions?.[enemyId] ?? enemyState.position;
@@ -684,7 +715,6 @@ export class EncounterScene extends Scene {
     const encounter = state.game.encounter;
     if (!encounter) return;
 
-    // Resolve active dungeon registry enemies slice
     const activeDungeonId = state.dungeon.current;
     const activeDungeon = state.dungeon.registry?.[activeDungeonId] as DungeonState;
     const dungeonEnemies = activeDungeon.enemies;
@@ -716,10 +746,11 @@ export class EncounterScene extends Scene {
   }
 
   public onDeactivate(): void {
+    if (this.unubscribeStore) {
+      this.unubscribeStore();
+    }
     this.clear(false);
   }
-
-  // Inside EncounterScene.ts
 
   private handleCombatLogFCT(logEntry: string | any): void {
     const state = this.store.get();
@@ -728,9 +759,7 @@ export class EncounterScene extends Scene {
 
     const playerPos = encounter.playerPosition ?? state.player?.position;
 
-    // Case A: The log entry is a structured object containing affectedTargets or structuredResult
     if (typeof logEntry === "object" && logEntry !== null) {
-      // 1. Handle multi-target or single-target affected targets (Spells, AoE, structured actions)
       if (Array.isArray(logEntry.affectedTargets) && logEntry.affectedTargets.length > 0) {
         for (const targetHit of logEntry.affectedTargets) {
           const targetPos = encounter.enemyPositions?.[targetHit.targetId];
@@ -740,14 +769,11 @@ export class EncounterScene extends Scene {
         }
         return;
       } else if (!logEntry.isHit && logEntry.damage == 0) {
-        const targetPos = logEntry.log.structuredResult.targetPos;
+        const targetPos = logEntry.log?.structuredResult?.targetPos;
         if (targetPos) {
           this.spawnFloatingText(`Missed!`, targetPos.x, targetPos.y, Color.White);
         }
       }
-
-      // 2. Handle generic structured result object if present
-      console.log(`[FCT]: `, logEntry.structuredResult);
 
       if (logEntry.structuredResult) {
         const { damage, isHit } = logEntry.structuredResult;
@@ -763,14 +789,12 @@ export class EncounterScene extends Scene {
       }
     }
 
-    // Case B: Fallback if the log entry is a standard string (for simple actions like melee/throw/flee)
     const message = typeof logEntry === "string" ? logEntry : (logEntry?.log?.logmessage ?? "");
     if (!message) return;
 
     const targetId = encounter.currentTargetId ?? encounter.activeEnemyInstanceId;
     const targetPos = targetId ? encounter.enemyPositions?.[targetId] : undefined;
 
-    // 1. Match item throw / standard damage (e.g., "Player threw an item for 8 damage!")
     const damageMatch = message.match(/for\s+(\d+)\s+damage/i);
     if (damageMatch && targetPos) {
       const damageVal = damageMatch[1];
@@ -778,7 +802,6 @@ export class EncounterScene extends Scene {
       return;
     }
 
-    // 2. Match Player Healing
     const healMatch = message.match(/restored\s+(\d+)\s+HP/i);
     if (healMatch && playerPos) {
       const healVal = healMatch[1];
@@ -786,7 +809,6 @@ export class EncounterScene extends Scene {
       return;
     }
 
-    // 3. Match Enemy Attack on Player
     const playerDamageMatch = message.match(/strikes for\s+(\d+)\s+damage/i) || message.match(/counter-attacks for\s+(\d+)\s+damage/i);
     if (playerDamageMatch && playerPos) {
       const damageVal = playerDamageMatch[1];
