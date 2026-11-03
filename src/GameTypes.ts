@@ -1,7 +1,9 @@
 // GameTypes.ts
 
+import { ContentRegistry } from "./Content/ContentRegistry";
+
 // ******************************
-//Game State
+// Game State
 // ******************************
 //#region gamestate
 export type GameMode = "playing" | "encounter" | "paused" | "dead" | "victory" | "game_over" | "playercreation";
@@ -12,16 +14,10 @@ export interface GameSessionState {
   encounter?: EncounterState;
 }
 
-// GameTypes.ts
-
 export interface GameState {
-  game: {
-    mode: string;
-    time: number;
-    encounter?: EncounterState;
-  };
+  game: GameSessionState;
   player: PlayerState;
-  inventory: InventoryState; // Promoted to top-level property
+  inventory: InventoryState;
   dungeon: {
     current: string;
     registry: Record<string, DungeonState>;
@@ -30,14 +26,9 @@ export interface GameState {
     active: Record<string, unknown>;
     completed: string[];
   };
-  progression: {
-    experience: number;
-    level: number;
-    skillPoints: number;
-  };
+  progression: ProgressionState;
   storypoints?: Record<string, unknown>;
 }
-
 //#endregion gamestate
 
 // ********************************
@@ -49,6 +40,9 @@ export interface DungeonViewportGraphicOptions {
   camera: DungeonCamera;
   width: number;
   height: number;
+  textures: Map<string, HTMLImageElement>;
+  contentRegistry?: ContentRegistry;
+  getState: () => DungeonState;
 }
 
 export interface DungeonCamera {
@@ -68,8 +62,6 @@ export interface RaycastHit {
   wallOffset: number;
   wall: WallDefinition;
 }
-
-const cellIndex = new WeakMap<DungeonGridDefinition, Map<number, DungeonCellDefinition>>();
 
 export interface Rect {
   x: number;
@@ -107,6 +99,7 @@ export interface DungeonPortal {
 export interface DungeonItemPlacement {
   id: string;
   keyId?: string;
+  itemId?: string;
   position: { x: number; y: number };
   quantity: number;
 }
@@ -121,14 +114,14 @@ export interface DungeonEnemyPlacement {
   definitionId: string;
   position: DungeonPosition;
 }
-// Add these types in GameTypes.ts
+
 export interface DungeonLightSource {
   x: number;
   y: number;
   radius: number;
   color?: string;
   intensity?: number;
-  flicker?: LightFlickerDefinition; // 💡 Configured per light source
+  flicker?: LightFlickerDefinition;
 }
 
 export interface DungeonLightingDefinition {
@@ -139,26 +132,27 @@ export interface DungeonLightingDefinition {
 
 export interface LightFlickerDefinition {
   enabled: boolean;
-  speed?: number; // How fast it flickers (e.g., 10.0 to 20.0)
-  intensity?: number; // How strong the flicker fluctuation is (e.g., 0.05 to 0.15)
+  speed?: number;
+  intensity?: number;
 }
 
-// Update DungeonDefinition interface:
 export interface DungeonDefinition {
   id: string;
   defaultFloorTexture?: string;
   defaultCeilingTexture?: string;
   defaultWallTexture?: string;
+  wallTextures?: string[]; // Pool of textures for renderer wall variation
   nodes: Record<string, DungeonNodeDefinition>;
   connections: DungeonConnectionDefinition[];
   grid: DungeonGridDefinition;
   items?: DungeonItemPlacement[];
   enemies?: DungeonEnemyPlacement[];
   cutsceneTriggers?: CutsceneTriggerDefinition[];
-  lighting?: DungeonLightingDefinition; // 💡 Added here
+  lighting?: DungeonLightingDefinition;
   onEnterCutsceneId?: string;
   onExitCutsceneId?: string;
 }
+
 export interface DungeonConnectionDefinition {
   id: string;
   from: string;
@@ -172,9 +166,9 @@ export interface DungeonConnectionDefinition {
 }
 
 export interface DungeonCellDefinition {
-  defaultFloorTexture?: string; // e.g. "dirt"
-  defaultCeilingTexture?: string; // e.g. "ceiling"
-  defaultWallTexture?: string; // e.g. "stone"
+  defaultFloorTexture?: string;
+  defaultCeilingTexture?: string;
+  wallTextures?: string[];
   x: number;
   y: number;
   floor: FloorType;
@@ -190,10 +184,10 @@ export interface DoorState {
 }
 
 export interface LayerAnimationDefinition {
-  frameCount: number; // e.g. 4 frames of torch animation horizontally
-  fps: number; // e.g. 8 frames per second
-  frameWidth: number; // Pixel width of a single frame in the sprite sheet
-  frameHeight: number; // Pixel height of a single frame
+  frameCount: number;
+  fps: number;
+  frameWidth: number;
+  frameHeight: number;
 }
 
 export interface WallLayer {
@@ -202,7 +196,7 @@ export interface WallLayer {
   blendMode?: GlobalCompositeOperation;
   scaleX?: number;
   scaleY?: number;
-  animation?: LayerAnimationDefinition; // <--- NEW: Animated texture support
+  animation?: LayerAnimationDefinition;
 }
 
 export interface WallDefinition {
@@ -241,7 +235,8 @@ export interface DungeonGridDefinition {
 export interface DungeonAsciiOptions {
   wall?: string;
   floor?: string;
-  wallMaterialId?: string; // Default wall texture
+  wallMaterialId?: string;
+  wallTextures?: string[];
   tileMap?: Record<string, string | string[] | WallLayer[]>;
 }
 
@@ -263,43 +258,34 @@ export interface DungeonAsciiMarker {
 // ********************************
 // Player Types
 // ********************************
-
 //#region playertypes
-
 export interface EntityPosition {
+  nodeId?: string;
   x: number;
   y: number;
 }
 
 export interface PlayerState {
-  //meta data
   name: string;
-
-  // Calculated stats
   hp: number;
   maxHp: number;
   stamina: number;
   maxStamina: number;
   mana: number;
   maxMana: number;
-
-  // Core Stats
   strength: number;
   constitution: number;
   agility: number;
   wisdom: number;
   perception: number;
-
-  // Inventory, position, and magic
   position: EntityPosition;
-  facing: Direction;
+  facing: Direction | number;
   keyring: string[];
   skills: Record<string, SkillState>;
   equipment: EquipmentState;
-
   spellBook: {
-    activeSpellId?: string; // <--- ADD THIS: Tracks the currently equipped combat spell
-    spells: Record<string, SkillState>; // <--- ADD THIS: Tracks all known spells and their states
+    activeSpellId?: string;
+    spells: Record<string, SkillState>;
   };
 }
 
@@ -308,15 +294,12 @@ export interface SkillState {
   xp: number;
   unlocked: boolean;
 }
-
 //#endregion playertypes
 
 // ********************************
 // Enemy Types
 // ********************************
-
 //#region enemytypes
-
 export interface EnemyDefinition {
   id: string;
   name: string;
@@ -330,14 +313,12 @@ export interface EnemyDefinition {
   defense: number;
   detectionRadius: number;
   abilities?: string[];
-
-  // 🚀 New properties for Progression & Loot
   xpReward?: number;
   lootTableId?: string;
 }
 
 export interface EnemyState {
-  instanceId?: string; // Optional unique instance tracking if needed
+  instanceId?: string;
   definitionId: string;
   hp: number;
   maxHp: number;
@@ -347,15 +328,12 @@ export interface EnemyState {
   facing: Direction | number;
   state: "idle" | "alert" | "dead";
 }
-
 //#endregion enemytypes
 
 // ********************************
 // Item Types
 // ********************************
-
 //#region itemtypes
-// GameTypes.ts
 export type EquipmentSlot = "head" | "chest" | "mainHand" | "offHand" | "accessory";
 
 export interface EquipmentState {
@@ -365,6 +343,7 @@ export interface EquipmentState {
   offHand?: ItemInstance;
   accessory?: ItemInstance;
 }
+
 export type ItemCategory = "consumable" | "equipment" | "material" | "junk" | "key";
 
 export interface ItemDefinition {
@@ -377,9 +356,9 @@ export interface ItemDefinition {
   weight: number;
   icon?: string;
   textureKey?: string;
-  equipmentSlot?: EquipmentSlot; // If you keep slot here or attached locally
-  requiredSkill?: string; // e.g., "oneHanded", "armorHeavy"
-  minLevel?: number; // e.g., 2
+  equipmentSlot?: EquipmentSlot;
+  requiredSkill?: string;
+  minLevel?: number;
 }
 
 export interface ItemInstance {
@@ -399,101 +378,23 @@ export interface ContainerState {
   itemId?: string;
   quantity?: number;
 }
-
 //#endregion itemtypes
-
-// ********************************
-// Quest Types
-// ********************************
-
-//#region questtypes
-// --- Quest Content Definitions (Static Data) ---
-
-export type ObjectiveType = "talk" | "kill" | "collect" | "reach" | "interact";
-
-export interface QuestObjectiveData {
-  id: string;
-  description: string;
-  type: ObjectiveType;
-  target: string;
-  count: number;
-}
-
-export interface QuestMetadata {
-  title: string;
-  description: string;
-  faction?: string;
-  giverNpc?: string;
-}
-
-export interface QuestRewards {
-  reputation?: number;
-  items?: string[];
-  equipment?: string[];
-}
-
-export interface QuestTriggerActions {
-  setsFlag?: string[];
-}
-
-export interface QuestTriggers {
-  onStart?: QuestTriggerActions;
-  onComplete?: QuestTriggerActions;
-}
-
-export interface QuestWorldFlags {
-  sets?: string[];
-  requires?: string[];
-}
-
-export interface QuestDefinitionData {
-  id: string;
-  metadata: QuestMetadata;
-  objectives: QuestObjectiveData[];
-  rewards?: QuestRewards;
-  triggers?: QuestTriggers;
-  worldFlags?: QuestWorldFlags;
-}
-
-// --- Quest Runtime State ---
-
-export interface ObjectiveProgress {
-  id: string;
-  current: number;
-  target: number;
-  complete: boolean;
-}
-
-export interface QuestProgress {
-  questId: string;
-  state: "active" | "complete";
-  objectives: ObjectiveProgress[];
-}
-
-export type QuestState = "not_started" | "active" | "complete";
-
-//#endregion questtypes
 
 // ********************************
 // Progression Types
 // ********************************
-
 //#region progressiontypes
-
 export interface ProgressionState {
   experience: number;
   level: number;
   skillPoints: number;
 }
-
 //#endregion progressiontypes
 
 // ********************************
-// Encounter (Combat) Types
+// Encounter Types
 // ********************************
-
 //#region encountertypes
-
 export type TurnParticipant = "player" | "enemy";
 
 export interface TacticalPosition {
@@ -517,35 +418,17 @@ export interface ArenaBounds {
   maxY: number;
 }
 
-// GameTypes.ts (or wherever your types live)
-export interface CombatEventResult {
-  actorId: string; // Who performed the action (player or enemy ID)
-  targetId: string; // Who received the effect
-  actionType: string; // "attack" | "spell" | "item" | "heal" | "counter"
-  damage?: number; // Amount of damage dealt (if any)
-  healing?: number; // Amount of healing done (if any)
-  isCritical?: boolean; // Was it a critical hit?
-  isMiss?: boolean; // Did it miss?
-}
-
 export interface EncounterState {
   activeEnemyInstanceId: string;
   enemyInstanceIds?: string[];
-  currentTargetId?: string; // 🎯 Added to track active cursor/reticle selection
+  currentTargetId?: string;
   currentTurn: TurnParticipant;
   turnCount: number;
-  arenaBounds: {
-    minX: number;
-    maxX: number;
-    minY: number;
-    maxY: number;
-  };
-  // Store local tactical positions separately
-  playerPosition: { x: number; y: number };
-  enemyPositions: Record<string, { x: number; y: number }>;
+  arenaBounds: ArenaBounds;
+  playerPosition: TacticalPosition;
+  enemyPositions?: Record<string, TacticalPosition>;
   combatLog: string[];
   isResolved: boolean;
-  // Add post-encounter reward tracking if desired:
   rewards?: {
     xpGained: number;
     itemsDropped: { itemId: string; quantity: number }[];
@@ -553,15 +436,12 @@ export interface EncounterState {
     newLevel?: number;
   };
 }
-
 //#endregion encountertypes
 
 // ********************************
-// CuteScene Types
+// Cutscene Types
 // ********************************
-
 //#region cutscenetypes
-
 export type CutsceneTriggerType =
   | "quest_step"
   | "interaction"
@@ -574,91 +454,19 @@ export interface CutsceneTriggerDefinition {
   id: string;
   cutsceneId: string;
   triggerType: CutsceneTriggerType;
-
-  // Specific payload criteria based on trigger type
-  targetId?: string; // Quest ID, Node ID, Item ID, or Enemy ID[cite: 2]
-  position?: { x: number; y: number }; // Tile coordinates for dungeon step triggers
-
-  // Gating & Execution Rules
-  requiredFlags?: string[]; // Story points that must be true
-  succeedsFlag?: string; // Flag set after playing to make it run once
-  playOnce?: boolean; // Explicit flag tracking
+  targetId?: string;
+  position?: { x: number; y: number };
+  requiredFlags?: string[];
+  succeedsFlag?: string;
+  playOnce?: boolean;
 }
-
 //#endregion cutscenetypes
-
-// ********************************
-// UI Types
-// ********************************
-
-//#region uiTypes
-
-// UI/ToastTypes.ts
-export type ToastCategory = "quest" | "item" | "enemy" | "dungeon" | "progression";
-
-export interface ToastMessage {
-  id: string;
-  category: ToastCategory;
-  title: string;
-  message: string;
-  duration?: number; // Duration in ms (default: 3500)
-}
-
-export interface ActiveToastInstance {
-  data: ToastMessage;
-  elapsed: number;
-  duration: number;
-  alpha: number;
-  targetY: number;
-  currentY: number;
-}
-
-//#endregion uiTypes
-
-// ********************************
-// Skill Types
-// ********************************
-
-//#region skillTypes
-
-// Content/SkillRegistry.ts
-export type CoreCharacteristic = "hp" | "stam" | "agil" | "per" | "wisdom";
-
-export interface SkillDefinition {
-  id: string;
-  name: string;
-  category: "combat" | "defense" | "armor" | "magic";
-  supportedCharacteristics: CoreCharacteristic[];
-  basePowerMultiplier: number;
-}
-//#endregion skillTypes
-
-// ********************************
-// Magic Types
-// ********************************
-
-//#region magicTypes
-export type TargetMode = "single_enemy" | "self" | "aoe" | "party" | "direct_enemy";
-export type MagicType = "blackMagic" | "whiteMagic" | "chaosMagic";
-
-export interface SpellDefinition {
-  id: string; // Unique identifier, e.g., "fireball", "greater_heal"
-  name: string; // Display name
-  category: MagicType; // Must match a skill category ID (e.g., "blackMagic", "whiteMagic")
-  minLevelRequirement: number; // Minimum skill level needed to cast/unlock
-  targetMode: TargetMode; // Target mode (AOE, direct enemy, self, party)
-  manaCost: number; // Mana required to cast
-  basePower: number; // Base damage or healing value
-  range: number; // Range on the tactical grid
-  description?: string; // Flavor text or effect description
-}
-//#endregion magicTypes
 
 // ********************************
 // Helper Functions
 // ********************************
-
 //#region helpers
+const cellIndex = new WeakMap<DungeonGridDefinition, Map<number, DungeonCellDefinition>>();
 
 export function dungeonFromAscii(ascii: string, options: DungeonAsciiOptions = {}): DungeonGridDefinition {
   const wall = options.wall ?? "#";
@@ -725,52 +533,25 @@ function createCustomWall(
     return { type: "wall", layers: [{ textureKey: defaultTexture, alpha: 1.0 }] };
   }
 
-  // Case A: Mapped is an array of explicit WallLayer objects (with animation/blend modes)
   if (Array.isArray(mapped) && mapped.length > 0 && typeof mapped[0] === "object" && "textureKey" in mapped[0]) {
     return { type: "wall", layers: mapped as WallLayer[] };
   }
 
-  // Case B: Mapped is a string array (e.g. ["stone", "torch"])
   if (Array.isArray(mapped)) {
     return {
       type: "wall",
       layers: (mapped as string[]).map((key, index) => ({
         textureKey: key,
         alpha: 1.0,
-        blendMode: index > 0 ? "screen" : "source-over", // Automatically screen-blend overlays
+        blendMode: index > 0 ? "screen" : "source-over",
       })),
     };
   }
 
-  // Case C: Mapped is a single string
   return {
     type: "wall",
     layers: [{ textureKey: mapped as string, alpha: 1.0 }],
   };
-}
-
-function createWall(
-  lines: string[],
-  x: number,
-  y: number,
-  width: number,
-  wall: string,
-  floor: string,
-  textureKey: string[],
-): WallDefinition {
-  if (isFloor(lines, x, y, width, wall, floor)) {
-    return { type: "none" };
-  }
-
-  return { type: "wall", textureKey };
-}
-
-function isFloor(lines: string[], x: number, y: number, width: number, wall: string, floor: string): boolean {
-  if (x < 0 || y < 0 || y >= lines.length || x >= width) {
-    return false;
-  }
-
-  return lines[y][x] === floor;
 }
 
 export function getDungeonCell(grid: DungeonGridDefinition, x: number, y: number): DungeonCellDefinition | undefined {
@@ -798,5 +579,4 @@ export function createDungeonCamera(x: number, y: number): DungeonCamera {
     fov: Math.PI / 3,
   };
 }
-
 //#endregion helpers

@@ -18,6 +18,9 @@ import torchSS from "./Assets/torch.png";
 import gate from "./Assets/gate.png"; // replace this
 import gateOpen from "./Assets/gate_open.png"; // replace this
 import doorOpen from "./Assets/door_open.png"; // replace this
+import stone2 from "./Assets/wall2.png";
+import stone3 from "./Assets/wall3.png";
+import stone4 from "./Assets/wall4.png";
 
 export const Resources = {
   goblin: new ImageSource(goblin),
@@ -38,6 +41,9 @@ export const Resources = {
   gate: new ImageSource(gate),
   gateOpen: new ImageSource(gateOpen),
   doorOpen: new ImageSource(doorOpen),
+  stone2: new ImageSource(stone2),
+  stone3: new ImageSource(stone3),
+  stone4: new ImageSource(stone4),
 };
 
 export const loader = new Loader();
@@ -65,6 +71,9 @@ export function getLoadedTextures(): Map<string, HTMLImageElement> {
   map.set("gate", Resources.gate.image);
   map.set("gate_open", Resources.gateOpen.image);
   map.set("door_open", Resources.doorOpen.image);
+  map.set("stone2", Resources.stone2.image);
+  map.set("stone3", Resources.stone3.image);
+  map.set("stone4", Resources.stone4.image);
   return map;
 }
 
