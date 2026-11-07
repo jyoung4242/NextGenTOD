@@ -24,6 +24,7 @@ import stone4 from "./Assets/wall4.png";
 import lightning from "./Assets/lightning.png"; // replace this
 import fireball from "./Assets/fireball.png"; // replace this\
 import cancel from "./Assets/cancel.png";
+import meleeSSIMG from "./Assets/meleeSS.png";
 
 export const Resources = {
   goblin: new ImageSource(goblin),
@@ -50,6 +51,7 @@ export const Resources = {
   lightning: new ImageSource(lightning),
   fireball: new ImageSource(fireball),
   cancel: new ImageSource(cancel),
+  meleeSS: new ImageSource(meleeSSIMG),
 };
 
 export const loader = new Loader();
@@ -64,6 +66,16 @@ export const iconSS = SpriteSheet.fromImageSource({
     rows: 137,
     columns: 16,
     spriteWidth: 64,
+    spriteHeight: 64,
+  },
+});
+
+export const meleeSS = SpriteSheet.fromImageSource({
+  image: Resources.meleeSS,
+  grid: {
+    rows: 2,
+    columns: 8,
+    spriteWidth: 104,
     spriteHeight: 64,
   },
 });
