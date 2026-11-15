@@ -8,6 +8,9 @@ import { LootDrop, LootManager } from "../Managers/LootManager";
 import { ToastManager } from "../../UI/ToastManager";
 import { SkillProgressionUtility } from "./SkillProgressionUtility";
 import { PlayerStatUtility } from "./PlayerStatUtility";
+import { vec } from "excalibur";
+import { EncounterPlayer } from "../../Actors/EncounterPlayer";
+import { EncounterEnemy } from "../../Actors/EncounterEnemy";
 
 export class CombatStateMachine {
   constructor(
@@ -104,8 +107,11 @@ export class CombatStateMachine {
         case "attack": {
           if (!targetId || !enemy || !enemy.alive) return;
 
+          // debugger;
+
           const playerPos = encounter.playerPosition ?? state.player?.position;
           const enemyPos = encounter.enemyPositions?.[targetId] ?? enemy.position;
+          const direction = vec(enemyPos.x - playerPos.x, enemyPos.y - playerPos.y).normalize();
 
           if (playerPos && enemyPos) {
             const distance =
@@ -116,6 +122,16 @@ export class CombatStateMachine {
               logMessage = `Target out of range! Move closer to attack. (Distance: ${distance})`;
               console.log(`[Combat Log] ${logMessage}`);
               break;
+            }
+          }
+
+          let scene = this.cutSceneSystem?.world.scene;
+          debugger;
+          if (scene) {
+            const playerActor = scene.entities.find(entity => entity.name === "player") as EncounterPlayer;
+            const enemyActor = scene.entities.find(entity => entity.name === targetId) as EncounterEnemy;
+            if (playerActor) {
+              playerActor.playMeleeAnimation(direction, enemyActor);
             }
           }
 
