@@ -28,6 +28,8 @@ import { QuestManager } from "../Lib/Managers/QuestManager";
 import { EncounterTriggerSystem } from "../Lib/Systems/EncounterTrigger";
 import { DialogUI } from "../UI/DialogUI";
 import { ToastManager } from "../UI/ToastManager";
+import { EncounterPlayer } from "../Actors/EncounterPlayer";
+import { EncounterEnemy } from "../Actors/EncounterEnemy";
 
 export class EncounterScene extends Scene {
   private playerActor?: Actor;
@@ -661,11 +663,12 @@ export class EncounterScene extends Scene {
       const pTileX = Math.floor(playerPos.x);
       const pTileY = Math.floor(playerPos.y);
 
-      this.playerActor = new Actor({
-        pos: getLocalTileCenter(pTileX, pTileY),
-        width: tokenSize,
-        height: tokenSize,
-      });
+      this.playerActor = new EncounterPlayer(
+        new Vector(playerPos.x * this.TILE_SIZE + this.TILE_SIZE / 2, playerPos.y * this.TILE_SIZE + this.TILE_SIZE / 2),
+        tokenSize,
+        tokenSize,
+      );
+
       this.camera.strategy.lockToActor(this.playerActor);
       this.camera.zoom = 1.0;
 
@@ -694,11 +697,19 @@ export class EncounterScene extends Scene {
         const resourceRecord = Resources as Record<string, any>;
         const enemyImg = resourceRecord[tokenKey]?.toSprite();
 
-        const enemyActor = new Actor({
+        const enemyActor = new EncounterEnemy(
+          new Vector(eTileX * this.TILE_SIZE + this.TILE_SIZE / 2, eTileY * this.TILE_SIZE + this.TILE_SIZE / 2),
+          tokenSize,
+          tokenSize,
+          enemyImg,
+          enemyId,
+        );
+
+        /*{
           pos: getLocalTileCenter(eTileX, eTileY),
           width: tokenSize,
           height: tokenSize,
-        });
+        } */
 
         if (enemyImg) {
           enemyActor.graphics.use(enemyImg);

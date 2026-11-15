@@ -1,0 +1,44 @@
+{
+  "id": "combat-melee-attack",
+  "commands": [
+    {
+      "type": "play_animation",
+      "args": {
+        "actorId": "player",
+        "animation": "PlayerMeleeAnimation"
+      }
+    },
+    {
+      "type": "delay",
+      "args": { "duration": 80 }
+    },
+    {
+      "type": "camera_shake",
+      "args": { "magnitudeX": 4, "magnitudeY": 4, "duration": 200 }
+    },
+    {
+      "type": "spawn_fct",
+      "args": {
+        "text": "-24",
+        "targetId": "goblin_1",
+        "color": "red"
+      }
+    },
+    {
+      "type": "actor_flash",
+      "args": {
+        "actorId": "goblin_1",
+        "color": "white",
+        "duration": 100
+      }
+    },
+    {
+      "type": "actor_move",
+      "args": {
+        "actorId": "player",
+        "toGrid": { "x": 5, "y": 5 },
+        "duration": 150
+      }
+    }
+  ]
+}
