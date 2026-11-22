@@ -42,7 +42,12 @@ export interface DefenseRollResult {
   log: CombatEventResult;
 }
 export interface SpellResolutionResult {
+  roll?: number;
+  totalAttack?: number;
+  defenseValue?: number;
   isHit: boolean;
+  isCrit?: boolean;
+  damage?: number;
   damageOrHealing: number;
   affectedTargets: { targetId: string; damage: number; newHp: number }[];
   log: CombatEventResult;
@@ -199,25 +204,92 @@ export class CombatRulesEngine {
     enemy: EnemyState,
     enemyDef?: EnemyDefinition,
   ): SpellResolutionResult {
-    const spellPower = CombatRulesEngine.getPlayerSpellPower(player, spellDef.category);
-    const basePower = spellDef.basePower ?? 20;
+    // 1. Roll 1d20
+    const roll = Math.floor(Math.random() * 20) + 1;
+    const isCrit = roll === 20;
+    const isFumble = roll === 1;
 
-    // Magic hit roll or resistance mitigation
-    const magicResistance = enemyDef?.defense ?? 2; // Can be expanded to magic resistance
-    const rawDamage = basePower + spellPower;
-    const finalDamage = Math.max(1, rawDamage - Math.floor(magicResistance / 2));
+    // 2. Gather spell modifier from player's skill category (e.g. blackMagic)
+    const spellCategory = spellDef.category ?? "blackMagic";
+    const skillLevel = player.skills?.[spellCategory]?.level ?? 1;
+    const spellPower = CombatRulesEngine.getPlayerSpellPower(player, spellCategory);
+    const totalAttack = roll + spellPower;
 
-    const newHp = Math.max(0, enemy.hp - finalDamage);
+    // 3. Enemy Defense / Magic Resistance / AC
+    const targetArmorClass = 10 + (enemyDef?.defense ?? 2);
+
+    // 4. Hit determination
+    let isHit = false;
+    if (isFumble) {
+      isHit = false;
+    } else if (isCrit || totalAttack >= targetArmorClass) {
+      isHit = true;
+    }
+
     const enemyName = enemyDef?.name ?? "Enemy";
 
+    if (!isHit) {
+      console.log(`[CombatRulesEngine]: Spell missed!`, enemy);
+      return {
+        roll,
+        totalAttack,
+        defenseValue: targetArmorClass,
+        isHit: false,
+        isCrit: false,
+        damage: 0,
+        damageOrHealing: 0,
+        affectedTargets: [],
+        log: {
+          logmessage: `Rolled ${roll} (${totalAttack} vs AC ${targetArmorClass}) - ${spellDef.name} missed ${enemyName}!`,
+          structuredResult: {
+            roll,
+            totalAttack,
+            targetId: enemy.instanceId ?? targetId,
+            targetPos: enemy.position,
+            defenseValue: targetArmorClass,
+            isHit: false,
+            isCrit: false,
+            damage: 0,
+          },
+        },
+      };
+    }
+
+    // 5. Damage Calculation using skill-based scaling
+    const basePower = spellDef.basePower ?? 20;
+    const magicBonus = Math.floor(skillLevel / 2);
+    let rawDamage = basePower + spellPower + magicBonus;
+
+    if (isCrit) {
+      rawDamage *= 2; // Critical hit double damage
+    }
+
+    const magicResistance = enemyDef?.defense ?? 2;
+    const mitigation = Math.floor(magicResistance / 2);
+    const finalDamage = Math.max(1, rawDamage - mitigation);
+
+    const newHp = Math.max(0, enemy.hp - finalDamage);
+    const critText = isCrit ? " Critical Hit!" : "";
+
     return {
+      roll,
+      totalAttack,
+      defenseValue: targetArmorClass,
       isHit: true,
+      isCrit,
+      damage: finalDamage,
       damageOrHealing: finalDamage,
       affectedTargets: [{ targetId, damage: finalDamage, newHp }],
       log: {
-        logmessage: `Player cast ${spellDef.name} on ${enemyName} for ${finalDamage} magical damage!`,
+        logmessage: `Rolled ${roll}${critText} (${totalAttack} vs AC ${targetArmorClass})! Cast ${spellDef.name} for ${finalDamage} magical damage to ${enemyName}.`,
         structuredResult: {
+          roll,
+          totalAttack,
+          targetId: enemy.instanceId ?? targetId,
+          targetPos: enemy.position,
+          defenseValue: targetArmorClass,
           isHit: true,
+          isCrit,
           damage: finalDamage,
         },
       },

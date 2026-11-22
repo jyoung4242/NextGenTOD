@@ -63,7 +63,7 @@ export class CombatStateMachine {
     return false;
   }
 
-  public processPlayerAction(action: CombatAction): void {
+  public async processPlayerAction(action: CombatAction): Promise<void> {
     const state = this.store.get();
     const encounter = state.game.encounter;
 
@@ -80,84 +80,223 @@ export class CombatStateMachine {
 
     // Track if we need to trigger an end cutscene after the batch commits
     let pendingCutsceneId: string | null = null;
+    let logMessage = "";
+    let rslt: any;
+    let updatedPlayerPos = encounter.playerPosition ?? state.player?.position;
+    console.log("[Combat action] ", action.type);
 
-    this.store.batch(ctx => {
-      let logMessage = "";
-      let rslt: any;
-      let updatedPlayerPos = encounter.playerPosition ?? state.player?.position;
-      console.log("[Combat action] ", action.type);
+    const stateUpdates: Array<(ctx: BatchContext<GameState>) => void> = [];
+    const ctx: BatchContext<GameState> = {
+      set: (path: any, value: any) => stateUpdates.push(c => c.set(path, value)),
+      update: (path: any, fn: any) => stateUpdates.push(c => c.update(path, fn)),
+      patch: (partial: any) => stateUpdates.push(c => c.patch(partial)),
+    };
 
-      switch (action.type) {
-        case "move": {
-          if (!action.targetTile) return;
+    switch (action.type) {
+      case "move": {
+        if (!action.targetTile) return;
 
-          if (this.isTileBlocked(action.targetTile.x, action.targetTile.y, state)) {
-            logMessage = `Movement blocked at (${action.targetTile.x}, ${action.targetTile.y})!`;
-            console.log(`[Combat Log] ${logMessage}`);
-            break;
-          }
-
-          updatedPlayerPos = { x: action.targetTile.x, y: action.targetTile.y };
-          logMessage = `Player moved to (${action.targetTile.x}, ${action.targetTile.y})`;
-          rslt = { logMessage };
+        if (this.isTileBlocked(action.targetTile.x, action.targetTile.y, state)) {
+          logMessage = `Movement blocked at (${action.targetTile.x}, ${action.targetTile.y})!`;
           console.log(`[Combat Log] ${logMessage}`);
           break;
         }
 
-        case "attack": {
-          if (!targetId || !enemy || !enemy.alive) return;
+        updatedPlayerPos = { x: action.targetTile.x, y: action.targetTile.y };
+        logMessage = `Player moved to (${action.targetTile.x}, ${action.targetTile.y})`;
+        rslt = { logMessage };
+        console.log(`[Combat Log] ${logMessage}`);
+        break;
+      }
 
-          // debugger;
+      case "attack": {
+        if (!targetId || !enemy || !enemy.alive) return;
+
+        const playerPos = encounter.playerPosition ?? state.player?.position;
+        const enemyPos = encounter.enemyPositions?.[targetId] ?? enemy.position;
+        const direction = vec(enemyPos.x - playerPos.x, enemyPos.y - playerPos.y).normalize();
+
+        if (playerPos && enemyPos) {
+          const distance =
+            Math.abs(Math.floor(playerPos.x) - Math.floor(enemyPos.x)) + Math.abs(Math.floor(playerPos.y) - Math.floor(enemyPos.y));
+          const maxMeleeRange = 1;
+
+          if (distance > maxMeleeRange) {
+            logMessage = `Target out of range! Move closer to attack. (Distance: ${distance})`;
+            console.log(`[Combat Log] ${logMessage}`);
+            break;
+          }
+        }
+
+        let scene = this.cutSceneSystem?.world.scene;
+        if (scene) {
+          const playerActor = scene.entities.find(entity => entity.name === "player") as EncounterPlayer;
+          const enemyActor = scene.entities.find(entity => entity.name === targetId) as EncounterEnemy;
+          if (playerActor) {
+            playerActor.playMeleeAnimation(direction, enemyActor);
+          }
+        }
+
+        const weaponSkill = this.getEquippedWeaponSkill();
+        const enemyDef = this.contentRegistry.getEnemy(enemy.definitionId);
+        const attackResult = CombatRulesEngine.resolveMeleeAttack(state.player, enemy, enemyDef, weaponSkill);
+        logMessage = attackResult.log.logmessage;
+        rslt = attackResult;
+        console.log(`[Combat Log] ${logMessage}`);
+
+        let newHp = enemy.hp;
+
+        if (attackResult.isHit && attackResult.damage > 0) {
+          newHp = Math.max(0, enemy.hp - attackResult.damage);
+          this.awardSkillXP(ctx, weaponSkill, 1);
+        }
+
+        const updatedEnemies: Record<string, EnemyState> = {
+          ...activeDungeonState.enemies,
+          [targetId]: {
+            ...enemy,
+            hp: newHp,
+            alive: newHp > 0,
+            state: newHp === 0 ? "dead" : enemy.state,
+          },
+        };
+
+        let newCurrentTargetId = encounter.currentTargetId;
+        if (newHp <= 0 && targetId === encounter.currentTargetId) {
+          const livingEnemyIds = (encounter.enemyInstanceIds ?? []).filter(id => {
+            const e = activeDungeonState.enemies?.[id];
+            return e && e.alive && e.hp > 0 && id !== targetId;
+          });
+          newCurrentTargetId = livingEnemyIds.length > 0 ? livingEnemyIds[0] : undefined;
+        }
+
+        ctx.set(`dungeon.registry.${activeDungeonId}.enemies` as any, updatedEnemies);
+
+        const updatedState: GameState = {
+          ...state,
+          dungeon: {
+            ...state.dungeon,
+            registry: {
+              ...state.dungeon.registry,
+              [activeDungeonId]: {
+                ...activeDungeonState,
+                enemies: updatedEnemies,
+              },
+            },
+          },
+        };
+
+        if (this.checkEncounterCompletion(ctx, updatedState)) {
+          pendingCutsceneId = "encounter-summary";
+          break; // Use break instead of return
+        }
+        break;
+      }
+
+      case "spell": {
+        if (!action.skillId) break;
+
+        const spellDef = this.contentRegistry.getSpell(action.skillId);
+        if (!spellDef) break;
+
+        const playerSkill = state.player.skills[spellDef.category] ?? { level: 1, xp: 0 };
+        if (playerSkill.level < spellDef.minLevelRequirement) {
+          logMessage = `Skill level too low! Requires ${spellDef.category} Lv.${spellDef.minLevelRequirement}.`;
+          break;
+        }
+
+        if ((state.player.mana ?? 100) < spellDef.manaCost) {
+          logMessage = "Not enough mana!";
+          break;
+        }
+
+        const updatedEnemies: Record<string, EnemyState> = { ...activeDungeonState.enemies };
+
+        if (spellDef.targetMode === "self") {
+          const healAmount = spellDef.basePower ?? 20;
+          const newHp = Math.min(state.player.maxHp, state.player.hp + healAmount);
+          ctx.set("player.hp", newHp);
+          ctx.set("player.mana", (state.player.mana ?? 100) - spellDef.manaCost);
+          this.awardSkillXP(ctx, spellDef.category, 1);
+          logMessage = `Player cast ${spellDef.name} on self and restored ${healAmount} HP!`;
+          rslt = {
+            isHit: true,
+            damage: 0,
+            damageOrHealing: healAmount,
+            affectedTargets: [],
+            log: {
+              logmessage: logMessage,
+              structuredResult: { isHit: true, damage: 0, healing: healAmount, targetId: "player" },
+            },
+          };
+          console.log(`[Combat Log] ${logMessage}`);
+        } else if (spellDef.targetMode === "direct_enemy" || spellDef.targetMode === "single_enemy") {
+          if (!targetId || !enemy || !enemy.alive) {
+            logMessage = `No target selected for ${spellDef.name}!`;
+            console.log(`[Combat Log] ${logMessage}`);
+            break;
+          }
 
           const playerPos = encounter.playerPosition ?? state.player?.position;
           const enemyPos = encounter.enemyPositions?.[targetId] ?? enemy.position;
-          const direction = vec(enemyPos.x - playerPos.x, enemyPos.y - playerPos.y).normalize();
-
-          if (playerPos && enemyPos) {
+          if (playerPos && enemyPos && spellDef.range !== undefined && spellDef.range > 0) {
             const distance =
               Math.abs(Math.floor(playerPos.x) - Math.floor(enemyPos.x)) + Math.abs(Math.floor(playerPos.y) - Math.floor(enemyPos.y));
-            const maxMeleeRange = 1;
-
-            if (distance > maxMeleeRange) {
-              logMessage = `Target out of range! Move closer to attack. (Distance: ${distance})`;
+            if (distance > spellDef.range) {
+              logMessage = `Target out of range for ${spellDef.name}! (Distance: ${distance}, Max Range: ${spellDef.range})`;
               console.log(`[Combat Log] ${logMessage}`);
               break;
             }
           }
 
+          const enemyDef = this.contentRegistry.getEnemy(enemy.definitionId);
+          const spellResult = CombatRulesEngine.resolveDirectSpell(state.player, spellDef, targetId, enemy, enemyDef);
+          logMessage = spellResult.log.logmessage;
+          rslt = spellResult;
+          console.log(`[Combat Log] ${logMessage}`);
+
+          // Deduct mana for attempting the spell
+          ctx.set("player.mana", (state.player.mana ?? 100) - spellDef.manaCost);
+
+          // Play spell animation
           let scene = this.cutSceneSystem?.world.scene;
-          debugger;
           if (scene) {
             const playerActor = scene.entities.find(entity => entity.name === "player") as EncounterPlayer;
             const enemyActor = scene.entities.find(entity => entity.name === targetId) as EncounterEnemy;
-            if (playerActor) {
-              playerActor.playMeleeAnimation(direction, enemyActor);
+            if (playerActor && enemyActor) {
+              const direction = enemyActor.pos.sub(playerActor.pos).normalize();
+              const isHit = spellResult.isHit && (spellResult.damage ?? 0) > 0;
+              const fctColor = isHit ? (spellResult.isCrit ? "yellow" : "red") : "white";
+              const fctText = isHit ? (spellResult.isCrit ? `Crit! -${spellResult.damage}` : `-${spellResult.damage}`) : "Missed!";
+
+              await this.cutSceneSystem?.startCutScene("combat-magic-attack", {
+                mode: "magic",
+                spell: spellDef,
+                actor: playerActor,
+                direction,
+                target: enemyActor,
+                position: playerActor.pos,
+                velocity: direction.scale(200),
+                texture: spellDef.bulletTextureKey ?? "fireball",
+                isHit: spellResult.isHit,
+                isCrit: spellResult.isCrit,
+                text: fctText,
+                gridX: enemyPos.x,
+                gridY: enemyPos.y,
+                color: fctColor,
+              });
             }
           }
 
-          const weaponSkill = this.getEquippedWeaponSkill();
-          const enemyDef = this.contentRegistry.getEnemy(enemy.definitionId);
-          const attackResult = CombatRulesEngine.resolveMeleeAttack(state.player, enemy, enemyDef, weaponSkill);
-          logMessage = attackResult.log.logmessage;
-          rslt = attackResult;
-          console.log(`[Combat Log] ${logMessage}`);
+          console.log(`Proceeding past cutscene for spell ${spellDef.name} on target ${targetId}`);
 
           let newHp = enemy.hp;
 
-          if (attackResult.isHit && attackResult.damage > 0) {
-            newHp = Math.max(0, enemy.hp - attackResult.damage);
-            this.awardSkillXP(ctx, weaponSkill, 1);
+          if (spellResult.isHit && (spellResult.damage ?? 0) > 0) {
+            const damage = spellResult.damage ?? 0;
+            newHp = Math.max(0, enemy.hp - damage);
+            this.awardSkillXP(ctx, spellDef.category, 1);
           }
-
-          const updatedEnemies: Record<string, EnemyState> = {
-            ...activeDungeonState.enemies,
-            [targetId]: {
-              ...enemy,
-              hp: newHp,
-              alive: newHp > 0,
-              state: newHp === 0 ? "dead" : enemy.state,
-            },
-          };
 
           let newCurrentTargetId = encounter.currentTargetId;
           if (newHp <= 0 && targetId === encounter.currentTargetId) {
@@ -168,268 +307,215 @@ export class CombatStateMachine {
             newCurrentTargetId = livingEnemyIds.length > 0 ? livingEnemyIds[0] : undefined;
           }
 
-          ctx.set(`dungeon.registry.${activeDungeonId}.enemies` as any, updatedEnemies);
-
-          const updatedState: GameState = {
-            ...state,
-            dungeon: {
-              ...state.dungeon,
-              registry: {
-                ...state.dungeon.registry,
-                [activeDungeonId]: {
-                  ...activeDungeonState,
-                  enemies: updatedEnemies,
-                },
-              },
-            },
+          updatedEnemies[targetId] = {
+            ...enemy,
+            hp: newHp,
+            alive: newHp > 0,
+            state: newHp === 0 ? "dead" : enemy.state,
           };
 
-          if (this.checkEncounterCompletion(ctx, updatedState)) {
-            pendingCutsceneId = "encounter-summary";
-            break; // Use break instead of return
-          }
-          break;
-        }
-
-        case "spell": {
-          if (!action.skillId) break;
-
-          const spellDef = this.contentRegistry.getSpell(action.skillId);
-          if (!spellDef) break;
-
-          const playerSkill = state.player.skills[spellDef.category] ?? { level: 1, xp: 0 };
-          if (playerSkill.level < spellDef.minLevelRequirement) {
-            logMessage = `Skill level too low! Requires ${spellDef.category} Lv.${spellDef.minLevelRequirement}.`;
-            break;
-          }
-
-          if ((state.player.mana ?? 100) < spellDef.manaCost) {
-            logMessage = "Not enough mana!";
-            break;
-          }
-
-          const updatedEnemies: Record<string, EnemyState> = { ...activeDungeonState.enemies };
-
-          if (spellDef.targetMode === "self") {
-            const newHp = Math.min(state.player.maxHp, state.player.hp + spellDef.basePower);
-            ctx.set("player.hp", newHp);
-            logMessage = `Player cast ${spellDef.name} on self for ${spellDef.basePower} healing!`;
-            rslt = { logMessage };
-          } else if (spellDef.targetMode === "direct_enemy" || spellDef.targetMode === "single_enemy") {
-            if (!targetId || !enemy) {
-              logMessage = `No target selected for ${spellDef.name}!`;
-              break;
-            }
-
-            const enemyDef = this.contentRegistry.getEnemy(enemy.definitionId);
-            const spellResult = CombatRulesEngine.resolveDirectSpell(state.player, spellDef, targetId, enemy, enemyDef);
-            logMessage = spellResult.log.logmessage;
-            rslt = spellResult;
-
-            const targetOutcome = spellResult.affectedTargets[0];
-            if (targetOutcome) {
-              updatedEnemies[targetId] = {
-                ...enemy,
-                hp: targetOutcome.newHp,
-                alive: targetOutcome.newHp > 0,
-                state: targetOutcome.newHp === 0 ? "dead" : enemy.state,
-              };
-            }
-
-            ctx.set(`dungeon.registry.${activeDungeonId}.enemies` as any, updatedEnemies);
-          } else if (spellDef.targetMode === "aoe" || spellDef.targetMode === "party") {
-            const spellResult = CombatRulesEngine.resolveAoeSpell(
-              state.player,
-              spellDef,
-              activeDungeonState.enemies,
-              enemyIds,
-              this.contentRegistry,
-            );
-            logMessage = spellResult.log.logmessage;
-            rslt = spellResult;
-
-            for (const targetOutcome of spellResult.affectedTargets) {
-              const targetEnemy = updatedEnemies[targetOutcome.targetId];
-              if (targetEnemy) {
-                updatedEnemies[targetOutcome.targetId] = {
-                  ...targetEnemy,
-                  hp: targetOutcome.newHp,
-                  alive: targetOutcome.newHp > 0,
-                  state: targetOutcome.newHp === 0 ? "dead" : targetEnemy.state,
-                };
-              }
-            }
-
-            ctx.set(`dungeon.registry.${activeDungeonId}.enemies` as any, updatedEnemies);
-          }
+          ctx.set(`dungeon.registry.${activeDungeonId}.enemies` as any, updatedEnemies);
+        } else if (spellDef.targetMode === "aoe" || spellDef.targetMode === "party") {
+          const spellResult = CombatRulesEngine.resolveAoeSpell(
+            state.player,
+            spellDef,
+            activeDungeonState.enemies,
+            enemyIds,
+            this.contentRegistry,
+          );
+          logMessage = spellResult.log.logmessage;
+          rslt = spellResult;
+          console.log(`[Combat Log] ${logMessage}`);
 
           ctx.set("player.mana", (state.player.mana ?? 100) - spellDef.manaCost);
-          this.awardSkillXP(ctx, spellDef.category, 1);
-
-          const updatedState: GameState = {
-            ...state,
-            dungeon: {
-              ...state.dungeon,
-              registry: {
-                ...state.dungeon.registry,
-                [activeDungeonId]: {
-                  ...activeDungeonState,
-                  enemies: updatedEnemies,
-                },
-              },
-            },
-          };
-
-          if (this.checkEncounterCompletion(ctx, updatedState)) {
-            pendingCutsceneId = "encounter-summary";
-            break;
-          }
-          break;
-        }
-
-        case "skill": {
-          if (!targetId || !enemy || !enemy.alive) return;
-
-          const skillId = action.skillId ?? "fireball";
-          const spellDamage = 20;
-          const newHp = Math.max(0, enemy.hp - spellDamage);
-
-          logMessage = `Player cast ${skillId} on enemy for ${spellDamage} damage!`;
-          console.log(`[Combat Log] ${logMessage}`);
-
-          this.awardSkillXP(ctx, "destruction", 1);
-
-          const updatedEnemies: Record<string, EnemyState> = {
-            ...activeDungeonState.enemies,
-            [targetId]: {
-              ...enemy,
-              hp: newHp,
-              alive: newHp > 0,
-              state: newHp === 0 ? "dead" : enemy.state,
-            },
-          };
-
-          ctx.set(`dungeon.registry.${activeDungeonId}.enemies` as any, updatedEnemies);
-
-          const updatedState: GameState = {
-            ...state,
-            dungeon: {
-              ...state.dungeon,
-              registry: {
-                ...state.dungeon.registry,
-                [activeDungeonId]: {
-                  ...activeDungeonState,
-                  enemies: updatedEnemies,
-                },
-              },
-            },
-          };
-
-          if (this.checkEncounterCompletion(ctx, updatedState)) {
-            pendingCutsceneId = "encounter-summary";
-            break;
-          }
-          break;
-        }
-
-        case "item": {
-          const itemId = action.itemId ?? "health_potion";
-          const healAmount = 25;
-          const newPlayerHp = Math.min(state.player.maxHp, state.player.hp + healAmount);
-
-          ctx.set("player.hp", newPlayerHp);
-          logMessage = `Player used ${itemId} and restored ${healAmount} HP!`;
-          console.log(`[Combat Log] ${logMessage}`);
-          break;
-        }
-
-        // Replace case "throw" inside CombatStateMachine.ts
-        case "throw": {
-          if (!targetId || !enemy || !enemy.alive) {
-            logMessage = "No valid target for throw!";
-            break;
+          if (spellResult.isHit && spellResult.affectedTargets.length > 0) {
+            this.awardSkillXP(ctx, spellDef.category, 1);
           }
 
-          const itemId = action.itemId ?? "throwing_dagger";
-
-          // Optional: Check if player has the item in inventory and decrement it
-          // const inventory = state.player.inventory ?? [];
-          // const hasItem = inventory.some(i => i.id === itemId && i.quantity > 0);
-          // if (!hasItem) {
-          //   logMessage = `You don't have any ${itemId} left to throw!`;
-          //   break;
-          // }
-
-          const enemyDef = this.contentRegistry.getEnemy(enemy.definitionId);
-          const throwResult = CombatRulesEngine.resolveThrow(state.player, itemId, targetId, enemy, enemyDef);
-
-          logMessage = throwResult.log.logmessage;
-          rslt = throwResult;
-          console.log(`[Combat Log] ${logMessage}`);
-
-          const updatedEnemies: Record<string, EnemyState> = { ...activeDungeonState.enemies };
-
-          if (throwResult.isHit && throwResult.damage > 0) {
-            const targetOutcome = throwResult.affectedTargets[0];
-            if (targetOutcome) {
-              updatedEnemies[targetId] = {
-                ...enemy,
+          for (const targetOutcome of spellResult.affectedTargets) {
+            const targetEnemy = updatedEnemies[targetOutcome.targetId];
+            if (targetEnemy) {
+              updatedEnemies[targetOutcome.targetId] = {
+                ...targetEnemy,
                 hp: targetOutcome.newHp,
                 alive: targetOutcome.newHp > 0,
-                state: targetOutcome.newHp === 0 ? "dead" : enemy.state,
+                state: targetOutcome.newHp === 0 ? "dead" : targetEnemy.state,
               };
             }
           }
 
           ctx.set(`dungeon.registry.${activeDungeonId}.enemies` as any, updatedEnemies);
+        }
 
-          // Optional: Deduct item from inventory state here if desired
-
-          const updatedState: GameState = {
-            ...state,
-            dungeon: {
-              ...state.dungeon,
-              registry: {
-                ...state.dungeon.registry,
-                [activeDungeonId]: {
-                  ...activeDungeonState,
-                  enemies: updatedEnemies,
-                },
+        const updatedState: GameState = {
+          ...state,
+          dungeon: {
+            ...state.dungeon,
+            registry: {
+              ...state.dungeon.registry,
+              [activeDungeonId]: {
+                ...activeDungeonState,
+                enemies: updatedEnemies,
               },
             },
-          };
+          },
+        };
 
-          if (this.checkEncounterCompletion(ctx, updatedState)) {
-            pendingCutsceneId = "encounter-summary";
-            break;
+        if (this.checkEncounterCompletion(ctx, updatedState)) {
+          pendingCutsceneId = "encounter-summary";
+          break;
+        }
+        break;
+      }
+
+      case "skill": {
+        if (!targetId || !enemy || !enemy.alive) return;
+
+        const skillId = action.skillId ?? "fireball";
+        const spellDamage = 20;
+        const newHp = Math.max(0, enemy.hp - spellDamage);
+
+        logMessage = `Player cast ${skillId} on enemy for ${spellDamage} damage!`;
+        console.log(`[Combat Log] ${logMessage}`);
+
+        this.awardSkillXP(ctx, "destruction", 1);
+
+        const updatedEnemies: Record<string, EnemyState> = {
+          ...activeDungeonState.enemies,
+          [targetId]: {
+            ...enemy,
+            hp: newHp,
+            alive: newHp > 0,
+            state: newHp === 0 ? "dead" : enemy.state,
+          },
+        };
+
+        ctx.set(`dungeon.registry.${activeDungeonId}.enemies` as any, updatedEnemies);
+
+        const updatedState: GameState = {
+          ...state,
+          dungeon: {
+            ...state.dungeon,
+            registry: {
+              ...state.dungeon.registry,
+              [activeDungeonId]: {
+                ...activeDungeonState,
+                enemies: updatedEnemies,
+              },
+            },
+          },
+        };
+
+        if (this.checkEncounterCompletion(ctx, updatedState)) {
+          pendingCutsceneId = "encounter-summary";
+          break;
+        }
+        break;
+      }
+
+      case "item": {
+        const itemId = action.itemId ?? "health_potion";
+        const healAmount = 25;
+        const newPlayerHp = Math.min(state.player.maxHp, state.player.hp + healAmount);
+
+        ctx.set("player.hp", newPlayerHp);
+        logMessage = `Player used ${itemId} and restored ${healAmount} HP!`;
+        console.log(`[Combat Log] ${logMessage}`);
+        break;
+      }
+
+      // Replace case "throw" inside CombatStateMachine.ts
+      case "throw": {
+        if (!targetId || !enemy || !enemy.alive) {
+          logMessage = "No valid target for throw!";
+          break;
+        }
+
+        const itemId = action.itemId ?? "throwing_dagger";
+
+        // Optional: Check if player has the item in inventory and decrement it
+        // const inventory = state.player.inventory ?? [];
+        // const hasItem = inventory.some(i => i.id === itemId && i.quantity > 0);
+        // if (!hasItem) {
+        //   logMessage = `You don't have any ${itemId} left to throw!`;
+        //   break;
+        // }
+
+        const enemyDef = this.contentRegistry.getEnemy(enemy.definitionId);
+        const throwResult = CombatRulesEngine.resolveThrow(state.player, itemId, targetId, enemy, enemyDef);
+
+        logMessage = throwResult.log.logmessage;
+        rslt = throwResult;
+        console.log(`[Combat Log] ${logMessage}`);
+
+        const updatedEnemies: Record<string, EnemyState> = { ...activeDungeonState.enemies };
+
+        if (throwResult.isHit && throwResult.damage > 0) {
+          const targetOutcome = throwResult.affectedTargets[0];
+          if (targetOutcome) {
+            updatedEnemies[targetId] = {
+              ...enemy,
+              hp: targetOutcome.newHp,
+              alive: targetOutcome.newHp > 0,
+              state: targetOutcome.newHp === 0 ? "dead" : enemy.state,
+            };
           }
-          break;
         }
 
-        case "defend": {
-          logMessage = "Player takes a defensive stance, raising block readiness.";
-          console.log(`[Combat Log] ${logMessage}`);
-          this.awardSkillXP(ctx, "block", 1);
+        ctx.set(`dungeon.registry.${activeDungeonId}.enemies` as any, updatedEnemies);
+
+        // Optional: Deduct item from inventory state here if desired
+
+        const updatedState: GameState = {
+          ...state,
+          dungeon: {
+            ...state.dungeon,
+            registry: {
+              ...state.dungeon.registry,
+              [activeDungeonId]: {
+                ...activeDungeonState,
+                enemies: updatedEnemies,
+              },
+            },
+          },
+        };
+
+        if (this.checkEncounterCompletion(ctx, updatedState)) {
+          pendingCutsceneId = "encounter-summary";
           break;
         }
+        break;
+      }
 
-        case "flee": {
-          logMessage = "Player fled from combat!";
-          console.log(`[Combat Log] ${logMessage}`);
-          ctx.set("game.encounter", {
-            ...encounter,
-            isResolved: true,
-            combatLog: [...encounter.combatLog, logMessage],
-          });
+      case "defend": {
+        logMessage = "Player takes a defensive stance, raising block readiness.";
+        console.log(`[Combat Log] ${logMessage}`);
+        this.awardSkillXP(ctx, "block", 1);
+        break;
+      }
 
-          pendingCutsceneId = "encounter-flee";
-          break;
-        }
+      case "flee": {
+        logMessage = "Player fled from combat!";
+        console.log(`[Combat Log] ${logMessage}`);
+        ctx.set("game.encounter", {
+          ...encounter,
+          isResolved: true,
+          combatLog: [...encounter.combatLog, logMessage],
+        });
+
+        pendingCutsceneId = "encounter-flee";
+        break;
+      }
+    }
+
+    this.store.batch(realCtx => {
+      for (const update of stateUpdates) {
+        update(realCtx);
       }
 
       // Only set turn to enemy if the encounter hasn't been completed/resolved
       if (!pendingCutsceneId) {
-        ctx.set("game.encounter", {
+        realCtx.set("game.encounter", {
           ...encounter,
           playerPosition: updatedPlayerPos,
           currentTurn: "enemy",
@@ -441,11 +527,11 @@ export class CombatStateMachine {
     // 🚀 Trigger the end cutscene AFTER the batch has successfully committed to the store
     if (pendingCutsceneId) {
       console.log(`[Combat Log] Triggering end cutscene: ${pendingCutsceneId}`);
-      this.triggerEndCutscene(pendingCutsceneId);
+      await this.triggerEndCutscene(pendingCutsceneId);
     }
   }
 
-  public processEnemyAction(enemyInstanceId: string, action: CombatAction): void {
+  public async processEnemyAction(enemyInstanceId: string, action: CombatAction): Promise<void> {
     const state = this.store.get();
     const encounter = state.game.encounter;
 
@@ -535,7 +621,7 @@ export class CombatStateMachine {
 
     // 🚀 Trigger the defeat cutscene BEFORE heading to game over
     if (pendingCutsceneId) {
-      this.handleDefeatSequence(pendingCutsceneId);
+      await this.handleDefeatSequence(pendingCutsceneId);
     }
   }
   private async handleDefeatSequence(cutsceneId: string): Promise<void> {

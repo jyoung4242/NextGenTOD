@@ -56,7 +56,7 @@ export class DungeonScene extends Scene {
 
   constructor(
     private readonly state: StateStore<GameState>,
-    private readonly content: ContentRegistry,
+    public readonly content: ContentRegistry,
     private readonly inputMapper: InputMapSystem,
   ) {
     super();

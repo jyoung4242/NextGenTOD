@@ -17,10 +17,14 @@ import { DialogUI } from "../../UI/DialogUI";
 import { EncounterTriggerSystem } from "../Systems/EncounterTrigger";
 import { DialogAction } from "./actions/DialogJSONaction";
 import { StateStore } from "../../GameState";
-import { CutsceneTriggerDefinition, GameMode, GameState } from "../../GameTypes";
+import { CutsceneTriggerDefinition, GameMode, GameState, SpellDefinition } from "../../GameTypes";
 import { DungeonScene } from "../../Scenes/DungeonScene";
 import { QuestManager } from "./QuestManager";
 import { DialogJSONActionFromObject } from "./actions/DialogJSONfromobject";
+import { BulletActor } from "../../Actors/BulletActor";
+import { EncounterScene } from "../../Scenes/EncounterScene";
+import { EncounterPlayer } from "../../Actors/EncounterPlayer";
+import { EncounterEnemy } from "../../Actors/EncounterEnemy";
 
 // ==========================================
 // 1. Types & Manifest Interfaces
@@ -40,6 +44,7 @@ export interface CutsceneContext {
   engine: Engine;
   camera: Camera;
   system: CutSceneSystem;
+  params?: Record<string, any>;
 }
 
 export type CommandImplementation = (args: Record<string, any>, ctx: CutsceneContext) => Promise<void>;
@@ -114,6 +119,10 @@ export class CutSceneSystem extends System {
     this.registerCoreCommands();
   }
 
+  getCutscenes(): Map<string, CutsceneManifest> {
+    return this.registeredCutScenes;
+  }
+
   init() {
     this.world.scene.add(this.director);
   }
@@ -179,7 +188,7 @@ export class CutSceneSystem extends System {
     return sequence;
   }
 
-  public async startCutScene(cutsceneId: string): Promise<void> {
+  public async startCutScene(cutsceneId: string, params?: Record<string, any>): Promise<void> {
     if (this.isPlaying) return;
 
     const manifest = this.registeredCutScenes.get(cutsceneId);
@@ -192,6 +201,7 @@ export class CutSceneSystem extends System {
       engine: this.engine,
       camera: this.camera,
       system: this,
+      params,
     };
 
     console.log(`[CutSceneSystem] Starting cutscene: ${cutsceneId}`);
@@ -199,9 +209,8 @@ export class CutSceneSystem extends System {
       // CRITICAL: We use a standard for...of loop and 'await' each step
       for (const command of manifest.commands) {
         if (!this.isPlaying) break; // Break out if someone skips or cancels
-
         const impl = this.commandRegistry.get(command.type);
-
+        console.log(`[CutSceneSystem] Executing command: ${command.type}`, impl ? "Found implementation" : "No implementation found");
         if (impl) {
           await impl(command.args, context);
         }
@@ -436,6 +445,87 @@ export class CutSceneSystem extends System {
     this.registerCommand("start_quest", async (args, context) => {
       const { questId } = args;
       this.questMgr.startQuest(questId);
+    });
+
+    // Register the magic animation sequence
+
+    this.registerCommand("play-actor-animation", async (args, ctx) => {
+      console.log("play-actor-animation command invoked with args:", args, "and ctx:", ctx);
+      //@ts-ignore
+      let { mode, actor, direction, target, spell } = ctx.params;
+      console.log(`Actor: ${actor}, Mode: ${mode}, Direction: ${direction}, Target: ${target}, Spell: ${spell.charge}`);
+      if (actor instanceof EncounterPlayer) {
+        if (mode == "magic") {
+          await actor.playMagicAnimation(direction, target, (spell as SpellDefinition).chargeAnimationKey!);
+        } else if (mode == "melee") {
+          await actor.playMeleeAnimation(direction, target);
+        }
+      }
+    });
+
+    this.registerCommand("play-enemy-animation", async (args, ctx) => {
+      console.log("play-enemy-animation command invoked with args:", args, "and ctx:", ctx);
+      //@ts-ignore
+      let { target, isHit, spell } = ctx.params ?? {};
+
+      if (isHit === false) {
+        console.log("Attack/spell missed, skipping enemy hit animation.");
+        return;
+      }
+      if (target instanceof EncounterEnemy) {
+        let animation = target.playHitAnimation((spell as SpellDefinition).hitAnimationKey!);
+        return new Promise<void>(resolve => {
+          if (animation) {
+            animation.events.once("end", () => {
+              console.log(`Enemy animation ended, resolving cutscene command.`);
+              animation.reset();
+              resolve();
+            });
+          } else {
+            console.warn(`No animation returned from playHitAnimation for target:`, target);
+            resolve();
+          }
+        });
+      }
+    });
+
+    this.registerCommand("spawn-bullet", async (args, ctx) => {
+      console.log("spawn-bullet command invoked with args:", args, "and ctx:", ctx);
+      // params for spawn-bullet is position, velocity, and texture
+      //@ts-ignore
+      const { position, velocity, texture } = ctx.params;
+      if (!position || !velocity || !texture) return;
+      // Spawn the bullet in the world at the specified position with the given velocity and texture
+      // This is a placeholder for the actual implementation
+      console.log(`Spawning bullet at ${position} with velocity ${velocity} and texture ${texture}`);
+      let scene = this.world.scene;
+      let content;
+      if (scene instanceof EncounterScene) {
+        content = scene.contentRegistry;
+      } else if (scene instanceof DungeonScene) {
+        content = scene.content;
+      }
+      if (!content) return;
+      let bullet = new BulletActor(content, position.x, position.y, velocity.x, velocity.y, texture);
+      scene.add(bullet);
+
+      return new Promise<void>(resolve => {
+        // bullet needs to meet target or go offscreen to resolve
+        bullet.once("kill", () => {
+          console.log(`Bullet killed, resolving cutscene command.`);
+          resolve();
+        });
+      });
+    });
+
+    this.registerCommand("spawn-fct", async (args, ctx) => {
+      console.log("spawn-fct command invoked with args:", args, "and ctx:", ctx);
+      //@ts-ignore
+      let { text, gridX, gridY, color } = ctx.params;
+      let scene = this.world.scene;
+      if (scene instanceof EncounterScene) {
+        scene.spawnFloatingText(text, gridX, gridY, color);
+      }
     });
 
     this.registerCommand("parallel", async (args, ctx) => {
