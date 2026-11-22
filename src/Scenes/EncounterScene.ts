@@ -65,7 +65,7 @@ export class EncounterScene extends Scene {
 
   constructor(
     private readonly store: StateStore<GameState>,
-    private readonly contentRegistry: ContentRegistry,
+    public readonly contentRegistry: ContentRegistry,
     private readonly inputMapper: InputMapSystem,
   ) {
     super();
@@ -162,10 +162,12 @@ export class EncounterScene extends Scene {
 
     // Register all cutscenes dynamically from ContentRegistry
     for (const [id, manifest] of this.contentRegistry.cutscenes.entries()) {
+      console.log(`[EncounterScene] Registering cutscene: ${id}`, manifest);
       this.cutSceneSystem.registerCutScene(id, manifest);
     }
 
     // Register End-of-Encounter Victory/Summary Cutscene Manifest
+
     this.cutSceneSystem.registerCutScene("encounter-summary", {
       id: "encounter-summary",
       commands: [
@@ -176,6 +178,16 @@ export class EncounterScene extends Scene {
       ],
     });
 
+    // this.cutSceneSystem.registerCutScene("combat-magic-attack", {
+    //   id: "combat-magic-attack",
+    //   commands: [
+    //     {
+    //       type: "combat-magic-attack",
+    //       args: {},
+    //     },
+    //   ],
+    // });
+    console.log("[EncounterScene] Registered cutscenes:", Array.from(this.cutSceneSystem.getCutscenes().keys()));
     // Register Flee Cutscene Manifest
     this.cutSceneSystem.registerCutScene("encounter-flee", {
       id: "encounter-flee",
@@ -231,6 +243,7 @@ export class EncounterScene extends Scene {
 
     // Listen for changes to encounter state
     this.unubscribeStore = this.store.subscribe("game.encounter", payload => {
+      console.log(`[EncounterScene] Encounter state updated:`, payload.value);
       this.updateActorPositions();
 
       if (this.gridRenderer && (this.gridRenderer as any).gridGraphic) {
@@ -768,34 +781,51 @@ export class EncounterScene extends Scene {
     const encounter = state.game.encounter;
     if (!encounter) return;
 
+    const activeDungeonId = state.dungeon.current;
+    const activeDungeonState = state.dungeon.registry?.[activeDungeonId] as DungeonState | undefined;
+    const getEnemyPos = (id?: string) => {
+      if (!id) return undefined;
+      return encounter.enemyPositions?.[id] ?? activeDungeonState?.enemies?.[id]?.position;
+    };
+
     const playerPos = encounter.playerPosition ?? state.player?.position;
 
     if (typeof logEntry === "object" && logEntry !== null) {
+      const isCrit = Boolean(logEntry.isCrit || logEntry.log?.structuredResult?.isCrit);
+
       if (Array.isArray(logEntry.affectedTargets) && logEntry.affectedTargets.length > 0) {
         for (const targetHit of logEntry.affectedTargets) {
-          const targetPos = encounter.enemyPositions?.[targetHit.targetId];
+          const targetPos = getEnemyPos(targetHit.targetId);
           if (targetPos && targetHit.damage > 0) {
-            this.spawnFloatingText(`-${targetHit.damage}`, targetPos.x, targetPos.y, Color.Red);
+            const text = isCrit ? `Crit! -${targetHit.damage}` : `-${targetHit.damage}`;
+            const color = isCrit ? Color.Yellow : Color.Red;
+            this.spawnFloatingText(text, targetPos.x, targetPos.y, color);
           }
         }
         return;
-      } else if (!logEntry.isHit && logEntry.damage == 0) {
-        const targetPos = logEntry.log?.structuredResult?.targetPos;
+      } else if (logEntry.isHit === false && (logEntry.damage === 0 || logEntry.damageOrHealing === 0)) {
+        const targetId = logEntry.log?.structuredResult?.targetId ?? encounter.currentTargetId ?? encounter.activeEnemyInstanceId;
+        const targetPos = logEntry.log?.structuredResult?.targetPos ?? getEnemyPos(targetId);
         if (targetPos) {
           this.spawnFloatingText(`Missed!`, targetPos.x, targetPos.y, Color.White);
+          return;
         }
       }
 
-      if (logEntry.structuredResult) {
-        const { damage, isHit } = logEntry.structuredResult;
-        const targetId = encounter.currentTargetId ?? encounter.activeEnemyInstanceId;
-        const targetPos = targetId ? encounter.enemyPositions?.[targetId] : undefined;
+      const structured = logEntry.structuredResult ?? logEntry.log?.structuredResult;
+      if (structured) {
+        const { damage, isHit, isCrit: structCrit } = structured;
+        const targetId = structured.targetId ?? encounter.currentTargetId ?? encounter.activeEnemyInstanceId;
+        const targetPos = structured.targetPos ?? getEnemyPos(targetId);
 
         if (targetPos && isHit && damage > 0) {
-          this.spawnFloatingText(`-${damage}`, targetPos.x, targetPos.y, Color.Red);
+          const text = (isCrit || structCrit) ? `Crit! -${damage}` : `-${damage}`;
+          const color = (isCrit || structCrit) ? Color.Yellow : Color.Red;
+          this.spawnFloatingText(text, targetPos.x, targetPos.y, color);
           return;
         } else if (targetPos && !isHit) {
           this.spawnFloatingText(`Missed!`, targetPos.x, targetPos.y, Color.White);
+          return;
         }
       }
     }
@@ -804,16 +834,19 @@ export class EncounterScene extends Scene {
     if (!message) return;
 
     const targetId = encounter.currentTargetId ?? encounter.activeEnemyInstanceId;
-    const targetPos = targetId ? encounter.enemyPositions?.[targetId] : undefined;
+    const targetPos = getEnemyPos(targetId);
 
-    const damageMatch = message.match(/for\s+(\d+)\s+damage/i);
+    const damageMatch = message.match(/(?:for|dealt)\s+(\d+)\s+(?:magical\s+)?damage/i);
     if (damageMatch && targetPos) {
       const damageVal = damageMatch[1];
-      this.spawnFloatingText(`-${damageVal}`, targetPos.x, targetPos.y, Color.Red);
+      const isCrit = /critical\s+hit/i.test(message);
+      const text = isCrit ? `Crit! -${damageVal}` : `-${damageVal}`;
+      const color = isCrit ? Color.Yellow : Color.Red;
+      this.spawnFloatingText(text, targetPos.x, targetPos.y, color);
       return;
     }
 
-    const healMatch = message.match(/restored\s+(\d+)\s+HP/i);
+    const healMatch = message.match(/restored\s+(\d+)\s+HP/i) || message.match(/for\s+(\d+)\s+healing/i);
     if (healMatch && playerPos) {
       const healVal = healMatch[1];
       this.spawnFloatingText(`+${healVal}`, playerPos.x, playerPos.y, Color.Green);

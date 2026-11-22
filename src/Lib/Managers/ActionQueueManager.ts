@@ -65,9 +65,9 @@ export class ActionQueueManager {
       if (!current) break;
 
       if (current.participantType === "player") {
-        this.stateMachine.processPlayerAction(current.action);
+        await this.stateMachine.processPlayerAction(current.action);
       } else {
-        this.stateMachine.processEnemyAction(current.actorId, current.action);
+        await this.stateMachine.processEnemyAction(current.actorId, current.action);
       }
 
       // ─── ADD THIS: Refresh visual actor positions and grid after every tick ───

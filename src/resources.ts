@@ -1,5 +1,5 @@
 // resources.ts
-import { ImageSource, Loader, SpriteSheet } from "excalibur";
+import { ImageSource, Loader, SpriteSheet, Animation } from "excalibur";
 import goblin from "./Assets/goblinsmall.png"; // replace this
 import goblinLarge from "./Assets/goblin_bb.png"; // replace this
 import goblinToken from "./Assets/goblin_token.png"; // replace this
@@ -23,8 +23,14 @@ import stone3 from "./Assets/wall3.png";
 import stone4 from "./Assets/wall4.png";
 import lightning from "./Assets/lightning.png"; // replace this
 import fireball from "./Assets/fireball.png"; // replace this\
+import fireballCharge from "./Assets/fireballCharge.png";
 import cancel from "./Assets/cancel.png";
 import meleeSSIMG from "./Assets/meleeSS.png";
+import fireballBullet from "./Assets/fireball_bullet.png";
+import fireballHit from "./Assets/Fire_Impact.png";
+import lightningBullet from "./Assets/lightning_bullet.png";
+import lightningHit from "./Assets/lightning_impact.png";
+import lightingCharge from "./Assets/lightningCharge.png";
 
 export const Resources = {
   goblin: new ImageSource(goblin),
@@ -52,6 +58,12 @@ export const Resources = {
   fireball: new ImageSource(fireball),
   cancel: new ImageSource(cancel),
   meleeSS: new ImageSource(meleeSSIMG),
+  fireballCharge: new ImageSource(fireballCharge),
+  fireballBullet: new ImageSource(fireballBullet),
+  fireballHit: new ImageSource(fireballHit),
+  lightningBullet: new ImageSource(lightningBullet),
+  lightningHit: new ImageSource(lightningHit),
+  lightningCharge: new ImageSource(lightingCharge),
 };
 
 export const loader = new Loader();

@@ -1,0 +1,8 @@
+{
+  "id": "combat-magic-attack",
+  "commands": [
+    { "type": "play-actor-animation", "args": {} },
+    { "type": "spawn-bullet", "args": {} },
+    { "type": "play-enemy-animation", "args": {} }
+  ]
+}

@@ -1,5 +1,6 @@
-import { Action, Actor, Sprite, Vector, nextActionId, vec } from "excalibur";
+import { Action, Actor, Sprite, Vector, nextActionId, vec, Animation } from "excalibur";
 import { Resources } from "../resources";
+import { getAnimationByKey } from "../Animations/animationRegistry";
 
 class enemyShakeAction implements Action {
   public id = nextActionId();
@@ -35,14 +36,31 @@ class enemyShakeAction implements Action {
 
 export class EncounterEnemy extends Actor {
   enemyId: string;
+  effectChild: Actor | null = null;
+
   constructor(pos: Vector, width: number, height: number, sprite: Sprite, enemyId: string) {
     super({ name: enemyId, pos, width, height });
     this.enemyId = enemyId;
     // const enemyImg = Resources.goblinToken.toSprite();
     this.graphics.use(sprite);
+    this.effectChild = new Actor({
+      pos: vec(0, 0),
+      width: 64,
+      height: 64,
+    });
+    this.addChild(this.effectChild);
   }
 
-  playHitAnimation(): void {
+  playHitAnimation(animationKey?: string): Animation | undefined {
     this.actions.runAction(new enemyShakeAction(this));
+    debugger;
+    if (animationKey) {
+      let anim = getAnimationByKey(animationKey);
+      console.log(`Playing hit animation for enemy ${this.enemyId} with animationKey: ${animationKey}`);
+      if (anim && this.effectChild) {
+        this.effectChild?.graphics.use(anim);
+        return anim;
+      }
+    }
   }
 }

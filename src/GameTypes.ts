@@ -299,6 +299,9 @@ export interface SpellDefinition {
   range: number;
   description: string;
   textureKey?: string;
+  bulletTextureKey?: string;
+  chargeAnimationKey?: string;
+  hitAnimationKey?: string;
 }
 
 export interface SkillState {

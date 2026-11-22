@@ -14,6 +14,9 @@ export const SPELL_DEFINITIONS: SpellDefinition[] = [
     range: 4,
     description: "Hurls a blazing sphere of fire at a single enemy.",
     textureKey: "fireball",
+    bulletTextureKey: "fireball_bullet",
+    chargeAnimationKey: "fireballCharge",
+    hitAnimationKey: "fireballHit",
   },
   {
     id: "lightning",
@@ -26,6 +29,9 @@ export const SPELL_DEFINITIONS: SpellDefinition[] = [
     range: 4,
     description: "Strikes a single enemy with a bolt of lightning.",
     textureKey: "lightning",
+    bulletTextureKey: "lightning_bullet",
+    chargeAnimationKey: "lightningCharge",
+    hitAnimationKey: "lightningHit",
   },
   {
     id: "heal",
@@ -50,6 +56,7 @@ export const SPELL_DEFINITIONS: SpellDefinition[] = [
     range: 3,
     description: "Engulfs an area in destructive flames, damaging all nearby foes.",
     textureKey: "inferno",
+    bulletTextureKey: "inferno_bullet",
   },
   {
     id: "group_heal",
