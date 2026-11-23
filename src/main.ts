@@ -2,7 +2,7 @@
 import "./style.css";
 import { Engine, DisplayMode, Color } from "excalibur";
 import { createInitialGameState, createStateStore, type StateStore } from "./GameState";
-import { type GameState } from "./GameTypes";
+import { toTitleSaves, type GameState } from "./GameTypes";
 import { ContentRegistry } from "./Content/ContentRegistry";
 import { registerTestDungeon } from "./Content/Dungeons/testDungeon";
 import { registerTestItems } from "./Content/Items/test-items";
@@ -20,6 +20,8 @@ import { registerCutscenes } from "./Content/Cutscenes";
 import { registerSpells } from "./Content/Magic/spellRegistry";
 import { CharacterCreationScene } from "./Scenes/PlayerCreation";
 import { registerFarmNpcs } from "./Content/NPCs/Farmer";
+import { titleEvents, TitleScene } from "./Scenes/Title";
+import { SaveManager } from "./Lib/Managers/SaveLoadManager";
 
 export const INPUT_CONTEXT = {
   Dungeon: "dungeon",
@@ -34,6 +36,7 @@ export const SCENES = {
   Dungeon: "dungeon",
   Encounter: "encounter",
   GameOver: "gameover",
+  TitleScene: "title",
   PlayerCreation: "playercreation",
 } as const;
 
@@ -55,6 +58,7 @@ if (definition) {
 
 // Initialize state store with default factory (which sets up the dungeon cache structure)
 export const state: StateStore<GameState> = createStateStore(createInitialGameState());
+const saves = new SaveManager(state, { keyPrefix: "into-the-unknown:save:" });
 
 const game = new Engine({
   width: 960,
@@ -67,13 +71,17 @@ const game = new Engine({
 
 export const inputMapper = new InputMapSystem(game);
 
+let title = new TitleScene({ saves: saves });
+
 // Register scenes
 game.addScene(SCENES.Dungeon, new DungeonScene(state, content, inputMapper));
 game.addScene(SCENES.Encounter, new EncounterScene(state, content, inputMapper));
 game.addScene(SCENES.GameOver, new GameOverScene(state, content));
 game.addScene(SCENES.PlayerCreation, new CharacterCreationScene(state, content, inputMapper));
+game.addScene(SCENES.TitleScene, title); // Placeholder for title scene
 
-game.goToScene(SCENES.PlayerCreation);
+saves.attachEngine(game);
+game.goToScene(SCENES.TitleScene); // Start at title scene
 await game.start(loader);
 
 // Mode routing listener
@@ -86,34 +94,36 @@ state.subscribe("game.mode", payload => {
     game.goToScene(SCENES.GameOver);
   } else if (payload.value === "playercreation") {
     game.goToScene(SCENES.PlayerCreation);
+  } else if (payload.value === "title") {
+    game.goToScene(SCENES.TitleScene);
   }
 });
 
 function registerNPCs(content: ContentRegistry) {
   throw new Error("Function not implemented.");
 }
-/**
- * DEBUG SETUP FOR ENCOUNTER
- */
-// state.batch(ctx => {
-//   ctx.set("game.mode", "encounter");
-//   ctx.set("game.encounter", {
-//     enemyInstanceIds: ["enemy_hallway_1", "enemy_hallway_2"],
-//     activeEnemyInstanceId: "enemy_hallway_1",
-//     currentTurn: "player",
-//     turnCount: 1,
-//     arenaBounds: {
-//       maxX: 15,
-//       maxY: 10,
-//       minX: 0,
-//       minY: 0,
-//     },
-//     playerPosition: { x: 9, y: 2 },
-//     enemyPositions: {
-//       enemy_hallway_1: { x: 12, y: 2 },
-//       enemy_hallway_2: { x: 13, y: 1 },
-//     },
-//     combatLog: [`Encounter initiated with 2 enemies in the room!`],
-//     isResolved: false,
-//   });
-// });
+
+// Keep Load Game enabled/disabled state in sync whenever returning to TitleScene
+const originalActivate = title.onActivate.bind(title);
+title.onActivate = () => {
+  title.setSaves(saves);
+  console.log("TitleScene activated, saves:", saves.list());
+  originalActivate();
+};
+
+titleEvents.on("newGame", async () => {
+  // Replace with your fresh state + starting scene key
+  state.batch(ctx => {
+    ctx.set("game.mode", "playercreation");
+  });
+});
+
+// Handle Load Game from the modal
+titleEvents.on("loadGame", async ({ slotId }) => {
+  const result = await saves.loadAndGo(game, slotId, "dungeon");
+  if (!result.ok) {
+    console.warn(`[Title] Failed to load slot "${slotId}": ${result.error}`);
+    // Refresh list in case a save was corrupted or removed
+    title.setSaves(saves);
+  }
+});
