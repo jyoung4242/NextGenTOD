@@ -23,8 +23,9 @@ export interface GameState {
     registry: Record<string, DungeonState>;
   };
   quests: {
-    active: Record<string, unknown>;
+    active: Record<string, QuestProgress>;
     completed: string[];
+    flags?: Record<string, boolean>;
   };
   progression: ProgressionState;
   storypoints?: Record<string, unknown>;
@@ -396,6 +397,77 @@ export interface ContainerState {
 //#endregion itemtypes
 
 // ********************************
+// Quest Types
+// ********************************
+//#region questtypes
+// --- Quest Content Definitions (Static Data) ---
+
+export type ObjectiveType = "talk" | "kill" | "collect" | "reach" | "interact";
+
+export interface QuestObjectiveData {
+  id: string;
+  description: string;
+  type: ObjectiveType;
+  /** npcId | enemyId | itemId | regionId | objectId */
+  target: string;
+  count: number;
+}
+
+export interface QuestMetadata {
+  title: string;
+  description: string;
+  faction?: string;
+  giverNpc?: string;
+}
+
+export interface QuestRewards {
+  reputation?: number;
+  items?: string[];
+  equipment?: string[];
+}
+
+export interface QuestTriggerActions {
+  setsFlag?: string[];
+}
+
+export interface QuestTriggers {
+  onStart?: QuestTriggerActions;
+  onComplete?: QuestTriggerActions;
+}
+
+export interface QuestWorldFlags {
+  sets?: string[];
+  requires?: string[];
+}
+
+export interface QuestDefinitionData {
+  id: string;
+  metadata: QuestMetadata;
+  objectives: QuestObjectiveData[];
+  rewards?: QuestRewards;
+  triggers?: QuestTriggers;
+  worldFlags?: QuestWorldFlags;
+}
+
+// --- Quest Runtime State ---
+
+export interface ObjectiveProgress {
+  id: string;
+  current: number;
+  target: number;
+  complete: boolean;
+}
+
+export interface QuestProgress {
+  questId: string;
+  state: "active" | "complete";
+  objectives: ObjectiveProgress[];
+}
+
+export type QuestState = "not_started" | "active" | "complete";
+//#endregion questtypes
+
+// ********************************
 // Progression Types
 // ********************************
 //#region progressiontypes
@@ -405,6 +477,22 @@ export interface ProgressionState {
   skillPoints: number;
 }
 //#endregion progressiontypes
+
+// ********************************
+// Skill Types
+// ********************************
+//#region skilltypes
+export type CoreCharacteristic = "hp" | "stam" | "agil" | "per" | "wisdom";
+export type SkillCategory = "combat" | "defense" | "armor" | "magic";
+
+export interface SkillDefinition {
+  id: string;
+  name: string;
+  category: SkillCategory;
+  supportedCharacteristics: CoreCharacteristic[];
+  basePowerMultiplier: number;
+}
+//#endregion skilltypes
 
 // ********************************
 // Encounter Types

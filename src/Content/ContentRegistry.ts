@@ -3,8 +3,8 @@ import {
   EnemyDefinition,
   ItemDefinition,
   SkillDefinition,
-  QuestDefinitionData,
   SpellDefinition,
+  QuestDefinitionData,
 } from "../GameTypes";
 import { CutsceneManifest } from "../Lib/Managers/CutScenes";
 
