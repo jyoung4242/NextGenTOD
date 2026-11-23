@@ -80,6 +80,7 @@ export interface DungeonState {
   doors: Record<string, DoorState>;
   containers: Record<string, ContainerState>;
   enemies: Record<string, EnemyState>;
+  npcs: Record<string, NPCDefinition>;
 }
 
 export interface DungeonNodeDefinition {
@@ -152,6 +153,7 @@ export interface DungeonDefinition {
   lighting?: DungeonLightingDefinition;
   onEnterCutsceneId?: string;
   onExitCutsceneId?: string;
+  npcs?: NPCDefinition[];
 }
 
 export interface DungeonConnectionDefinition {
@@ -564,6 +566,25 @@ export interface CutsceneTriggerDefinition {
   playOnce?: boolean;
 }
 //#endregion cutscenetypes
+
+// ********************************
+// NPC Types
+// ********************************
+//#region npctypes
+export interface NPCDefinition {
+  id: string;
+  name: string;
+  position: { x: number; y: number };
+  cutsceneId: string;
+  requiredFlag?: string;
+  succeedsFlag?: string;
+  color?: string;
+  textureKey?: string;
+  avatarKey?: string;
+  scale?: number;
+  yOffset?: number;
+}
+//#endregion npctypes
 
 // ********************************
 // Helper Functions

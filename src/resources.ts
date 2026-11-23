@@ -31,6 +31,8 @@ import fireballHit from "./Assets/Fire_Impact.png";
 import lightningBullet from "./Assets/lightning_bullet.png";
 import lightningHit from "./Assets/lightning_impact.png";
 import lightingCharge from "./Assets/lightningCharge.png";
+import farmer from "./Assets/npcFarmer.png"; // replace this
+import farmerAvatar from "./Assets/npcFarmerAvatar.png"; // replace this
 
 export const Resources = {
   goblin: new ImageSource(goblin),
@@ -64,6 +66,8 @@ export const Resources = {
   lightningBullet: new ImageSource(lightningBullet),
   lightningHit: new ImageSource(lightningHit),
   lightningCharge: new ImageSource(lightingCharge),
+  farmer: new ImageSource(farmer),
+  farmerAvatar: new ImageSource(farmerAvatar),
 };
 
 export const loader = new Loader();
@@ -126,5 +130,6 @@ export function getLoadedTextures(): Map<string, HTMLImageElement> {
   map.set("lightning", Resources.lightning.image);
   map.set("fireball", Resources.fireball.image);
   map.set("cancel", Resources.cancel.image);
+  map.set("npc_farmer", Resources.farmer.image);
   return map;
 }

@@ -83,8 +83,8 @@ export class DungeonPlayer {
   /**
    * Delegates the interaction to the InteractionSystem
    */
-  public interact(): void {
-    const result = this.interactionSystem.interact();
+  public async interact(): Promise<void> {
+    const result = await this.interactionSystem.interact();
 
     if (result.handled) {
       console.log(`[Interaction Success]: ${result.message}`);

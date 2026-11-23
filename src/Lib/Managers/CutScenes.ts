@@ -190,7 +190,7 @@ export class CutSceneSystem extends System {
 
   public async startCutScene(cutsceneId: string, params?: Record<string, any>): Promise<void> {
     if (this.isPlaying) return;
-
+    debugger;
     const manifest = this.registeredCutScenes.get(cutsceneId);
     if (!manifest) return;
     this.isPlaying = true;
@@ -306,7 +306,7 @@ export class CutSceneSystem extends System {
       const { path } = args;
       let scene = this.world.scene;
       let dialog = (scene as DungeonScene).dialogUI as DialogUI;
-
+      debugger;
       await this.director.actions.runAction(new DialogAction(scene, dialog, path)).toPromise();
     });
 

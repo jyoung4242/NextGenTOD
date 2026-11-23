@@ -196,6 +196,7 @@ export class MinimapGraphic extends Graphic {
       }
 
       // 4. Render Enemies
+      // 4. Render Enemies
       if (currentState.enemies) {
         for (const enemy of Object.values(currentState.enemies)) {
           if (!enemy.alive && enemy.state === "dead") continue;
@@ -214,6 +215,24 @@ export class MinimapGraphic extends Graphic {
           ctx.fill();
 
           // Stroke border for contrast
+          ctx.strokeStyle = "#ffffff";
+          ctx.lineWidth = 1;
+          ctx.stroke();
+        }
+      }
+
+      // 4b. Render NPCs
+      const npcs = (currentState as DungeonState & { npcs?: Record<string, any> }).npcs;
+      if (npcs) {
+        for (const npc of Object.values(npcs)) {
+          if (!npc || npc.active === false) continue;
+
+          ctx.fillStyle = npc.color ?? "#38bdf8";
+
+          ctx.beginPath();
+          ctx.arc(npc.position.x * ts + ts / 2, npc.position.y * ts + ts / 2, ts * 0.3, 0, Math.PI * 2);
+          ctx.fill();
+
           ctx.strokeStyle = "#ffffff";
           ctx.lineWidth = 1;
           ctx.stroke();

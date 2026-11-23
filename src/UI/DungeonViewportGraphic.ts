@@ -1,6 +1,6 @@
 // UI/DungeonViewportGraphic.ts
 import { ExcaliburGraphicsContext, Graphic } from "excalibur";
-import { DungeonDefinition, DungeonCamera, DungeonState, WallLayer, RaycastHit } from "../GameTypes";
+import { DungeonDefinition, DungeonCamera, DungeonState, WallLayer, RaycastHit, NPCDefinition } from "../GameTypes";
 import { DungeonRaycaster } from "./DungeonRaycaster";
 import { ContentRegistry } from "../Content/ContentRegistry";
 
@@ -12,6 +12,15 @@ export interface DungeonViewportGraphicOptions {
   height: number;
   textures: Map<string, HTMLImageElement>;
   content?: ContentRegistry;
+}
+
+interface BillboardToRender {
+  x: number;
+  y: number;
+  scale: number;
+  textureKey: string;
+  yOffset: number;
+  distanceSq: number;
 }
 
 export class DungeonViewportGraphic extends Graphic {
@@ -158,17 +167,8 @@ export class DungeonViewportGraphic extends Graphic {
     }
 
     // -------------------------------------------------------------
-    // 2. Prepare Billboards
+    // 2. Prepare Billboards (Items, Enemies, and NPCs)
     // -------------------------------------------------------------
-    interface BillboardToRender {
-      x: number;
-      y: number;
-      scale: number;
-      textureKey: string;
-      yOffset: number;
-      distanceSq: number;
-    }
-
     const billboards: BillboardToRender[] = [];
 
     const uncollectedItems = (this.dungeon.items ?? []).filter(item => {
@@ -213,6 +213,28 @@ export class DungeonViewportGraphic extends Graphic {
         distanceSq: dx * dx + dy * dy,
       });
     }
+    const npcsCache = (currentState as { npcs?: Record<string, NPCDefinition> }).npcs ?? {};
+    const activeNpcs = Object.values(npcsCache).filter(npc => npc);
+
+    for (const npc of activeNpcs) {
+      const npcDef = typeof (this.content as any)?.getNpc === "function" ? (this.content as any).getNpc(npc.id) : undefined;
+      const textureKey = npc.textureKey ?? npcDef?.textureKey ?? npcDef?.avatarKey ?? "npc";
+      const scale = npc.scale ?? npcDef?.scale ?? 0.6;
+      const yOffset = npc.yOffset ?? npcDef?.yOffset ?? 0.2;
+
+      const worldX = npc.position.x + 0.5;
+      const worldY = npc.position.y + 0.5;
+      const dx = worldX - this.camera.x;
+      const dy = worldY - this.camera.y;
+      billboards.push({
+        x: worldX,
+        y: worldY,
+        scale,
+        textureKey,
+        yOffset,
+        distanceSq: dx * dx + dy * dy,
+      });
+    }
 
     // Sort billboards from furthest to nearest
     billboards.sort((a, b) => b.distanceSq - a.distanceSq);
@@ -222,23 +244,12 @@ export class DungeonViewportGraphic extends Graphic {
     // -------------------------------------------------------------
     for (const col of columnHits) {
       const { screenX, rayAngle, hits } = col;
-
-      const backgroundHits: RaycastHit[] = [];
-      const openDoorHits: RaycastHit[] = [];
-
-      for (const hit of hits) {
-        let isOpen = false;
+      const backgroundHits = hits.filter(hit => {
         if (hit.wall.type === "door" && hit.wall.doorId) {
-          const doorState = currentState.doors[hit.wall.doorId];
-          isOpen = doorState?.open === true;
+          return currentState.doors[hit.wall.doorId]?.open !== true;
         }
-
-        if (isOpen) {
-          openDoorHits.push(hit);
-        } else {
-          backgroundHits.push(hit);
-        }
-      }
+        return true;
+      });
 
       // Pass 1: Draw background walls & closed doors (furthest to closest)
       backgroundHits.sort((a, b) => b.distance - a.distance);
@@ -253,13 +264,12 @@ export class DungeonViewportGraphic extends Graphic {
           maxLightingDistance,
           activeLights,
           currentTime,
-          width,
           height,
         );
       }
     }
 
-    // Pass 2: Draw Billboards (Enemies/Items standing in rooms/doorways)
+    // Pass 2: Draw Billboards (NPCs / Enemies / Items standing in rooms/doorways)
     for (const billboard of billboards) {
       this.renderBillboard(
         ctx,
@@ -277,13 +287,7 @@ export class DungeonViewportGraphic extends Graphic {
     for (const col of columnHits) {
       const { screenX, rayAngle, hits } = col;
       for (const hit of hits) {
-        let isOpen = false;
-        if (hit.wall.type === "door" && hit.wall.doorId) {
-          const doorState = currentState.doors[hit.wall.doorId];
-          isOpen = doorState?.open === true;
-        }
-
-        if (isOpen) {
+        if (hit.wall.type === "door" && hit.wall.doorId && currentState.doors[hit.wall.doorId]?.open === true) {
           this.renderWallHit(
             ctx,
             hit,
@@ -294,7 +298,6 @@ export class DungeonViewportGraphic extends Graphic {
             maxLightingDistance,
             activeLights,
             currentTime,
-            width,
             height,
           );
         }
@@ -312,7 +315,6 @@ export class DungeonViewportGraphic extends Graphic {
     maxLightingDistance: number,
     activeLights: any[],
     currentTime: number,
-    width: number,
     height: number,
   ): void {
     const correctedDistance = hit.distance * Math.cos(rayAngle - this.camera.angle);
@@ -334,17 +336,14 @@ export class DungeonViewportGraphic extends Graphic {
       } else if (isLocked) {
         const closedTex = hit.wall.closedTexture ?? "door_locked";
         activeLayers = [{ textureKey: closedTex, alpha: 1.0, blendMode: "source-over" }];
+      } else if (hit.wall.layers && hit.wall.layers.length > 0) {
+        activeLayers = hit.wall.layers;
       } else {
-        if (hit.wall.layers && hit.wall.layers.length > 0) {
-          activeLayers = hit.wall.layers;
-        } else {
-          const closedTex =
-            hit.wall.closedTexture ?? (Array.isArray(hit.wall.textureKey) ? hit.wall.textureKey[0] : (hit.wall.textureKey ?? "door"));
-          activeLayers = [{ textureKey: closedTex, alpha: 1.0, blendMode: "source-over" }];
-        }
+        const closedTex =
+          hit.wall.closedTexture ?? (Array.isArray(hit.wall.textureKey) ? hit.wall.textureKey[0] : (hit.wall.textureKey ?? "door"));
+        activeLayers = [{ textureKey: closedTex, alpha: 1.0, blendMode: "source-over" }];
       }
     } else if (hit.wall.layers && hit.wall.layers.length > 0) {
-      // Renderer takes control of any generic/missing layer texture keys and assigns consistent variants from pool
       activeLayers = hit.wall.layers.map(layer => ({
         ...layer,
         textureKey:
@@ -371,14 +370,12 @@ export class DungeonViewportGraphic extends Graphic {
         activeLayers = [{ textureKey: resolvedKey, alpha: 1.0, blendMode: "source-over" }];
       }
     } else {
-      // Renderer-controlled consistent wall texture assignment
       const resolvedKey = getConsistentWallTexture(hit.cellX, hit.cellY, hit.side, this.dungeon.wallTextures);
       activeLayers = [{ textureKey: resolvedKey, alpha: 1.0, blendMode: "source-over" }];
     }
 
     let lightFactor = Math.max(0, 1.0 - correctedDistance / maxLightingDistance);
     lightFactor = ambientLight + (1.0 - ambientLight) * lightFactor;
-    const now = performance.now() * 0.001;
 
     for (const light of activeLights) {
       const distToLight = Math.hypot(hit.x - light.x, hit.y - light.y);
@@ -390,7 +387,7 @@ export class DungeonViewportGraphic extends Graphic {
           const speed = light.flicker.speed ?? 15.0;
           const amount = light.flicker.intensity ?? 0.1;
           const phase = ((light.x * 12.9898 + light.y * 78.233) % Math.PI) * 2;
-          const time = now * speed + phase;
+          const time = currentTime * speed + phase;
           const noise = Math.sin(time * 3.3) * 0.5 + Math.sin(time * 7.1) * 0.5;
           effectiveIntensity = Math.max(0, effectiveIntensity + noise * amount);
         }
@@ -432,6 +429,8 @@ export class DungeonViewportGraphic extends Graphic {
         }
       }
 
+      texX = Math.max(0, Math.min(wallTexture.width - 1, texX));
+
       ctx.save();
       ctx.globalAlpha = layer.alpha ?? 1.0;
       ctx.globalCompositeOperation = layer.blendMode ?? "source-over";
@@ -446,16 +445,14 @@ export class DungeonViewportGraphic extends Graphic {
       const shadedIntensity = Math.floor(baseIntensity * lightFactor);
       ctx.fillStyle = `rgb(${shadedIntensity}, ${shadedIntensity}, ${shadedIntensity})`;
       ctx.fillRect(screenX, wallTop, 1, wallHeight);
-    } else {
-      if (lightFactor < 1.0) {
-        const darkness = 1.0 - lightFactor;
-        ctx.fillStyle = `rgba(0, 0, 0, ${darkness})`;
-        ctx.fillRect(screenX, wallTop, 1, wallHeight);
-      } else if (lightFactor > 1.0) {
-        const brightness = lightFactor - 1.0;
-        ctx.fillStyle = `rgba(255, 200, 100, ${Math.min(0.5, brightness)})`;
-        ctx.fillRect(screenX, wallTop, 1, wallHeight);
-      }
+    } else if (lightFactor < 1.0) {
+      const darkness = 1.0 - lightFactor;
+      ctx.fillStyle = `rgba(0, 0, 0, ${darkness})`;
+      ctx.fillRect(screenX, wallTop, 1, wallHeight);
+    } else if (lightFactor > 1.0) {
+      const brightness = lightFactor - 1.0;
+      ctx.fillStyle = `rgba(255, 200, 100, ${Math.min(0.5, brightness)})`;
+      ctx.fillRect(screenX, wallTop, 1, wallHeight);
     }
   }
 
@@ -509,11 +506,10 @@ export class DungeonViewportGraphic extends Graphic {
     const endX = Math.floor(centerScreenX + spriteSize / 2);
 
     const img = this.textures.get(textureKey);
-
     if (img) {
       for (let col = startX; col <= endX; col++) {
         if (col >= 0 && col < width && correctedDistance < zBuffer[col]) {
-          const texX = Math.floor(((col - startX) / spriteSize) * img.width);
+          const texX = Math.max(0, Math.min(img.width - 1, Math.floor(((col - startX) / spriteSize) * img.width)));
           ctx.drawImage(img, texX, 0, 1, img.height, col, spriteTop, 1, spriteSize);
         }
       }

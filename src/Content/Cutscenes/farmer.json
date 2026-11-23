@@ -1,0 +1,9 @@
+{
+  "id": "mill-father-talk",
+  "commands": [
+    {
+      "type": "dialog",
+      "args": { "path": "/public/Dialog/farmer.json" }
+    }
+  ]
+}

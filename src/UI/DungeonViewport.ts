@@ -35,5 +35,6 @@ export class DungeonViewport extends ScreenElement {
     });
 
     this.graphics.use(this.viewportGraphic);
+    console.log("DungeonViewport initialized with options:", options.dungeon.npcs);
   }
 }

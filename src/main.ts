@@ -19,6 +19,7 @@ import { applyConnectionsToGrid } from "./Lib/Managers/DungeonManager";
 import { registerCutscenes } from "./Content/Cutscenes";
 import { registerSpells } from "./Content/Magic/spellRegistry";
 import { CharacterCreationScene } from "./Scenes/PlayerCreation";
+import { registerFarmNpcs } from "./Content/NPCs/Farmer";
 
 export const INPUT_CONTEXT = {
   Dungeon: "dungeon",
@@ -44,6 +45,7 @@ registerQuest(content);
 registerSkills(content);
 registerCutscenes(content);
 registerSpells(content);
+registerFarmNpcs(content);
 
 // Ensure grid connections are processed on the static definition content
 const definition = content.getDungeon("test-dungeon");
@@ -87,6 +89,9 @@ state.subscribe("game.mode", payload => {
   }
 });
 
+function registerNPCs(content: ContentRegistry) {
+  throw new Error("Function not implemented.");
+}
 /**
  * DEBUG SETUP FOR ENCOUNTER
  */

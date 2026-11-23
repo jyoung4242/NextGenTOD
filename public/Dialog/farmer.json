@@ -1,0 +1,57 @@
+{
+  "id": "farmer-thomas-mill",
+  "startNodeId": "thomas-greeting",
+  "nodes": {
+    "thomas-greeting": {
+      "speaker": "Thomas",
+      "portrait": "npc_farmer",
+      "text": "Good to see you out here by the mill. The morning breeze is calm, though the northern ridge has felt a little restless lately.",
+      "choices": [
+        {
+          "label": "Anything wrong with the mill?",
+          "nextNodeId": "thomas-mill-status"
+        },
+        {
+          "label": "Heard strange sounds near the cave.",
+          "nextNodeId": "thomas-cave-warning"
+        },
+        {
+          "label": "Just checking in.",
+          "nextNodeId": "thomas-farewell",
+          "setsFlag": "spoke_thomas_mill"
+        }
+      ]
+    },
+    "thomas-mill-status": {
+      "speaker": "Thomas",
+      "portrait": "npc_farmer",
+      "text": "Nothing we can't handle with a steady hand and a good day's work. Grab whatever supplies you need from the homestead before heading out.",
+      "setsFlag": "spoke_thomas_mill",
+      "autoNextNodeId": null
+    },
+    "thomas-cave-warning": {
+      "speaker": "Thomas",
+      "portrait": "npc_farmer",
+      "text": "Aye—keep your wits about you if you head toward the cave entrance. Don't go in unprepared, and let me know if you find out what's stirring up trouble.",
+      "choices": [
+        {
+          "label": "I'll go check the cave entrance.",
+          "nextNodeId": "thomas-farewell",
+          "setsFlag": "spoke_thomas_mill",
+          "startsQuest": "morning-chores"
+        },
+        {
+          "label": "I'll check the cellar first.",
+          "nextNodeId": "thomas-farewell",
+          "setsFlag": "spoke_thomas_mill"
+        }
+      ]
+    },
+    "thomas-farewell": {
+      "speaker": "Thomas",
+      "portrait": "npc_farmer",
+      "text": "Watch your step out there, and come back safe.",
+      "autoNextNodeId": null
+    }
+  }
+}
