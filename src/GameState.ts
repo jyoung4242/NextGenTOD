@@ -368,7 +368,7 @@ export function createStateStore<State extends object>(initialState: State): Sta
 export function createInitialGameState(): GameState {
   return {
     game: {
-      mode: "playercreation",
+      mode: "title",
       time: 0,
     },
     player: {

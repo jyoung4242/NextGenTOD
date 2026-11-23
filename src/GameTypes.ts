@@ -2,12 +2,14 @@
 
 import { ImageSource, Sprite } from "excalibur";
 import { ContentRegistry } from "./Content/ContentRegistry";
+import type { SaveManager } from "./Lib/Managers/SaveLoadManager";
+import type { SaveSlotInfo as TitleSaveSlotInfo } from "./Scenes/Title";
 
 // ******************************
 // Game State
 // ******************************
 //#region gamestate
-export type GameMode = "playing" | "encounter" | "paused" | "dead" | "victory" | "game_over" | "playercreation";
+export type GameMode = "playing" | "encounter" | "paused" | "dead" | "victory" | "game_over" | "playercreation" | "title";
 
 export interface GameSessionState {
   mode: GameMode;
@@ -694,6 +696,24 @@ export function getDungeonCell(grid: DungeonGridDefinition, x: number, y: number
   }
 
   return index.get(y * grid.width + x);
+}
+
+export function toTitleSaves(saveManager: SaveManager): TitleSaveSlotInfo[] {
+  return saveManager.list().map(entry => {
+    const dateStr = new Date(entry.savedAt).toLocaleString(undefined, {
+      month: "short",
+      day: "numeric",
+      hour: "2-digit",
+      minute: "2-digit",
+    });
+    const scenePart = entry.sceneKey ? `${entry.sceneKey} · ` : "";
+
+    return {
+      id: entry.slot,
+      label: entry.playerName ? `${entry.slot}: ${entry.playerName}` : entry.slot,
+      detail: `Lv.${entry.playerLevel} · ${scenePart}${dateStr}`,
+    };
+  });
 }
 
 export function createDungeonCamera(x: number, y: number): DungeonCamera {
