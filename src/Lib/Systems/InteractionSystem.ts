@@ -5,12 +5,13 @@ import { GameState, Direction, DungeonState } from "../../GameTypes";
 import { InventorySystem } from "./InventorySystem";
 import { ContentRegistry } from "../../Content/ContentRegistry";
 import { QuestManager } from "../Managers/QuestManager";
+import { CutSceneSystem } from "../Managers/CutScenes";
 import { DungeonViewport } from "../../UI/DungeonViewport";
 import { DungeonViewportGraphic } from "../../UI/DungeonViewportGraphic";
 
 export interface InteractionResult {
   handled: boolean;
-  type: "door" | "container" | "wall" | "none";
+  type: "door" | "container" | "npc" | "wall" | "none";
   message: string;
 }
 
@@ -24,9 +25,10 @@ export class InteractionSystem {
     private readonly contentRegistry: ContentRegistry,
     private readonly viewport: DungeonViewport,
     private readonly questManager?: QuestManager,
+    private readonly cutSceneSystem?: CutSceneSystem,
   ) {}
 
-  public interact(): InteractionResult {
+  public async interact(): Promise<InteractionResult> {
     const dungeon = this.dungeonManager.current;
     if (!dungeon) return { handled: false, type: "none", message: "No active dungeon." };
 
@@ -44,14 +46,14 @@ export class InteractionSystem {
     const cellX = Math.floor(x);
     const cellY = Math.floor(y);
 
-    // 1. Check current cell player stands on
+    // 1. Check current cell player stands on (floor items/containers only)
     const currentCell = dungeon.getCell(cellX, cellY);
     if (currentCell) {
       const currentInteraction = this.handleCellInteraction(cellX, cellY);
       if (currentInteraction.handled) return currentInteraction;
     }
 
-    // 2. Check door directly ahead
+    // 2. Check wall / door directly ahead
     const wall = dungeon.getWall(cellX, cellY, facingDir);
     if (wall?.type === "door" && wall.doorId) {
       const graphic = this.viewport.graphics.current as DungeonViewportGraphic;
@@ -59,13 +61,22 @@ export class InteractionSystem {
       return this.handleDoorInteraction(wall.doorId);
     }
 
-    // 3. Check target cell directly ahead
+    // Prevent talking to or interacting with anything on the facing tile through a solid wall
+    if (wall?.type === "wall") {
+      return { handled: false, type: "wall", message: "A solid wall blocks your way." };
+    }
+
+    // 3. Check facing cell directly ahead (NPC first, then items/containers)
     const targetCoords = this.getFacingCellCoords(cellX, cellY, facingDir);
     const targetCell = dungeon.getCell(targetCoords.x, targetCoords.y);
 
     if (targetCell) {
       const graphic = this.viewport.graphics.current as DungeonViewportGraphic;
       graphic?.flagDirty();
+
+      const targetNpcInteraction = await this.handleNpcInteraction(targetCoords.x, targetCoords.y);
+      if (targetNpcInteraction.handled) return targetNpcInteraction;
+
       const targetInteraction = this.handleCellInteraction(targetCoords.x, targetCoords.y);
       if (targetInteraction.handled) return targetInteraction;
     }
@@ -73,6 +84,74 @@ export class InteractionSystem {
     const graphic = this.viewport.graphics.current as DungeonViewportGraphic;
     graphic?.flagDirty();
     return { handled: false, type: "none", message: "Nothing to interact with." };
+  }
+
+  private async handleNpcInteraction(cellX: number, cellY: number): Promise<InteractionResult> {
+    const state = this.store.get();
+    const activeDungeonId = state.dungeon.current;
+    const activeDungeonState = state.dungeon.registry[activeDungeonId] as DungeonState & {
+      npcs?: Record<string, any>;
+    };
+
+    if (!activeDungeonState?.npcs) {
+      return { handled: false, type: "none", message: "" };
+    }
+
+    const npc = Object.values(activeDungeonState.npcs).find(
+      entry => entry && entry.active !== false && Math.floor(entry.position.x) === cellX && Math.floor(entry.position.y) === cellY,
+    );
+
+    if (!npc) {
+      return { handled: false, type: "none", message: "" };
+    }
+
+    const npcDef =
+      typeof (this.contentRegistry as any)?.getNpc === "function"
+        ? (this.contentRegistry as any).getNpc(npc.definitionId ?? npc.id)
+        : undefined;
+
+    const npcName = npc.name ?? npcDef?.name ?? "Stranger";
+    const cutsceneId = npc.cutsceneId ?? npcDef?.cutsceneId;
+    const requiredFlag = npc.requiredFlag ?? npcDef?.requiredFlag;
+    const succeedsFlag = npc.succeedsFlag ?? npcDef?.succeedsFlag;
+
+    const storypoints = (state.storypoints ?? {}) as Record<string, unknown>;
+
+    if (requiredFlag && !storypoints[requiredFlag]) {
+      return {
+        handled: true,
+        type: "npc",
+        message: `${npcName} has nothing to say right now.`,
+      };
+    }
+
+    if (succeedsFlag && storypoints[succeedsFlag]) {
+      return {
+        handled: true,
+        type: "npc",
+        message: `${npcName} nods in recognition.`,
+      };
+    }
+
+    if (cutsceneId && this.cutSceneSystem) {
+      await this.cutSceneSystem.startCutScene(cutsceneId);
+    }
+
+    if (succeedsFlag) {
+      this.store.update("storypoints", points => ({
+        ...points,
+        [succeedsFlag]: true,
+      }));
+    }
+
+    const graphic = this.viewport.graphics.current as DungeonViewportGraphic;
+    graphic?.flagDirty();
+
+    return {
+      handled: true,
+      type: "npc",
+      message: `Talking to ${npcName}...`,
+    };
   }
 
   private handleDoorInteraction(doorId: string): InteractionResult {
@@ -88,7 +167,6 @@ export class InteractionSystem {
     const currentOpen = existingDoor?.open ?? false;
     const currentLocked = existingDoor?.locked ?? false;
 
-    // 👇 Correct path incorporating the active dungeon registry ID
     const doorPath = `dungeon.registry.${activeDungeonId}.doors.${doorId}`;
 
     if (currentLocked) {
@@ -121,7 +199,6 @@ export class InteractionSystem {
       };
     }
 
-    // 👇 Use the correct nested registry path here too
     this.store.set(doorPath as any, {
       open: !currentOpen,
       locked: false,

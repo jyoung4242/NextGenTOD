@@ -53,7 +53,6 @@ export class EncounterEnemy extends Actor {
 
   playHitAnimation(animationKey?: string): Animation | undefined {
     this.actions.runAction(new enemyShakeAction(this));
-    debugger;
     if (animationKey) {
       let anim = getAnimationByKey(animationKey);
       console.log(`Playing hit animation for enemy ${this.enemyId} with animationKey: ${animationKey}`);

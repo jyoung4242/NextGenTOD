@@ -12,6 +12,7 @@ import {
   ContainerState,
   DoorState,
   EnemyState,
+  NPCDefinition,
 } from "../../GameTypes";
 import { StateStore } from "../../GameState";
 import { ContentRegistry } from "../../Content/ContentRegistry";
@@ -184,6 +185,13 @@ export function createDungeonState(definition: DungeonDefinition, seed = 0, cont
     }
   }
 
+  const npcs: Record<string, NPCDefinition> = {};
+  if (definition.npcs) {
+    for (const npc of definition.npcs) {
+      npcs[npc.id] = npc;
+    }
+  }
+
   return {
     definitionId: definition.id,
     seed,
@@ -193,6 +201,7 @@ export function createDungeonState(definition: DungeonDefinition, seed = 0, cont
     doors,
     containers,
     enemies,
+    npcs,
   };
 }
 

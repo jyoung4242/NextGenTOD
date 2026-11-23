@@ -5,6 +5,7 @@ import {
   SkillDefinition,
   SpellDefinition,
   QuestDefinitionData,
+  NPCDefinition,
 } from "../GameTypes";
 import { CutsceneManifest } from "../Lib/Managers/CutScenes";
 
@@ -16,6 +17,7 @@ export class ContentRegistry {
   readonly quests = new Map<string, QuestDefinitionData>();
   readonly cutscenes = new Map<string, CutsceneManifest>();
   readonly spells = new Map<string, SpellDefinition>();
+  readonly npcs = new Map<string, NPCDefinition>();
 
   private register<T extends { id: string }>(registry: Map<string, T>, definition: T, type: string): void {
     if (registry.has(definition.id)) {
@@ -26,6 +28,7 @@ export class ContentRegistry {
   }
 
   registerDungeon(definition: DungeonDefinition): void {
+    console.log(`Registering dungeon: ${definition.id}`);
     this.register(this.dungeons, definition, "dungeon");
   }
 
@@ -123,5 +126,17 @@ export class ContentRegistry {
 
   getAllSpells(): SpellDefinition[] {
     return Array.from(this.spells.values());
+  }
+
+  registerNpc(definition: NPCDefinition): void {
+    this.register(this.npcs, definition, "npc");
+  }
+
+  getNpc(id: string): NPCDefinition {
+    const definition = this.npcs.get(id);
+    if (!definition) {
+      throw new Error(`Unknown NPC: ${id}`);
+    }
+    return definition;
   }
 }

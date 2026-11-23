@@ -239,6 +239,7 @@ export class DialogUI extends ScreenElement {
     advanceMode: "next" | "close" | null = null,
   ) {
     this.next(message);
+    console.log("portrait:", portrait);
     this.setPortrait(portrait);
     this.clearInteractiveContent();
     this.setFastForwardButton(onFastForward);

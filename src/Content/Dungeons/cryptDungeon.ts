@@ -21,6 +21,14 @@ export const cryptDungeon: DungeonDefinition = {
       targetId: "enemy_hallway_3",
     },
   ],
+  npcs: [
+    {
+      id: "npc_thomas_mill",
+      name: "Thomas",
+      position: { x: 7, y: 2 },
+      cutsceneId: "mill-father-talk",
+    },
+  ],
   enemies: [
     {
       id: "enemy_hallway_3",

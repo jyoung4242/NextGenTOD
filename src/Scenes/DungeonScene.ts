@@ -166,12 +166,12 @@ export class DungeonScene extends Scene {
     this.dungeonManager = new DungeonManager();
     this.dungeonManager.loadOrInitDungeon(definition, this.state, this.content);
     const dungeon = new Dungeon(definition, this.state);
-
     const vp = new DungeonViewport({
       dungeon: definition,
       getState: () => {
         const currentDungeonId = this.state.get("dungeon").current;
         const currentDungeon = this.state.get("dungeon").registry[currentDungeonId];
+
         return currentDungeon as DungeonState;
       },
       camera: this.dCamera!,
@@ -197,7 +197,15 @@ export class DungeonScene extends Scene {
     this.add(minimap);
 
     this.inventory = new InventorySystem(this.state, this.content);
-    this.interactions = new InteractionSystem(this.state, this.dungeonManager, this.inventory, this.content, vp, this.questManager);
+    this.interactions = new InteractionSystem(
+      this.state,
+      this.dungeonManager,
+      this.inventory,
+      this.content,
+      vp,
+      this.questManager,
+      this.cutSceneSystem,
+    );
 
     this.d_Player = new DungeonPlayer(this.state, dungeon, this.dCamera!, this.interactions, vp, this.toastManager);
     this.d_Player.onStepOrTurn = () => {

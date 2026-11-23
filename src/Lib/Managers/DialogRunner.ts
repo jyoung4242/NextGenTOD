@@ -133,7 +133,7 @@ export class DialogRunner {
 
   private resolvePortrait(portraitKey: string): Sprite | null {
     const normalizedKey = portraitKey.toLowerCase();
-
+    console.log(`Resolving portrait for key: ${normalizedKey}`);
     switch (normalizedKey) {
       // case "fairy":
       //   return Resources.fairy.toSprite();
@@ -141,6 +141,8 @@ export class DialogRunner {
       //   return Resources.link.toSprite();
       // case "chasm":
       //   return Resources.chasm.toSprite();
+      case "npc_farmer":
+        return Resources.farmerAvatar.toSprite();
       case "goblin":
         return Resources.goblin.toSprite();
       case "none":
