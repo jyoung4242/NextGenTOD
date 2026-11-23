@@ -29,6 +29,7 @@ import { SettingsFormTab } from "../UI/pausetabs/settingstab";
 import { EquipmentSystem } from "../Lib/Systems/EquipmentSystem";
 import { CharacterStatusHUD } from "../UI/DungeonHUD";
 import { SpellbookFormTab } from "../UI/pausetabs/Spellbook";
+import { CinematicController, CinematicView } from "../UI/Cinematic";
 
 export class DungeonScene extends Scene {
   dCamera?: DungeonCamera;
@@ -147,6 +148,14 @@ export class DungeonScene extends Scene {
     this.playerController = new DungeonPlayerController(this.inputMapper, this.d_Player);
     this.playerController.initialize();
     this.proximitySystem = new ProximitySystem(this.state, this.content);
+
+    const cinematicView = new CinematicView(960, 390);
+    this.add(cinematicView);
+
+    const cinematicController = new CinematicController(this, cinematicView, this.dialogUI!, () => this.state);
+
+    this.cutSceneSystem.setDialogUI(this.dialogUI);
+    this.cutSceneSystem.setCinematicController(cinematicController);
   }
 
   public async onActivate(): Promise<void> {
@@ -239,6 +248,14 @@ export class DungeonScene extends Scene {
         }));
       }
     }
+
+    const cinematicView = new CinematicView(960, 390);
+    this.add(cinematicView);
+
+    const cinematicController = new CinematicController(this, cinematicView, this.dialogUI!, () => this.state);
+
+    this.cutSceneSystem.setDialogUI(this.dialogUI!);
+    this.cutSceneSystem.setCinematicController(cinematicController);
   }
 
   pauseMenuHandler = (event: { ctx: string; key: Keys }) => {

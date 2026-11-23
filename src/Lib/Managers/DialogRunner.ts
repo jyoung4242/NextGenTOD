@@ -17,6 +17,7 @@ export class DialogRunner {
     this.tree = await this.loader.load();
     this.isFinished = false;
     this.currentNodeId = nodeId ?? this.tree.startNodeId;
+    debugger;
     this.renderCurrentNode();
   }
 

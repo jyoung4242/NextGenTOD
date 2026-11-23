@@ -4,6 +4,7 @@ import goblinJson from "./goblin.json";
 import newDungeonJson from "./newDungeon.json";
 import combatMagicAttackJson from "./mgkAttack.json";
 import farmerJson from "./farmer.json";
+import cinematicJson from "./introCinematic.json";
 
 export function registerCutscenes(reg: ContentRegistry) {
   reg.registerCutscene(introJson);
@@ -11,4 +12,5 @@ export function registerCutscenes(reg: ContentRegistry) {
   reg.registerCutscene(newDungeonJson);
   reg.registerCutscene(combatMagicAttackJson);
   reg.registerCutscene(farmerJson);
+  reg.registerCutscene(cinematicJson);
 }

@@ -1,3 +1,4 @@
+// DialogUI.ts
 import { Color, ExcaliburGraphicsContext, Graphic, ScreenElement, Sprite, vec, Keys, Buttons } from "excalibur";
 import { drawText, CanvasTextConfig } from "canvas-txt";
 import { DialogueChoiceData } from "../Lib/Managers/DialogLoader";
@@ -11,12 +12,14 @@ export class DialogUI extends ScreenElement {
   choices: DialogChoices | null = null;
   advanceButton: DialogControlButton | null = null;
   fastForwardButton: DialogControlButton | null = null;
+  skipButton: DialogControlButton | null = null;
 
   private selectedChoiceIndex: number = 0;
   private previousContext: string = INPUT_CONTEXT.Dungeon;
   private onChoiceSelectedCallback?: (choice: DialogueChoiceData) => void;
   private onAdvanceCallback?: () => void;
   private onFastForwardCallback?: () => void;
+  private onSkipCallback?: () => void;
 
   constructor(private readonly inputMapper: InputMapSystem) {
     super({
@@ -39,10 +42,11 @@ export class DialogUI extends ScreenElement {
     this.inputMapper.registerMap({
       name: INPUT_CONTEXT.Dialog,
       inputMap: {
-        KeyPresses: new Set([Keys.Space, Keys.Enter, Keys.W, Keys.S, Keys.ArrowUp, Keys.ArrowDown]),
+        KeyPresses: new Set([Keys.Space, Keys.Enter, Keys.Escape, Keys.W, Keys.S, Keys.ArrowUp, Keys.ArrowDown]),
         GamepadButtonsTriggers: new Set([
           Buttons.Face1, // Confirm / Advance / Select
-          Buttons.Face2, // Fast Forward / Close
+          Buttons.Face2, // Fast Forward / Advance
+          Buttons.Select, // Skip Entire Dialogue
           Buttons.DpadUp, // Navigate Up Choices
           Buttons.DpadDown, // Navigate Down Choices
         ]),
@@ -62,6 +66,14 @@ export class DialogUI extends ScreenElement {
   }
 
   private handleInput(input: Keys | Buttons): void {
+    // Skip Entire Dialogue (Escape / Select)
+    if (input === Keys.Escape || input === Buttons.Select) {
+      if (this.skipButton) {
+        this.onSkipCallback?.();
+      }
+      return;
+    }
+
     // Up / Down Choice Navigation
     if (input === Keys.W || input === Keys.ArrowUp || input === Buttons.DpadUp) {
       this.navigateChoices(-1);
@@ -102,13 +114,10 @@ export class DialogUI extends ScreenElement {
   }
 
   show() {
-    // 1. Capture whichever context was active (Dungeon, Encounter, etc.)
     const currentCtx = this.inputMapper.getCurrentContext();
     if (currentCtx !== INPUT_CONTEXT.Dialog) {
       this.previousContext = currentCtx;
     }
-
-    // 2. Switch input mapper to Dialog controls
     this.inputMapper.switchContext(INPUT_CONTEXT.Dialog);
 
     this.graphics.isVisible = true;
@@ -116,6 +125,7 @@ export class DialogUI extends ScreenElement {
     if (this.choices) this.choices.graphics.isVisible = true;
     if (this.advanceButton) this.advanceButton.graphics.isVisible = true;
     if (this.fastForwardButton) this.fastForwardButton.graphics.isVisible = true;
+    if (this.skipButton) this.skipButton.graphics.isVisible = true;
   }
 
   hide() {
@@ -124,9 +134,10 @@ export class DialogUI extends ScreenElement {
     if (this.choices) this.choices.graphics.isVisible = false;
     if (this.advanceButton) this.advanceButton.graphics.isVisible = false;
     if (this.fastForwardButton) this.fastForwardButton.graphics.isVisible = false;
+    if (this.skipButton) this.skipButton.graphics.isVisible = false;
     if (this.portrait) this.portrait.graphics.isVisible = false;
 
-    // 3. Restore the previous context when closing dialogue
+    // Restore previous input context (e.g. Dungeon or Encounter)
     if (this.previousContext && this.previousContext !== INPUT_CONTEXT.Dialog) {
       this.inputMapper.switchContext(this.previousContext);
     }
@@ -191,7 +202,8 @@ export class DialogUI extends ScreenElement {
 
   hideChoices = () => {
     if (this.choices) {
-      this.choices.graphics.isVisible = false;
+      this.removeChild(this.choices);
+      this.choices.kill();
       this.choices = null;
     }
   };
@@ -229,6 +241,21 @@ export class DialogUI extends ScreenElement {
     this.addChild(this.fastForwardButton);
   }
 
+  setSkipButton(onSkip?: () => void) {
+    if (this.skipButton) {
+      this.removeChild(this.skipButton);
+      this.skipButton = null;
+    }
+
+    this.onSkipCallback = onSkip;
+    if (!onSkip) return;
+
+    // Positioned to the left of Fast Fwd / Next / Close (which sits at 960 - 120)
+    this.skipButton = new DialogControlButton("Skip", onSkip, 960 - 220);
+    this.skipButton.graphics.isVisible = this.graphics.isVisible;
+    this.addChild(this.skipButton);
+  }
+
   showNode(
     message: string,
     portrait: Sprite | null,
@@ -237,12 +264,13 @@ export class DialogUI extends ScreenElement {
     onAdvance?: () => void,
     onFastForward?: () => void,
     advanceMode: "next" | "close" | null = null,
+    onSkip?: () => void,
   ) {
     this.next(message);
-    console.log("portrait:", portrait);
     this.setPortrait(portrait);
     this.clearInteractiveContent();
     this.setFastForwardButton(onFastForward);
+    this.setSkipButton(onSkip);
     this.tw?.setOnTypingComplete(() => {
       this.removeFastForwardButton();
       this.setChoices(choices, onChoiceSelected);
@@ -262,7 +290,7 @@ export class TypeWriterElement extends ScreenElement {
       height: 100,
       lineHeight: 30,
       font: "Arial",
-      fontSize: 16,
+      fontSize: 20,
     },
     color: Color.Black,
   };
@@ -399,11 +427,11 @@ export class DialogChoiceOption extends ScreenElement {
 }
 
 export class DialogControlButton extends ScreenElement {
-  constructor(label: string, onActivate?: () => void) {
+  constructor(label: string, onActivate?: () => void, x: number = 960 - 120) {
     super({
       width: 90,
       height: 34,
-      pos: vec(960 - 120, 110),
+      pos: vec(x, 110),
       color: Color.Transparent,
       z: 1000,
     });
