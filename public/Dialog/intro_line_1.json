@@ -1,0 +1,25 @@
+{
+  "id": "cliffside-adventure-dream",
+  "startNodeId": "cliff-edge",
+  "nodes": {
+    "cliff-edge": {
+      "speaker": "Narrator",
+      "portrait": "none",
+      "text": "Cool wind rushes across a high cliff edge. Below, lantern-lit streets wind toward a towering castle against a twilight sky.",
+      "autoNextNodeId": "awakening-gaze"
+    },
+    "awakening-gaze": {
+      "speaker": "Adventurer",
+      "portrait": "protagonist",
+      "text": "A castle and a bustling town... so much beyond the quiet fields I know. Every road down there feels like a story waiting to begin.",
+      "autoNextNodeId": "call-of-the-horizon"
+    },
+    "call-of-the-horizon": {
+      "speaker": "Narrator",
+      "portrait": "none",
+      "text": "The distant bells chime like a summons. Even in a dream, your pulse quickens toward the unknown.",
+      "setsFlag": "experienced-adventure-dream",
+      "autoNextNodeId": null
+    }
+  }
+}

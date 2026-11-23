@@ -48,7 +48,7 @@ export interface DialogueTree {
 
 export class DialogLoader {
   // Private constructor to enforce factory usage
-  private constructor(
+  constructor(
     private readonly sourcePath?: string,
     private readonly directPayload?: unknown,
   ) {}

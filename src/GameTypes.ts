@@ -1,5 +1,6 @@
 // GameTypes.ts
 
+import { ImageSource, Sprite } from "excalibur";
 import { ContentRegistry } from "./Content/ContentRegistry";
 
 // ******************************
@@ -704,3 +705,34 @@ export function createDungeonCamera(x: number, y: number): DungeonCamera {
   };
 }
 //#endregion helpers
+
+// ********************************
+// Cinematic Types
+// ********************************
+// CinematicTypes.ts
+
+export type PanDirection = "left-to-right" | "right-to-left" | "none";
+
+export interface CinematicSlide {
+  id: string;
+  image?: ImageSource; // Preloaded ImageSource when authored in TS
+  imageKey?: string; // Resource key string when authored in JSON
+  sprite?: Sprite | null;
+  graphicWidth?: number;
+  graphicHeight?: number;
+  startX?: number;
+  speedPxPerSec?: number;
+  pan?: PanDirection;
+  bounceAtBounds?: boolean;
+  durationSec?: number;
+  dialogPath?: string;
+  narrativeText?: string;
+  caption?: string;
+}
+
+export interface CinematicManifest {
+  id: string;
+  title?: string;
+  slides: CinematicSlide[];
+  onCompleteSetFlag?: string;
+}

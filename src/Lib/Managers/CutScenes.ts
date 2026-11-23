@@ -17,7 +17,7 @@ import { DialogUI } from "../../UI/DialogUI";
 import { EncounterTriggerSystem } from "../Systems/EncounterTrigger";
 import { DialogAction } from "./actions/DialogJSONaction";
 import { StateStore } from "../../GameState";
-import { CutsceneTriggerDefinition, GameMode, GameState, SpellDefinition } from "../../GameTypes";
+import { CinematicManifest, CutsceneTriggerDefinition, GameMode, GameState, SpellDefinition } from "../../GameTypes";
 import { DungeonScene } from "../../Scenes/DungeonScene";
 import { QuestManager } from "./QuestManager";
 import { DialogJSONActionFromObject } from "./actions/DialogJSONfromobject";
@@ -25,6 +25,8 @@ import { BulletActor } from "../../Actors/BulletActor";
 import { EncounterScene } from "../../Scenes/EncounterScene";
 import { EncounterPlayer } from "../../Actors/EncounterPlayer";
 import { EncounterEnemy } from "../../Actors/EncounterEnemy";
+import { CinematicController } from "../../UI/Cinematic";
+import { Minimap } from "../../UI/Minimap";
 
 // ==========================================
 // 1. Types & Manifest Interfaces
@@ -90,7 +92,12 @@ export class CutSceneSystem extends System {
   public systemType: SystemType = SystemType.Update;
   public director: CutSceneDirector;
   public camera: Camera;
+  // Inside CutSceneSystem class properties
+  private cinematicController?: CinematicController;
 
+  public setCinematicController(controller: CinematicController): void {
+    this.cinematicController = controller;
+  }
   // Stores registered manifest raw JSON strings/objects or file paths
   private registeredCutScenes = new Map<string, CutsceneManifest>();
 
@@ -190,7 +197,6 @@ export class CutSceneSystem extends System {
 
   public async startCutScene(cutsceneId: string, params?: Record<string, any>): Promise<void> {
     if (this.isPlaying) return;
-    debugger;
     const manifest = this.registeredCutScenes.get(cutsceneId);
     if (!manifest) return;
     this.isPlaying = true;
@@ -306,7 +312,6 @@ export class CutSceneSystem extends System {
       const { path } = args;
       let scene = this.world.scene;
       let dialog = (scene as DungeonScene).dialogUI as DialogUI;
-      debugger;
       await this.director.actions.runAction(new DialogAction(scene, dialog, path)).toPromise();
     });
 
@@ -319,6 +324,39 @@ export class CutSceneSystem extends System {
         batch.set("player.position.x", newPos.x);
         batch.set("player.position.y", newPos.y);
       });
+    });
+
+    this.registerCommand("cinematic", async (args, ctx) => {
+      const manifest = (args.manifest ?? args) as CinematicManifest | undefined;
+      const controller = this.cinematicController;
+      if (!controller) {
+        console.warn("CutSceneSystem: CinematicController not attached.");
+        return;
+      }
+
+      if (!manifest || !Array.isArray(manifest.slides)) {
+        console.warn("CutSceneSystem: Invalid or missing cinematic manifest.");
+        return;
+      }
+      await controller.play(manifest);
+    });
+
+    this.registerCommand("hide-minimap", async (_args, ctx) => {
+      const minimap = (ctx.engine.currentScene as DungeonScene).entities.find(e => e.name === "minimap") as Minimap | undefined;
+      if (!minimap) {
+        console.warn("CutSceneSystem: Minimap not attached.");
+        return;
+      }
+      minimap.graphics.isVisible = false;
+    });
+
+    this.registerCommand("show-minimap", async (_args, ctx) => {
+      const minimap = (ctx.engine.currentScene as DungeonScene).entities.find(e => e.name === "minimap") as Minimap | undefined;
+      if (!minimap) {
+        console.warn("CutSceneSystem: Minimap not attached.");
+        return;
+      }
+      minimap.graphics.isVisible = true;
     });
 
     this.registerCommand("encounter_summary", async (args, ctx) => {

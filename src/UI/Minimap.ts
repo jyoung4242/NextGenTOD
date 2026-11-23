@@ -29,6 +29,7 @@ export class Minimap extends ScreenElement {
     const width = options.dungeon.grid.width * tileSize;
     const height = options.dungeon.grid.height * tileSize;
     super({
+      name: "minimap",
       pos: options.position ?? vec(16, 16),
       width,
       height,

@@ -1,0 +1,40 @@
+{
+  "id": "chapter-one-opener",
+  "commands": [
+    {
+      "type": "hide-minimap",
+      "args": {}
+    },
+    {
+      "type": "cinematic",
+      "args": {
+        "manifest": {
+          "id": "intro-pan",
+          "slides": [
+            {
+              "id": "intro",
+              "imageKey": "openingCinematic",
+              "graphicWidth": 1200,
+              "graphicHeight": 390,
+              "speedPxPerSec": -20,
+              "dialogPath": "/public/Dialog/intro_line_1.json"
+            }
+          ],
+          "onCompleteSetFlag": "intro_cinematic_seen"
+        }
+      }
+    },
+    {
+      "type": "dialog",
+      "args": { "path": "/public/Dialog/dungeon-intro.json" }
+    },
+    {
+      "type": "start_quest",
+      "args": { "questId": "find-potion" }
+    },
+    {
+      "type": "show-minimap",
+      "args": {}
+    }
+  ]
+}

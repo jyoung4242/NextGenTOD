@@ -33,6 +33,7 @@ import lightningHit from "./Assets/lightning_impact.png";
 import lightingCharge from "./Assets/lightningCharge.png";
 import farmer from "./Assets/npcFarmer.png"; // replace this
 import farmerAvatar from "./Assets/npcFarmerAvatar.png"; // replace this
+import openingCinematic from "./Assets/openCinematic.png"; // replace this
 
 export const Resources = {
   goblin: new ImageSource(goblin),
@@ -68,6 +69,7 @@ export const Resources = {
   lightningCharge: new ImageSource(lightingCharge),
   farmer: new ImageSource(farmer),
   farmerAvatar: new ImageSource(farmerAvatar),
+  openingCinematic: new ImageSource(openingCinematic),
 };
 
 export const loader = new Loader();
