@@ -34,6 +34,14 @@ import lightingCharge from "./Assets/lightningCharge.png";
 import farmer from "./Assets/npcFarmer.png"; // replace this
 import farmerAvatar from "./Assets/npcFarmerAvatar.png"; // replace this
 import openingCinematic from "./Assets/openCinematic.png"; // replace this
+import wood_floor from "./Assets/wood-floor.png";
+import wood_ceiling from "./Assets/wood-ceiling.png";
+import wood_walls from "./Assets/wood-walls.png";
+import wood_walls_1 from "./Assets/wood-walls_1.png";
+import wood_walls_2 from "./Assets/wood-walls_2.png";
+import farm_door from "./Assets/farm-door.png";
+import farm_door_open from "./Assets/farm-door-open.png";
+import bedroll from "./Assets/bedroll.png";
 
 export const Resources = {
   goblin: new ImageSource(goblin),
@@ -70,6 +78,14 @@ export const Resources = {
   farmer: new ImageSource(farmer),
   farmerAvatar: new ImageSource(farmerAvatar),
   openingCinematic: new ImageSource(openingCinematic),
+  wood_floor: new ImageSource(wood_floor),
+  wood_ceiling: new ImageSource(wood_ceiling),
+  wood_walls: new ImageSource(wood_walls),
+  wood_walls2: new ImageSource(wood_walls_2),
+  wood_walls1: new ImageSource(wood_walls_1),
+  farm_door: new ImageSource(farm_door),
+  farm_door_open: new ImageSource(farm_door_open),
+  bedroll: new ImageSource(bedroll),
 };
 
 export const loader = new Loader();
@@ -133,5 +149,14 @@ export function getLoadedTextures(): Map<string, HTMLImageElement> {
   map.set("fireball", Resources.fireball.image);
   map.set("cancel", Resources.cancel.image);
   map.set("npc_farmer", Resources.farmer.image);
+  map.set("npc_farmer_avatar", Resources.farmerAvatar.image);
+  map.set("wood_floor", Resources.wood_floor.image);
+  map.set("wood_ceiling", Resources.wood_ceiling.image);
+  map.set("wood_walls", Resources.wood_walls.image);
+  map.set("wood_walls_1", Resources.wood_walls.image);
+  map.set("wood_walls_2", Resources.wood_walls.image);
+  map.set("farm_door", Resources.farm_door.image);
+  map.set("farm_door_open", Resources.farm_door_open.image);
+  map.set("bedroll", Resources.bedroll.image);
   return map;
 }

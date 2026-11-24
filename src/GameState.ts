@@ -381,9 +381,9 @@ export function createInitialGameState(): GameState {
       maxMana: 1,
       position: {
         x: 2.5,
-        y: 2.5,
+        y: 4.5,
       },
-      facing: "east",
+      facing: "north",
       keyring: [],
       skills: {
         unarmed: { level: 1, xp: 10, unlocked: true },
@@ -412,7 +412,7 @@ export function createInitialGameState(): GameState {
       maxWeight: 50,
     },
     dungeon: {
-      current: "test-dungeon",
+      current: "farmhouse",
       registry: {},
     },
     quests: {

@@ -2,7 +2,7 @@
 import "./style.css";
 import { Engine, DisplayMode, Color } from "excalibur";
 import { createInitialGameState, createStateStore, type StateStore } from "./GameState";
-import { toTitleSaves, type GameState } from "./GameTypes";
+import { type GameState } from "./GameTypes";
 import { ContentRegistry } from "./Content/ContentRegistry";
 import { registerTestDungeon } from "./Content/Dungeons/testDungeon";
 import { registerTestItems } from "./Content/Items/test-items";
@@ -51,10 +51,10 @@ registerSpells(content);
 registerFarmNpcs(content);
 
 // Ensure grid connections are processed on the static definition content
-const definition = content.getDungeon("test-dungeon");
-if (definition) {
-  applyConnectionsToGrid(definition);
-}
+// const definition = content.getDungeon("farmhouse");
+// if (definition) {
+//   applyConnectionsToGrid(definition);
+// }
 
 // Initialize state store with default factory (which sets up the dungeon cache structure)
 export const state: StateStore<GameState> = createStateStore(createInitialGameState());

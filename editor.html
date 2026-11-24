@@ -1,0 +1,1153 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Game Content Studio & Editor</title>
+    <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
+    <script crossorigin src="https://cdn.jsdelivr.net/npm/react@18.3.1/umd/react.production.min.js"></script>
+    <script crossorigin src="https://cdn.jsdelivr.net/npm/react-dom@18.3.1/umd/react-dom.production.min.js"></script>
+    <script crossorigin src="https://cdn.jsdelivr.net/npm/@babel/standalone@7.26.5/babel.min.js"></script>
+  </head>
+  <body class="bg-slate-950 text-slate-100 font-sans antialiased selection:bg-blue-600 selection:text-white">
+    <div id="root"></div>
+
+    <script type="text/babel">
+      const { useState, useEffect, useRef } = React;
+
+      function createEmptyGrid(width, height, fillChar = "#") {
+        return Array.from({ length: height }, () => Array.from({ length: width }, () => ({ char: fillChar })));
+      }
+
+      function resizeGridMatrix(prevGrid, newWidth, newHeight, fillChar = "#") {
+        const safeW = Math.max(3, Math.min(128, Number(newWidth) || 3));
+        const safeH = Math.max(3, Math.min(128, Number(newHeight) || 3));
+
+        return Array.from({ length: safeH }, (_, y) =>
+          Array.from({ length: safeW }, (_, x) => {
+            if (prevGrid[y] && prevGrid[y][x]) {
+              return { ...prevGrid[y][x] };
+            }
+            return { char: fillChar };
+          }),
+        );
+      }
+
+      function App() {
+        const [activeTab, setActiveTab] = useState("dungeon");
+
+        const [items, setItems] = useState([
+          {
+            id: "potion_health_minor",
+            name: "Minor Health Potion",
+            description: "Restores 25 Health.",
+            category: "consumable",
+            stackable: true,
+            maxStackSize: 10,
+            weight: 0.5,
+            textureKey: "potion",
+          },
+        ]);
+
+        const [enemies, setEnemies] = useState([
+          {
+            id: "goblin",
+            name: "Goblin Scout",
+            avatarKey: "goblin",
+            textureKey: "goblinLarge",
+            tokenKey: "goblinToken",
+            health: 15,
+            attack: 4,
+            defense: 1,
+            detectionRadius: 4,
+            yOffset: 0.75,
+            xpReward: 10,
+          },
+        ]);
+
+        const [dungeon, setDungeon] = useState(() => ({
+          id: "test-dungeon",
+          defaultWallTexture: "stone",
+          defaultFloorTexture: "dirt",
+          defaultCeilingTexture: "ceiling",
+          width: 16,
+          height: 11,
+          grid: createEmptyGrid(16, 11, "#"),
+          items: [{ id: "potion_health_minor", position: { x: 12, y: 8 }, quantity: 2 }],
+          enemies: [{ id: "enemy_hallway_1", definitionId: "goblin", position: { x: 12, y: 2 } }],
+        }));
+
+        const [cutscene, setCutscene] = useState({
+          id: "goblin-encounter-cutscene",
+          commands: [
+            { type: "cameraShake", args: { magnitudeX: 5, magnitudeY: 5, duration: 300 } },
+            { type: "dialog", args: { path: "/public/Dialog/goblin.json" } },
+          ],
+        });
+
+        return (
+          <div className="flex flex-col h-screen overflow-hidden">
+            <header className="bg-slate-900 border-b border-slate-800 px-6 py-3 flex justify-between items-center shrink-0">
+              <div className="flex items-center gap-3">
+                <span className="text-xl font-bold tracking-tight bg-gradient-to-r from-blue-400 to-indigo-500 bg-clip-text text-transparent">
+                  Content Studio
+                </span>
+                <span className="text-xs font-mono bg-slate-800 text-slate-400 px-2 py-0.5 rounded border border-slate-700">
+                  React + Raw Grid + GameTypes JSON
+                </span>
+              </div>
+              <nav className="flex gap-1 bg-slate-950 p-1 rounded-lg border border-slate-800">
+                {[
+                  { id: "dungeon", label: "Dungeon Grid" },
+                  { id: "items", label: "Items" },
+                  { id: "enemies", label: "Enemies" },
+                  { id: "cutscenes", label: "Cutscenes" },
+                ].map(tab => (
+                  <button
+                    key={tab.id}
+                    onClick={() => setActiveTab(tab.id)}
+                    className={`px-4 py-1.5 text-xs font-semibold rounded transition ${
+                      activeTab === tab.id ? "bg-blue-600 text-white shadow" : "text-slate-400 hover:text-slate-200 hover:bg-slate-900"
+                    }`}
+                  >
+                    {tab.label}
+                  </button>
+                ))}
+              </nav>
+            </header>
+
+            <main className="flex-1 overflow-hidden flex">
+              {activeTab === "dungeon" && (
+                <DungeonEditor dungeon={dungeon} setDungeon={setDungeon} availableItems={items} availableEnemies={enemies} />
+              )}
+              {activeTab === "items" && <ItemEditor items={items} setItems={setItems} />}
+              {activeTab === "enemies" && <EnemyEditor enemies={enemies} setEnemies={setEnemies} />}
+              {activeTab === "cutscenes" && <CutsceneEditor cutscene={cutscene} setCutscene={setCutscene} />}
+            </main>
+          </div>
+        );
+      }
+
+      function DungeonEditor({ dungeon, setDungeon, availableItems, availableEnemies }) {
+        const [activeTool, setActiveTool] = useState("floor");
+        const [draftWidth, setDraftWidth] = useState(dungeon.width);
+        const [draftHeight, setDraftHeight] = useState(dungeon.height);
+        const [fillChar, setFillChar] = useState("#");
+        const [pruneOutOfBounds, setPruneOutOfBounds] = useState(true);
+
+        const [selectedEnemyDef, setSelectedEnemyDef] = useState(availableEnemies[0]?.id || "goblin");
+        const [selectedItemDef, setSelectedItemDef] = useState(availableItems[0]?.id || "potion_health_minor");
+
+        // Special ASCII character currently selected for painting ('t', 'p', or custom)
+        const [activeTileChar, setActiveTileChar] = useState("t");
+        const [newTileChar, setNewTileChar] = useState("");
+
+        // tileMap: Record<char, Array<{ textureKey, alpha, blendMode, animation? }>>
+        const [tileMap, setTileMap] = useState(() => ({
+          p: [
+            { textureKey: "stone", alpha: 1.0, blendMode: "source-over", animation: null },
+            { textureKey: "portaliso", alpha: 0.9, blendMode: "source-over", animation: null },
+          ],
+          t: [
+            { textureKey: "stone", alpha: 1.0, blendMode: "source-over", animation: null },
+            {
+              textureKey: "torch",
+              alpha: 1.0,
+              blendMode: "source-over",
+              animation: {
+                frameCount: 4,
+                fps: 8,
+                frameWidth: 128,
+                frameHeight: 128,
+              },
+            },
+          ],
+        }));
+
+        const canvasRef = useRef(null);
+        const isMouseDownRef = useRef(false);
+        const tileSize = 34;
+
+        useEffect(() => {
+          setDraftWidth(dungeon.width);
+          setDraftHeight(dungeon.height);
+        }, [dungeon.width, dungeon.height]);
+
+        const addTileChar = e => {
+          e.preventDefault();
+          const ch = newTileChar.trim().slice(0, 1);
+          if (!ch || ch === "#" || ch === " ") return;
+          setTileMap(prev => ({
+            ...prev,
+            [ch]: prev[ch] || [{ textureKey: "stone", alpha: 1.0, blendMode: "source-over", animation: null }],
+          }));
+          setActiveTileChar(ch);
+          setNewTileChar("");
+        };
+
+        const removeTileChar = ch => {
+          setTileMap(prev => {
+            const next = { ...prev };
+            delete next[ch];
+            return next;
+          });
+          if (activeTileChar === ch) {
+            const remaining = Object.keys(tileMap).filter(k => k !== ch);
+            setActiveTileChar(remaining[0] || "t");
+          }
+        };
+
+        const addLayerToChar = ch => {
+          setTileMap(prev => ({
+            ...prev,
+            [ch]: [...(prev[ch] || []), { textureKey: "torch", alpha: 1.0, blendMode: "source-over", animation: null }],
+          }));
+        };
+
+        const updateLayer = (ch, layerIdx, patch) => {
+          setTileMap(prev => ({
+            ...prev,
+            [ch]: (prev[ch] || []).map((layer, idx) => (idx === layerIdx ? { ...layer, ...patch } : layer)),
+          }));
+        };
+
+        const toggleLayerAnimation = (ch, layerIdx, enabled) => {
+          setTileMap(prev => ({
+            ...prev,
+            [ch]: (prev[ch] || []).map((layer, idx) => {
+              if (idx !== layerIdx) return layer;
+              return {
+                ...layer,
+                animation: enabled ? layer.animation || { frameCount: 4, fps: 8, frameWidth: 128, frameHeight: 128 } : null,
+              };
+            }),
+          }));
+        };
+
+        const updateLayerAnimation = (ch, layerIdx, animPatch) => {
+          setTileMap(prev => ({
+            ...prev,
+            [ch]: (prev[ch] || []).map((layer, idx) => {
+              if (idx !== layerIdx) return layer;
+              return {
+                ...layer,
+                animation: {
+                  frameCount: 4,
+                  fps: 8,
+                  frameWidth: 128,
+                  frameHeight: 128,
+                  ...(layer.animation || {}),
+                  ...animPatch,
+                },
+              };
+            }),
+          }));
+        };
+
+        const removeLayer = (ch, layerIdx) => {
+          setTileMap(prev => {
+            const current = prev[ch] || [];
+            if (current.length <= 1) return prev;
+            return {
+              ...prev,
+              [ch]: current.filter((_, idx) => idx !== layerIdx),
+            };
+          });
+        };
+
+        const applyResize = e => {
+          e.preventDefault();
+          const nextW = Math.max(3, Math.min(128, parseInt(draftWidth, 10) || dungeon.width));
+          const nextH = Math.max(3, Math.min(128, parseInt(draftHeight, 10) || dungeon.height));
+
+          setDungeon(prev => {
+            const nextGrid = resizeGridMatrix(prev.grid, nextW, nextH, fillChar);
+            const inBounds = pos => pos && pos.x >= 0 && pos.x < nextW && pos.y >= 0 && pos.y < nextH;
+
+            return {
+              ...prev,
+              width: nextW,
+              height: nextH,
+              grid: nextGrid,
+              enemies: pruneOutOfBounds ? prev.enemies.filter(en => inBounds(en.position)) : prev.enemies,
+              items: pruneOutOfBounds ? prev.items.filter(it => inBounds(it.position)) : prev.items,
+            };
+          });
+        };
+
+        const applyToolAt = (x, y) => {
+          setDungeon(prev => {
+            if (x < 0 || x >= prev.width || y < 0 || y >= prev.height) return prev;
+
+            const nextGrid = prev.grid.map(row => row.map(cell => ({ ...cell })));
+            let nextEnemies = [...prev.enemies];
+            let nextItems = [...prev.items];
+            const cell = nextGrid[y][x];
+
+            if (activeTool === "wall") {
+              cell.char = "#";
+            } else if (activeTool === "floor") {
+              cell.char = " ";
+            } else if (activeTool === "mapped") {
+              cell.char = activeTileChar;
+            } else if (activeTool === "erase") {
+              cell.char = "#";
+              nextEnemies = nextEnemies.filter(en => !(en.position.x === x && en.position.y === y));
+              nextItems = nextItems.filter(it => !(it.position.x === x && it.position.y === y));
+            } else if (activeTool === "enemy") {
+              if (cell.char === "#") cell.char = " ";
+              const existingIdx = nextEnemies.findIndex(en => en.position.x === x && en.position.y === y);
+              if (existingIdx >= 0) {
+                nextEnemies.splice(existingIdx, 1);
+              } else {
+                nextEnemies.push({
+                  id: `${selectedEnemyDef}_${x}_${y}`,
+                  definitionId: selectedEnemyDef,
+                  position: { x, y },
+                });
+              }
+            } else if (activeTool === "item") {
+              if (cell.char === "#") cell.char = " ";
+              const existingIdx = nextItems.findIndex(it => it.position.x === x && it.position.y === y);
+              if (existingIdx >= 0) {
+                nextItems.splice(existingIdx, 1);
+              } else {
+                nextItems.push({
+                  id: selectedItemDef,
+                  position: { x, y },
+                  quantity: 1,
+                });
+              }
+            }
+
+            return {
+              ...prev,
+              grid: nextGrid,
+              enemies: nextEnemies,
+              items: nextItems,
+            };
+          });
+        };
+
+        // Clean tileMap for export (strip null animation so JSON stays clean)
+        const buildCleanTileMap = () => {
+          const clean = {};
+          for (const [ch, layers] of Object.entries(tileMap)) {
+            clean[ch] = layers.map(layer => {
+              const out = {
+                textureKey: layer.textureKey,
+                alpha: layer.alpha ?? 1.0,
+              };
+              if (layer.blendMode) out.blendMode = layer.blendMode;
+              if (layer.animation) {
+                out.animation = {
+                  frameCount: Number(layer.animation.frameCount) || 4,
+                  fps: Number(layer.animation.fps) || 8,
+                  frameWidth: Number(layer.animation.frameWidth) || 128,
+                  frameHeight: Number(layer.animation.frameHeight) || 128,
+                };
+              }
+              return out;
+            });
+          }
+          return clean;
+        };
+
+        useEffect(() => {
+          const canvas = canvasRef.current;
+          if (!canvas) return;
+          const ctx = canvas.getContext("2d");
+          const { width, height, grid, enemies: dEnemies, items: dItems } = dungeon;
+
+          canvas.width = width * tileSize;
+          canvas.height = height * tileSize;
+          ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+          const mappedChars = Object.keys(tileMap);
+          const palette = ["#f59e0b", "#8b5cf6", "#38bdf8", "#ec4899", "#a3e635"];
+
+          for (let y = 0; y < height; y++) {
+            for (let x = 0; x < width; x++) {
+              const cell = grid[y]?.[x] || { char: "#" };
+              const dx = x * tileSize;
+              const dy = y * tileSize;
+
+              ctx.fillStyle = cell.char === "#" ? "#18181f" : "#333846";
+              ctx.fillRect(dx, dy, tileSize, tileSize);
+
+              if (cell.char !== "#" && cell.char !== " ") {
+                const idx = Math.max(0, mappedChars.indexOf(cell.char));
+                ctx.fillStyle = cell.char === "t" ? "#f59e0b" : cell.char === "p" ? "#8b5cf6" : palette[idx % palette.length];
+                ctx.fillRect(dx + 5, dy + 5, tileSize - 10, tileSize - 10);
+
+                ctx.fillStyle = "#090d16";
+                ctx.font = "bold 11px monospace";
+                ctx.fillText(cell.char, dx + tileSize / 2 - 3, dy + tileSize / 2 + 4);
+              }
+
+              ctx.strokeStyle = "#242834";
+              ctx.strokeRect(dx, dy, tileSize, tileSize);
+            }
+          }
+
+          dItems.forEach(it => {
+            const cx = it.position.x * tileSize + tileSize / 2;
+            const cy = it.position.y * tileSize + tileSize / 2;
+            ctx.fillStyle = "#34d399";
+            ctx.beginPath();
+            ctx.arc(cx, cy, tileSize / 4.5, 0, Math.PI * 2);
+            ctx.fill();
+          });
+
+          dEnemies.forEach(en => {
+            const dx = en.position.x * tileSize + 6;
+            const dy = en.position.y * tileSize + 6;
+            ctx.fillStyle = "#ef4444";
+            ctx.fillRect(dx, dy, tileSize - 12, tileSize - 12);
+            ctx.fillStyle = "#ffffff";
+            ctx.font = "bold 11px sans-serif";
+            ctx.fillText("E", dx + (tileSize - 12) / 2 - 4, dy + (tileSize - 12) / 2 + 4);
+          });
+        }, [dungeon, tileMap]);
+
+        const handlePointer = e => {
+          const rect = canvasRef.current?.getBoundingClientRect();
+          if (!rect) return;
+          const x = Math.floor((e.clientX - rect.left) / tileSize);
+          const y = Math.floor((e.clientY - rect.top) / tileSize);
+          applyToolAt(x, y);
+        };
+
+        const generateAscii = () => dungeon.grid.map(row => row.map(cell => cell.char).join("")).join("\n");
+
+        const exportJSON = () => ({
+          id: dungeon.id,
+          defaultWallTexture: dungeon.defaultWallTexture,
+          defaultFloorTexture: dungeon.defaultFloorTexture,
+          defaultCeilingTexture: dungeon.defaultCeilingTexture,
+          width: dungeon.width,
+          height: dungeon.height,
+          items: dungeon.items,
+          enemies: dungeon.enemies,
+          asciiGrid: generateAscii(),
+          tileMap: buildCleanTileMap(),
+        });
+
+        const exportSnippet = `grid: dungeonFromAscii(\n\`\n${generateAscii()}\n\`,\n  ${JSON.stringify({ tileMap: buildCleanTileMap() }, null, 2)}\n)`;
+
+        const currentLayers = tileMap[activeTileChar] || [];
+
+        return (
+          <div className="flex flex-1 h-full">
+            <div className="flex-1 flex flex-col p-6 gap-4 overflow-y-auto">
+              {/* Metadata & Size Controls */}
+              <div className="bg-slate-900 p-4 rounded-lg border border-slate-800 flex flex-wrap gap-4 items-end">
+                <div>
+                  <label className="block text-xs font-semibold text-slate-400 mb-1">Dungeon ID</label>
+                  <input
+                    type="text"
+                    value={dungeon.id}
+                    onChange={e => setDungeon(prev => ({ ...prev, id: e.target.value }))}
+                    className="bg-slate-950 border border-slate-700 rounded px-3 py-1.5 text-sm text-white"
+                  />
+                </div>
+
+                <form onSubmit={applyResize} className="flex flex-wrap gap-3 items-end">
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-400 mb-1">Width (Cols)</label>
+                    <input
+                      type="number"
+                      min="3"
+                      max="128"
+                      value={draftWidth}
+                      onChange={e => setDraftWidth(e.target.value)}
+                      className="w-20 bg-slate-950 border border-slate-700 rounded px-2.5 py-1.5 text-sm text-white"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-400 mb-1">Height (Rows)</label>
+                    <input
+                      type="number"
+                      min="3"
+                      max="128"
+                      value={draftHeight}
+                      onChange={e => setDraftHeight(e.target.value)}
+                      className="w-20 bg-slate-950 border border-slate-700 rounded px-2.5 py-1.5 text-sm text-white"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-400 mb-1">New Tile Fill</label>
+                    <select
+                      value={fillChar}
+                      onChange={e => setFillChar(e.target.value)}
+                      className="bg-slate-950 border border-slate-700 rounded px-2 py-1.5 text-sm text-white"
+                    >
+                      <option value="#">Wall (#)</option>
+                      <option value=" ">Floor ( )</option>
+                    </select>
+                  </div>
+                  <label className="flex items-center gap-1.5 text-xs text-slate-300 pb-1.5">
+                    <input
+                      type="checkbox"
+                      checked={pruneOutOfBounds}
+                      onChange={e => setPruneOutOfBounds(e.target.checked)}
+                      className="rounded border-slate-700"
+                    />
+                    Trim out-of-bounds entities
+                  </label>
+                  <button
+                    type="submit"
+                    className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-xs font-semibold rounded transition"
+                  >
+                    Resize Grid ({dungeon.width}×{dungeon.height})
+                  </button>
+                </form>
+              </div>
+
+              {/* Brush & Entity Bar */}
+              <div className="bg-slate-900 p-3 rounded-lg border border-slate-800 flex flex-wrap gap-2 items-center">
+                {["floor", "wall", "mapped", "enemy", "item", "erase"].map(tool => (
+                  <button
+                    key={tool}
+                    onClick={() => setActiveTool(tool)}
+                    className={`px-3 py-1.5 text-xs rounded capitalize font-medium ${
+                      activeTool === tool ? "bg-blue-600 text-white" : "bg-slate-800 hover:bg-slate-700 text-slate-300"
+                    }`}
+                  >
+                    {tool === "mapped" ? `TileMap Char ('${activeTileChar}')` : tool}
+                  </button>
+                ))}
+
+                {activeTool === "enemy" && (
+                  <select
+                    value={selectedEnemyDef}
+                    onChange={e => setSelectedEnemyDef(e.target.value)}
+                    className="bg-slate-950 border border-slate-700 rounded px-2.5 py-1 text-xs text-white ml-2"
+                  >
+                    {availableEnemies.map(en => (
+                      <option key={en.id} value={en.id}>
+                        {en.id}
+                      </option>
+                    ))}
+                  </select>
+                )}
+
+                {activeTool === "item" && (
+                  <select
+                    value={selectedItemDef}
+                    onChange={e => setSelectedItemDef(e.target.value)}
+                    className="bg-slate-950 border border-slate-700 rounded px-2.5 py-1 text-xs text-white ml-2"
+                  >
+                    {availableItems.map(it => (
+                      <option key={it.id} value={it.id}>
+                        {it.id}
+                      </option>
+                    ))}
+                  </select>
+                )}
+              </div>
+
+              {/* Canvas Viewport */}
+              <div className="border border-slate-800 rounded-lg overflow-auto bg-slate-900 p-4">
+                <canvas
+                  ref={canvasRef}
+                  onPointerDown={e => {
+                    isMouseDownRef.current = true;
+                    handlePointer(e);
+                  }}
+                  onPointerUp={() => {
+                    isMouseDownRef.current = false;
+                  }}
+                  onPointerLeave={() => {
+                    isMouseDownRef.current = false;
+                  }}
+                  onPointerMove={e => {
+                    if (isMouseDownRef.current) handlePointer(e);
+                  }}
+                  className="cursor-crosshair block shadow-xl"
+                />
+              </div>
+
+              {/* TileMap Texture & Animation Configurator */}
+              <div className="bg-slate-900 border border-slate-800 rounded-lg p-4 flex flex-col gap-4">
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span className="text-xs font-bold uppercase tracking-wider text-slate-400 mr-1">TileMap Chars:</span>
+                    {Object.keys(tileMap).map(ch => (
+                      <div key={ch} className="inline-flex items-center rounded bg-slate-950 border border-slate-700 overflow-hidden">
+                        <button
+                          onClick={() => {
+                            setActiveTileChar(ch);
+                            setActiveTool("mapped");
+                          }}
+                          className={`px-2.5 py-1 text-xs font-mono ${
+                            activeTileChar === ch ? "bg-amber-500 text-slate-950 font-bold" : "text-slate-200 hover:bg-slate-800"
+                          }`}
+                        >
+                          '{ch}' ({(tileMap[ch] || []).length}L)
+                        </button>
+                        {Object.keys(tileMap).length > 1 && (
+                          <button
+                            onClick={() => removeTileChar(ch)}
+                            title="Remove char"
+                            className="px-1.5 py-1 text-xs text-red-400 hover:bg-slate-800"
+                          >
+                            ×
+                          </button>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+
+                  <form onSubmit={addTileChar} className="flex items-center gap-2">
+                    <input
+                      type="text"
+                      maxLength={1}
+                      placeholder="char"
+                      value={newTileChar}
+                      onChange={e => setNewTileChar(e.target.value)}
+                      className="w-14 bg-slate-950 border border-slate-700 rounded px-2 py-1 text-xs font-mono text-center"
+                    />
+                    <button
+                      type="submit"
+                      className="px-2.5 py-1 bg-slate-800 hover:bg-slate-700 text-xs text-blue-400 border border-slate-700 rounded"
+                    >
+                      + Char
+                    </button>
+                  </form>
+                </div>
+
+                {activeTileChar && tileMap[activeTileChar] && (
+                  <div className="flex flex-col gap-3 border-t border-slate-800 pt-3">
+                    <div className="flex justify-between items-center">
+                      <span className="text-xs font-semibold text-slate-300">
+                        Layers for character <code className="text-amber-300">'{activeTileChar}'</code>
+                      </span>
+                      <button
+                        onClick={() => addLayerToChar(activeTileChar)}
+                        className="px-2.5 py-1 bg-blue-600 hover:bg-blue-500 text-xs font-semibold rounded"
+                      >
+                        + Add Layer
+                      </button>
+                    </div>
+
+                    {currentLayers.map((layer, lIdx) => {
+                      const hasAnim = Boolean(layer.animation);
+                      return (
+                        <div key={lIdx} className="bg-slate-950 border border-slate-800 rounded-lg p-3 flex flex-col gap-3">
+                          <div className="grid grid-cols-1 sm:grid-cols-4 gap-2 text-xs items-end">
+                            <div>
+                              <span className="text-slate-400 block mb-1">Texture Key</span>
+                              <input
+                                type="text"
+                                value={layer.textureKey || ""}
+                                onChange={e => updateLayer(activeTileChar, lIdx, { textureKey: e.target.value })}
+                                className="w-full bg-slate-900 border border-slate-700 rounded px-2 py-1 font-mono"
+                              />
+                            </div>
+                            <div>
+                              <span className="text-slate-400 block mb-1">Alpha</span>
+                              <input
+                                type="number"
+                                step="0.05"
+                                min="0"
+                                max="1"
+                                value={layer.alpha ?? 1.0}
+                                onChange={e => updateLayer(activeTileChar, lIdx, { alpha: parseFloat(e.target.value) })}
+                                className="w-full bg-slate-900 border border-slate-700 rounded px-2 py-1"
+                              />
+                            </div>
+                            <div>
+                              <span className="text-slate-400 block mb-1">Blend Mode</span>
+                              <select
+                                value={layer.blendMode || "source-over"}
+                                onChange={e => updateLayer(activeTileChar, lIdx, { blendMode: e.target.value })}
+                                className="w-full bg-slate-900 border border-slate-700 rounded px-2 py-1"
+                              >
+                                <option value="source-over">source-over</option>
+                                <option value="screen">screen</option>
+                                <option value="lighter">lighter</option>
+                                <option value="multiply">multiply</option>
+                              </select>
+                            </div>
+                            <div className="flex items-center justify-between gap-2 pb-0.5">
+                              <label className="flex items-center gap-1.5 text-slate-300 cursor-pointer">
+                                <input
+                                  type="checkbox"
+                                  checked={hasAnim}
+                                  onChange={e => toggleLayerAnimation(activeTileChar, lIdx, e.target.checked)}
+                                />
+                                Animated
+                              </label>
+                              {currentLayers.length > 1 && (
+                                <button onClick={() => removeLayer(activeTileChar, lIdx)} className="text-red-400 hover:underline">
+                                  Remove
+                                </button>
+                              )}
+                            </div>
+                          </div>
+
+                          {hasAnim && (
+                            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs bg-slate-900/70 p-2.5 rounded border border-slate-800">
+                              <div>
+                                <span className="text-slate-400 block mb-1">Frame Count</span>
+                                <input
+                                  type="number"
+                                  min="1"
+                                  value={layer.animation.frameCount ?? 4}
+                                  onChange={e =>
+                                    updateLayerAnimation(activeTileChar, lIdx, { frameCount: parseInt(e.target.value, 10) || 1 })
+                                  }
+                                  className="w-full bg-slate-950 border border-slate-700 rounded px-2 py-1"
+                                />
+                              </div>
+                              <div>
+                                <span className="text-slate-400 block mb-1">FPS</span>
+                                <input
+                                  type="number"
+                                  min="1"
+                                  value={layer.animation.fps ?? 8}
+                                  onChange={e =>
+                                    updateLayerAnimation(activeTileChar, lIdx, { fps: parseInt(e.target.value, 10) || 1 })
+                                  }
+                                  className="w-full bg-slate-950 border border-slate-700 rounded px-2 py-1"
+                                />
+                              </div>
+                              <div>
+                                <span className="text-slate-400 block mb-1">Frame Width</span>
+                                <input
+                                  type="number"
+                                  min="1"
+                                  value={layer.animation.frameWidth ?? 128}
+                                  onChange={e =>
+                                    updateLayerAnimation(activeTileChar, lIdx, { frameWidth: parseInt(e.target.value, 10) || 128 })
+                                  }
+                                  className="w-full bg-slate-950 border border-slate-700 rounded px-2 py-1"
+                                />
+                              </div>
+                              <div>
+                                <span className="text-slate-400 block mb-1">Frame Height</span>
+                                <input
+                                  type="number"
+                                  min="1"
+                                  value={layer.animation.frameHeight ?? 128}
+                                  onChange={e =>
+                                    updateLayerAnimation(activeTileChar, lIdx, { frameHeight: parseInt(e.target.value, 10) || 128 })
+                                  }
+                                  className="w-full bg-slate-950 border border-slate-700 rounded px-2 py-1"
+                                />
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+
+              {/* Raw ASCII Preview */}
+              <div className="bg-slate-900 border border-slate-800 rounded-lg p-3">
+                <div className="text-xs font-semibold text-slate-400 mb-1">
+                  Raw ASCII Grid ({dungeon.width} cols × {dungeon.height} rows)
+                </div>
+                <pre className="bg-slate-950 p-3 rounded text-xs font-mono text-amber-300 overflow-auto">{generateAscii()}</pre>
+              </div>
+            </div>
+
+            <SideJSONPanel
+              title="Dungeon Definition JSON"
+              data={exportJSON()}
+              extraCopy={{ label: "Copy dungeonFromAscii()", text: exportSnippet }}
+            />
+          </div>
+        );
+      }
+      function ItemEditor({ items, setItems }) {
+        const addItem = () => {
+          setItems(prev => [
+            ...prev,
+            {
+              id: `item_${prev.length + 1}`,
+              name: "New Item",
+              description: "",
+              category: "consumable",
+              stackable: true,
+              maxStackSize: 10,
+              weight: 1,
+              textureKey: "potion",
+            },
+          ]);
+        };
+
+        const updateItem = (index, field, val) => {
+          setItems(prev => prev.map((item, i) => (i === index ? { ...item, [field]: val } : item)));
+        };
+
+        return (
+          <div className="flex flex-1 h-full">
+            <div className="flex-1 p-6 flex flex-col gap-4 overflow-y-auto">
+              <div className="flex justify-between items-center">
+                <h2 className="text-lg font-bold">Item Definitions</h2>
+                <button onClick={addItem} className="px-3 py-1.5 bg-blue-600 hover:bg-blue-500 text-xs font-semibold rounded">
+                  + Add Item
+                </button>
+              </div>
+              {items.map((item, idx) => (
+                <div key={idx} className="bg-slate-900 border border-slate-800 p-4 rounded-lg grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-xs text-slate-400 mb-1">Item ID</label>
+                    <input
+                      type="text"
+                      value={item.id}
+                      onChange={e => updateItem(idx, "id", e.target.value)}
+                      className="w-full bg-slate-950 border border-slate-700 rounded p-1.5 text-sm"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs text-slate-400 mb-1">Display Name</label>
+                    <input
+                      type="text"
+                      value={item.name}
+                      onChange={e => updateItem(idx, "name", e.target.value)}
+                      className="w-full bg-slate-950 border border-slate-700 rounded p-1.5 text-sm"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs text-slate-400 mb-1">Texture Key</label>
+                    <input
+                      type="text"
+                      value={item.textureKey}
+                      onChange={e => updateItem(idx, "textureKey", e.target.value)}
+                      className="w-full bg-slate-950 border border-slate-700 rounded p-1.5 text-sm"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs text-slate-400 mb-1">Weight</label>
+                    <input
+                      type="number"
+                      step="0.1"
+                      value={item.weight}
+                      onChange={e => updateItem(idx, "weight", parseFloat(e.target.value) || 0)}
+                      className="w-full bg-slate-950 border border-slate-700 rounded p-1.5 text-sm"
+                    />
+                  </div>
+                </div>
+              ))}
+            </div>
+            <SideJSONPanel title="Items Export JSON" data={items} />
+          </div>
+        );
+      }
+
+      function EnemyEditor({ enemies, setEnemies }) {
+        const addEnemy = () => {
+          setEnemies(prev => [
+            ...prev,
+            {
+              id: `enemy_${prev.length + 1}`,
+              name: "New Enemy",
+              avatarKey: "goblin",
+              textureKey: "goblinLarge",
+              health: 20,
+              attack: 5,
+              defense: 1,
+              detectionRadius: 4,
+              xpReward: 15,
+            },
+          ]);
+        };
+
+        const updateEnemy = (index, field, val) => {
+          setEnemies(prev => prev.map((enemy, i) => (i === index ? { ...enemy, [field]: val } : enemy)));
+        };
+
+        return (
+          <div className="flex flex-1 h-full">
+            <div className="flex-1 p-6 flex flex-col gap-4 overflow-y-auto">
+              <div className="flex justify-between items-center">
+                <h2 className="text-lg font-bold">Enemy Definitions</h2>
+                <button onClick={addEnemy} className="px-3 py-1.5 bg-blue-600 hover:bg-blue-500 text-xs font-semibold rounded">
+                  + Add Enemy
+                </button>
+              </div>
+              {enemies.map((enemy, idx) => (
+                <div key={idx} className="bg-slate-900 border border-slate-800 p-4 rounded-lg grid grid-cols-3 gap-4">
+                  <div>
+                    <label className="block text-xs text-slate-400 mb-1">Enemy ID</label>
+                    <input
+                      type="text"
+                      value={enemy.id}
+                      onChange={e => updateEnemy(idx, "id", e.target.value)}
+                      className="w-full bg-slate-950 border border-slate-700 rounded p-1.5 text-sm"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs text-slate-400 mb-1">Name</label>
+                    <input
+                      type="text"
+                      value={enemy.name}
+                      onChange={e => updateEnemy(idx, "name", e.target.value)}
+                      className="w-full bg-slate-950 border border-slate-700 rounded p-1.5 text-sm"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs text-slate-400 mb-1">Health</label>
+                    <input
+                      type="number"
+                      value={enemy.health}
+                      onChange={e => updateEnemy(idx, "health", parseInt(e.target.value, 10) || 0)}
+                      className="w-full bg-slate-950 border border-slate-700 rounded p-1.5 text-sm"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs text-slate-400 mb-1">Attack</label>
+                    <input
+                      type="number"
+                      value={enemy.attack}
+                      onChange={e => updateEnemy(idx, "attack", parseInt(e.target.value, 10) || 0)}
+                      className="w-full bg-slate-950 border border-slate-700 rounded p-1.5 text-sm"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs text-slate-400 mb-1">Defense</label>
+                    <input
+                      type="number"
+                      value={enemy.defense}
+                      onChange={e => updateEnemy(idx, "defense", parseInt(e.target.value, 10) || 0)}
+                      className="w-full bg-slate-950 border border-slate-700 rounded p-1.5 text-sm"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs text-slate-400 mb-1">Detection Radius</label>
+                    <input
+                      type="number"
+                      value={enemy.detectionRadius}
+                      onChange={e => updateEnemy(idx, "detectionRadius", parseInt(e.target.value, 10) || 0)}
+                      className="w-full bg-slate-950 border border-slate-700 rounded p-1.5 text-sm"
+                    />
+                  </div>
+                </div>
+              ))}
+            </div>
+            <SideJSONPanel title="Enemies Export JSON" data={enemies} />
+          </div>
+        );
+      }
+
+      function CutsceneEditor({ cutscene, setCutscene }) {
+        const addCommand = type => {
+          let args = {};
+          if (type === "cameraShake") args = { magnitudeX: 5, magnitudeY: 5, duration: 300 };
+          if (type === "dialog") args = { path: "/public/Dialog/dialog.json" };
+          if (type === "start_quest") args = { questId: "find-potion" };
+          if (type === "newDungeon") args = { id: "crypt-dungeon", newPos: { x: 7.5, y: 10.5 }, direction: "north" };
+          setCutscene(prev => ({ ...prev, commands: [...prev.commands, { type, args }] }));
+        };
+
+        const updateArg = (cmdIdx, key, val) => {
+          setCutscene(prev => ({
+            ...prev,
+            commands: prev.commands.map((cmd, i) => (i === cmdIdx ? { ...cmd, args: { ...cmd.args, [key]: val } } : cmd)),
+          }));
+        };
+
+        const removeCommand = idx => {
+          setCutscene(prev => ({
+            ...prev,
+            commands: prev.commands.filter((_, i) => i !== idx),
+          }));
+        };
+
+        return (
+          <div className="flex flex-1 h-full">
+            <div className="flex-1 p-6 flex flex-col gap-4 overflow-y-auto">
+              <div className="bg-slate-900 border border-slate-800 p-4 rounded-lg flex flex-wrap items-center justify-between gap-3">
+                <div>
+                  <label className="block text-xs text-slate-400 mb-1">Cutscene ID</label>
+                  <input
+                    type="text"
+                    value={cutscene.id}
+                    onChange={e => setCutscene(prev => ({ ...prev, id: e.target.value }))}
+                    className="bg-slate-950 border border-slate-700 rounded px-3 py-1.5 text-sm"
+                  />
+                </div>
+                <div className="flex gap-1 flex-wrap">
+                  {["cameraShake", "dialog", "start_quest", "newDungeon", "encounter_summary"].map(type => (
+                    <button
+                      key={type}
+                      onClick={() => addCommand(type)}
+                      className="px-2.5 py-1 bg-slate-800 hover:bg-slate-700 text-xs text-blue-400 border border-slate-700 rounded"
+                    >
+                      + {type}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div className="flex flex-col gap-3">
+                {cutscene.commands.map((cmd, idx) => (
+                  <div key={idx} className="bg-slate-900 border border-slate-800 p-4 rounded-lg flex flex-col gap-3">
+                    <div className="flex justify-between items-center">
+                      <span className="text-xs font-mono text-blue-300 bg-blue-950 px-2 py-1 rounded border border-blue-900">
+                        #{idx + 1}: {cmd.type}
+                      </span>
+                      <button onClick={() => removeCommand(idx)} className="text-red-400 text-xs hover:underline">
+                        Remove
+                      </button>
+                    </div>
+
+                    {cmd.type === "dialog" && (
+                      <div>
+                        <span className="text-xs text-slate-400 block mb-1">Dialog Path</span>
+                        <input
+                          type="text"
+                          value={cmd.args.path || ""}
+                          onChange={e => updateArg(idx, "path", e.target.value)}
+                          className="w-full bg-slate-950 border border-slate-700 rounded px-2.5 py-1.5 text-xs font-mono"
+                        />
+                      </div>
+                    )}
+
+                    {cmd.type === "cameraShake" && (
+                      <div className="grid grid-cols-3 gap-2 text-xs">
+                        <div>
+                          <span className="text-slate-400 block mb-1">Mag X</span>
+                          <input
+                            type="number"
+                            value={cmd.args.magnitudeX ?? 5}
+                            onChange={e => updateArg(idx, "magnitudeX", Number(e.target.value))}
+                            className="w-full bg-slate-950 border border-slate-700 rounded px-2 py-1"
+                          />
+                        </div>
+                        <div>
+                          <span className="text-slate-400 block mb-1">Mag Y</span>
+                          <input
+                            type="number"
+                            value={cmd.args.magnitudeY ?? 5}
+                            onChange={e => updateArg(idx, "magnitudeY", Number(e.target.value))}
+                            className="w-full bg-slate-950 border border-slate-700 rounded px-2 py-1"
+                          />
+                        </div>
+                        <div>
+                          <span className="text-slate-400 block mb-1">Duration (ms)</span>
+                          <input
+                            type="number"
+                            value={cmd.args.duration ?? 300}
+                            onChange={e => updateArg(idx, "duration", Number(e.target.value))}
+                            className="w-full bg-slate-950 border border-slate-700 rounded px-2 py-1"
+                          />
+                        </div>
+                      </div>
+                    )}
+
+                    {cmd.type === "start_quest" && (
+                      <div>
+                        <span className="text-xs text-slate-400 block mb-1">Quest ID</span>
+                        <input
+                          type="text"
+                          value={cmd.args.questId || ""}
+                          onChange={e => updateArg(idx, "questId", e.target.value)}
+                          className="w-full bg-slate-950 border border-slate-700 rounded px-2.5 py-1.5 text-xs font-mono"
+                        />
+                      </div>
+                    )}
+
+                    {cmd.type === "newDungeon" && (
+                      <div className="grid grid-cols-4 gap-2 text-xs">
+                        <div>
+                          <span className="text-slate-400 block mb-1">Dungeon ID</span>
+                          <input
+                            type="text"
+                            value={cmd.args.id || ""}
+                            onChange={e => updateArg(idx, "id", e.target.value)}
+                            className="w-full bg-slate-950 border border-slate-700 rounded px-2 py-1 font-mono"
+                          />
+                        </div>
+                        <div>
+                          <span className="text-slate-400 block mb-1">X</span>
+                          <input
+                            type="number"
+                            step="0.5"
+                            value={cmd.args.newPos?.x ?? 0}
+                            onChange={e =>
+                              updateArg(idx, "newPos", { ...(cmd.args.newPos || { x: 0, y: 0 }), x: Number(e.target.value) })
+                            }
+                            className="w-full bg-slate-950 border border-slate-700 rounded px-2 py-1"
+                          />
+                        </div>
+                        <div>
+                          <span className="text-slate-400 block mb-1">Y</span>
+                          <input
+                            type="number"
+                            step="0.5"
+                            value={cmd.args.newPos?.y ?? 0}
+                            onChange={e =>
+                              updateArg(idx, "newPos", { ...(cmd.args.newPos || { x: 0, y: 0 }), y: Number(e.target.value) })
+                            }
+                            className="w-full bg-slate-950 border border-slate-700 rounded px-2 py-1"
+                          />
+                        </div>
+                        <div>
+                          <span className="text-slate-400 block mb-1">Direction</span>
+                          <select
+                            value={cmd.args.direction || "north"}
+                            onChange={e => updateArg(idx, "direction", e.target.value)}
+                            className="w-full bg-slate-950 border border-slate-700 rounded px-2 py-1"
+                          >
+                            <option value="north">north</option>
+                            <option value="south">south</option>
+                            <option value="east">east</option>
+                            <option value="west">west</option>
+                          </select>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </div>
+            <SideJSONPanel title="Cutscene Manifest JSON" data={cutscene} />
+          </div>
+        );
+      }
+
+      function SideJSONPanel({ title, data, extraCopy }) {
+        const jsonString = JSON.stringify(data, null, 2);
+        const [copiedKey, setCopiedKey] = useState(null);
+
+        const handleCopy = (key, text) => {
+          navigator.clipboard.writeText(text);
+          setCopiedKey(key);
+          setTimeout(() => setCopiedKey(null), 2000);
+        };
+
+        return (
+          <div className="w-96 bg-slate-900 border-l border-slate-800 flex flex-col shrink-0">
+            <div className="p-4 border-b border-slate-800 flex justify-between items-center gap-2 bg-slate-900/50">
+              <h3 className="text-xs font-bold uppercase tracking-wider text-slate-400 truncate">{title}</h3>
+              <div className="flex gap-1.5 shrink-0">
+                {extraCopy && (
+                  <button
+                    onClick={() => handleCopy("extra", extraCopy.text)}
+                    className="px-2.5 py-1 bg-slate-800 hover:bg-slate-700 text-blue-300 border border-slate-700 text-xs font-semibold rounded transition"
+                  >
+                    {copiedKey === "extra" ? "Copied!" : extraCopy.label}
+                  </button>
+                )}
+                <button
+                  onClick={() => handleCopy("json", jsonString)}
+                  className="px-3 py-1 bg-blue-600 hover:bg-blue-500 text-xs font-semibold rounded transition"
+                >
+                  {copiedKey === "json" ? "Copied!" : "Copy JSON"}
+                </button>
+              </div>
+            </div>
+            <pre className="flex-1 p-4 bg-slate-950 text-xs font-mono text-green-400 overflow-auto">{jsonString}</pre>
+          </div>
+        );
+      }
+      ReactDOM.createRoot(document.getElementById("root")).render(<App />);
+    </script>
+  </body>
+</html>
