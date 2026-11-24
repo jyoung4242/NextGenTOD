@@ -158,7 +158,6 @@ export class SaveManager {
    * Call after all engine.addScene(...) calls (or call attachScene yourself for late-added scenes).
    */
   attachEngine(engine: Engine): () => void {
-    debugger;
     const unsubs = Object.entries(engine.scenes).map(([key, scene]) => this.attachScene(key, scene as Scene));
     return () => unsubs.forEach(u => u());
   }

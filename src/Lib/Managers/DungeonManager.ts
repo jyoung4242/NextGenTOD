@@ -29,6 +29,7 @@ export class DungeonManager {
    * If it's the first time visiting this dungeon ID, it generates its runtime state.
    */
   public loadOrInitDungeon(definition: DungeonDefinition, state: StateStore<GameState>, contentRegistry?: ContentRegistry): void {
+    applyConnectionsToGrid(definition);
     const dungeonStore = state.get("dungeon");
     const existingState = dungeonStore.registry[definition.id];
 

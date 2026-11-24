@@ -30,6 +30,9 @@ export class DungeonViewportGraphic extends Graphic {
   private readonly raycaster: DungeonRaycaster;
   private readonly textures: Map<string, HTMLImageElement>;
   private readonly content?: ContentRegistry;
+  private readonly warnedTextureKeys = new Set<string>();
+  private readonly warnedFallbackCells = new Set<string>();
+  private readonly texturePixelCache = new WeakMap<HTMLImageElement, ImageData>();
 
   private canvas: HTMLCanvasElement;
   private ctx: CanvasRenderingContext2D;
@@ -46,7 +49,7 @@ export class DungeonViewportGraphic extends Graphic {
     this.canvas = document.createElement("canvas");
     this.canvas.width = this.width;
     this.canvas.height = this.height;
-    this.ctx = this.canvas.getContext("2d")!;
+    this.ctx = this.canvas.getContext("2d", { willReadFrequently: true })!;
   }
 
   public clone(): Graphic {
@@ -71,6 +74,32 @@ export class DungeonViewportGraphic extends Graphic {
     ex.drawImage(this.canvas, x, y, this.width, this.height);
   }
 
+  private warnOnce(bucket: Set<string>, dedupeKey: string, message: string): void {
+    if (bucket.has(dedupeKey)) return;
+    bucket.add(dedupeKey);
+    console.warn(message);
+  }
+
+  private getImageData(img: HTMLImageElement): ImageData | null {
+    if (!img.complete || img.naturalWidth === 0 || img.naturalHeight === 0) {
+      return null;
+    }
+
+    const cached = this.texturePixelCache.get(img);
+    if (cached) return cached;
+
+    const tempCanvas = document.createElement("canvas");
+    tempCanvas.width = img.naturalWidth;
+    tempCanvas.height = img.naturalHeight;
+    const tempCtx = tempCanvas.getContext("2d");
+    if (!tempCtx) return null;
+
+    tempCtx.drawImage(img, 0, 0);
+    const data = tempCtx.getImageData(0, 0, tempCanvas.width, tempCanvas.height);
+    this.texturePixelCache.set(img, data);
+    return data;
+  }
+
   private redrawViewport(): void {
     const { ctx, width, height } = this;
     const currentState = this.getState();
@@ -88,47 +117,111 @@ export class DungeonViewportGraphic extends Graphic {
     const halfHeight = height / 2;
 
     // -------------------------------------------------------------
-    // 1. Ceiling & Floor (Fill Patterns + Horizon Fog Overlays)
+    // 1. Perspective Floor & Ceiling (with Fallbacks & Lighting)
     // -------------------------------------------------------------
     const floorImg = this.textures.get(this.dungeon.defaultFloorTexture ?? "dirt");
     const ceilingImg = this.textures.get(this.dungeon.defaultCeilingTexture ?? "ceiling");
 
-    if (ceilingImg) {
-      const ceilingPattern = ctx.createPattern(ceilingImg, "repeat");
-      if (ceilingPattern) {
-        ctx.fillStyle = ceilingPattern;
-        ctx.fillRect(0, 0, width, halfHeight);
+    const floorPixelData = floorImg ? this.getImageData(floorImg) : null;
+    const ceilingPixelData = ceilingImg ? this.getImageData(ceilingImg) : null;
+    const horizonRow = Math.floor(halfHeight);
+
+    if (floorPixelData || ceilingPixelData) {
+      const frameImageData = ctx.getImageData(0, 0, width, height);
+      const outPixels = frameImageData.data;
+
+      const floorPixels = floorPixelData?.data;
+      const floorW = floorPixelData?.width ?? 1;
+      const floorH = floorPixelData?.height ?? 1;
+
+      const ceilingPixels = ceilingPixelData?.data;
+      const ceilingW = ceilingPixelData?.width ?? 1;
+      const ceilingH = ceilingPixelData?.height ?? 1;
+
+      const halfFov = this.camera.fov / 2;
+      const rayDirX0 = Math.cos(this.camera.angle - halfFov);
+      const rayDirY0 = Math.sin(this.camera.angle - halfFov);
+      const rayDirX1 = Math.cos(this.camera.angle + halfFov);
+      const rayDirY1 = Math.sin(this.camera.angle + halfFov);
+
+      const planeHalfHeight = 0.5;
+
+      for (let rowOffset = 1; horizonRow + rowOffset < height; rowOffset++) {
+        const floorYScreen = horizonRow + rowOffset;
+        const ceilingYScreen = horizonRow - rowOffset;
+        const rowDistance = (planeHalfHeight * projectionPlane) / rowOffset;
+
+        const floorStepX = (rowDistance * (rayDirX1 - rayDirX0)) / width;
+        const floorStepY = (rowDistance * (rayDirY1 - rayDirY0)) / width;
+
+        let worldX = this.camera.x + rowDistance * rayDirX0;
+        let worldY = this.camera.y + rowDistance * rayDirY0;
+
+        const distShade = Math.max(0, 1.0 - rowDistance / maxLightingDistance);
+        const rowLight = Math.min(1.5, Math.max(ambientLight, ambientLight + (1.0 - ambientLight) * distShade));
+
+        for (let screenX = 0; screenX < width; screenX++) {
+          const fracX = ((worldX % 1) + 1) % 1;
+          const fracY = ((worldY % 1) + 1) % 1;
+
+          if (floorPixels) {
+            const texX = Math.min(floorW - 1, Math.floor(fracX * floorW));
+            const texY = Math.min(floorH - 1, Math.floor(fracY * floorH));
+            const srcIdx = (texY * floorW + texX) * 4;
+            const dstIdx = (floorYScreen * width + screenX) * 4;
+
+            outPixels[dstIdx] = Math.min(255, Math.floor(floorPixels[srcIdx] * rowLight));
+            outPixels[dstIdx + 1] = Math.min(255, Math.floor(floorPixels[srcIdx + 1] * rowLight));
+            outPixels[dstIdx + 2] = Math.min(255, Math.floor(floorPixels[srcIdx + 2] * rowLight));
+            outPixels[dstIdx + 3] = 255;
+          }
+
+          if (ceilingPixels && ceilingYScreen >= 0) {
+            const texX = Math.min(ceilingW - 1, Math.floor(fracX * ceilingW));
+            const texY = Math.min(ceilingH - 1, Math.floor(fracY * ceilingH));
+            const srcIdx = (texY * ceilingW + texX) * 4;
+            const dstIdx = (ceilingYScreen * width + screenX) * 4;
+
+            outPixels[dstIdx] = Math.min(255, Math.floor(ceilingPixels[srcIdx] * rowLight));
+            outPixels[dstIdx + 1] = Math.min(255, Math.floor(ceilingPixels[srcIdx + 1] * rowLight));
+            outPixels[dstIdx + 2] = Math.min(255, Math.floor(ceilingPixels[srcIdx + 2] * rowLight));
+            outPixels[dstIdx + 3] = 255;
+          }
+
+          worldX += floorStepX;
+          worldY += floorStepY;
+        }
       }
-    } else {
+
+      ctx.putImageData(frameImageData, 0, 0);
+    }
+
+    if (!ceilingPixelData) {
       ctx.fillStyle = "#202020";
-      ctx.fillRect(0, 0, width, halfHeight);
-    }
+      ctx.fillRect(0, 0, width, horizonRow);
 
-    if (floorImg) {
-      const floorPattern = ctx.createPattern(floorImg, "repeat");
-      if (floorPattern) {
-        ctx.fillStyle = floorPattern;
-        ctx.fillRect(0, halfHeight, width, halfHeight);
+      if (ambientLight < 1.0) {
+        const ceilingGradient = ctx.createLinearGradient(0, 0, 0, horizonRow);
+        ceilingGradient.addColorStop(0.0, "rgba(0, 0, 0, 1.0)");
+        ceilingGradient.addColorStop(0.2, `rgba(0, 0, 0, ${1.0 - ambientLight})`);
+        ceilingGradient.addColorStop(1.0, `rgba(0, 0, 0, ${1.0 - ambientLight})`);
+        ctx.fillStyle = ceilingGradient;
+        ctx.fillRect(0, 0, width, horizonRow);
       }
-    } else {
-      ctx.fillStyle = "#101010";
-      ctx.fillRect(0, halfHeight, width, halfHeight);
     }
 
-    if (ambientLight < 1.0) {
-      const ceilingGradient = ctx.createLinearGradient(0, 0, 0, halfHeight);
-      ceilingGradient.addColorStop(0.0, `rgba(0, 0, 0, 1.0)`);
-      ceilingGradient.addColorStop(0.2, `rgba(0, 0, 0, ${1.0 - ambientLight})`);
-      ceilingGradient.addColorStop(1.0, `rgba(0, 0, 0, ${1.0 - ambientLight})`);
-      ctx.fillStyle = ceilingGradient;
-      ctx.fillRect(0, 0, width, halfHeight);
+    if (!floorPixelData) {
+      ctx.fillStyle = "#101010";
+      ctx.fillRect(0, horizonRow, width, height - horizonRow);
 
-      const floorGradient = ctx.createLinearGradient(0, halfHeight, 0, height);
-      floorGradient.addColorStop(0.0, `rgba(0, 0, 0, ${1.0 - ambientLight})`);
-      floorGradient.addColorStop(0.5, `rgba(0, 0, 0, ${1.0 - ambientLight})`);
-      floorGradient.addColorStop(1.0, `rgba(0, 0, 0, 1.0)`);
-      ctx.fillStyle = floorGradient;
-      ctx.fillRect(0, halfHeight, width, height);
+      if (ambientLight < 1.0) {
+        const floorGradient = ctx.createLinearGradient(0, horizonRow, 0, height);
+        floorGradient.addColorStop(0.0, `rgba(0, 0, 0, ${1.0 - ambientLight})`);
+        floorGradient.addColorStop(0.5, `rgba(0, 0, 0, ${1.0 - ambientLight})`);
+        floorGradient.addColorStop(1.0, "rgba(0, 0, 0, 1.0)");
+        ctx.fillStyle = floorGradient;
+        ctx.fillRect(0, horizonRow, width, height - horizonRow);
+      }
     }
 
     const zBuffer = new Float32Array(width);
@@ -213,6 +306,7 @@ export class DungeonViewportGraphic extends Graphic {
         distanceSq: dx * dx + dy * dy,
       });
     }
+
     const npcsCache = (currentState as { npcs?: Record<string, NPCDefinition> }).npcs ?? {};
     const activeNpcs = Object.values(npcsCache).filter(npc => npc);
 
@@ -348,7 +442,14 @@ export class DungeonViewportGraphic extends Graphic {
         ...layer,
         textureKey:
           !layer.textureKey || layer.textureKey === "wall" || layer.textureKey === "stone"
-            ? getConsistentWallTexture(hit.cellX, hit.cellY, hit.side, this.dungeon.wallTextures)
+            ? getConsistentWallTexture(
+                hit.cellX,
+                hit.cellY,
+                hit.side,
+                this.dungeon.wallTextures,
+                this.dungeon.defaultWallTexture,
+                (msg, key) => this.warnOnce(this.warnedFallbackCells, key, msg),
+              )
             : layer.textureKey,
       }));
     } else if (hit.wall.textureKey) {
@@ -356,7 +457,14 @@ export class DungeonViewportGraphic extends Graphic {
         activeLayers = hit.wall.textureKey.map((key, index) => ({
           textureKey:
             !key || key === "wall" || key === "stone"
-              ? getConsistentWallTexture(hit.cellX, hit.cellY, hit.side, this.dungeon.wallTextures)
+              ? getConsistentWallTexture(
+                  hit.cellX,
+                  hit.cellY,
+                  hit.side,
+                  this.dungeon.wallTextures,
+                  this.dungeon.defaultWallTexture,
+                  (msg, dedupeKey) => this.warnOnce(this.warnedFallbackCells, dedupeKey, msg),
+                )
               : key,
           alpha: 1.0,
           blendMode: index > 0 ? "screen" : "source-over",
@@ -365,12 +473,31 @@ export class DungeonViewportGraphic extends Graphic {
         const key = hit.wall.textureKey;
         const resolvedKey =
           !key || key === "wall" || key === "stone"
-            ? getConsistentWallTexture(hit.cellX, hit.cellY, hit.side, this.dungeon.wallTextures)
+            ? getConsistentWallTexture(
+                hit.cellX,
+                hit.cellY,
+                hit.side,
+                this.dungeon.wallTextures,
+                this.dungeon.defaultWallTexture,
+                (msg, dedupeKey) => this.warnOnce(this.warnedFallbackCells, dedupeKey, msg),
+              )
             : key;
         activeLayers = [{ textureKey: resolvedKey, alpha: 1.0, blendMode: "source-over" }];
       }
     } else {
-      const resolvedKey = getConsistentWallTexture(hit.cellX, hit.cellY, hit.side, this.dungeon.wallTextures);
+      this.warnOnce(
+        this.warnedFallbackCells,
+        `generic:${hit.cellX},${hit.cellY}:${hit.side}`,
+        `[WallTexture Fallback] Generic wall at (${hit.cellX}, ${hit.cellY}) [${hit.side}] -> defaultWallTexture="${this.dungeon.defaultWallTexture ?? "none"}", wallTextures=${JSON.stringify(this.dungeon.wallTextures)}`,
+      );
+      const resolvedKey = getConsistentWallTexture(
+        hit.cellX,
+        hit.cellY,
+        hit.side,
+        this.dungeon.wallTextures,
+        this.dungeon.defaultWallTexture,
+        (msg, dedupeKey) => this.warnOnce(this.warnedFallbackCells, dedupeKey, msg),
+      );
       activeLayers = [{ textureKey: resolvedKey, alpha: 1.0, blendMode: "source-over" }];
     }
 
@@ -401,7 +528,14 @@ export class DungeonViewportGraphic extends Graphic {
     let renderedAny = false;
     for (const layer of activeLayers) {
       const wallTexture = this.textures.get(layer.textureKey);
-      if (!wallTexture) continue;
+      if (!wallTexture) {
+        this.warnOnce(
+          this.warnedTextureKeys,
+          `missing:${layer.textureKey}`,
+          `[Missing Texture] Key "${layer.textureKey}" not found in textures map (first seen at (${hit.cellX}, ${hit.cellY}) [${hit.side}])`,
+        );
+        continue;
+      }
 
       renderedAny = true;
       let texX = Math.floor(hit.wallOffset * wallTexture.width);
@@ -517,9 +651,22 @@ export class DungeonViewportGraphic extends Graphic {
   }
 }
 
-// Helper for stable, consistent texture selection per wall face using coordinates and side
-function getConsistentWallTexture(cellX: number, cellY: number, side: string, wallPool?: string[]): string {
-  const pool = wallPool && wallPool.length > 0 ? wallPool : ["stone", "stone2", "stone3", "stone4"];
+function getConsistentWallTexture(
+  cellX: number,
+  cellY: number,
+  side: string,
+  wallPool?: string[],
+  defaultWallTexture?: string,
+  onWarn?: (message: string, dedupeKey: string) => void,
+): string {
+  const hasPool = Boolean(wallPool && wallPool.length > 0);
+  if (!hasPool) {
+    onWarn?.(
+      `[WallTexture Fallback] No wallTextures pool at (${cellX}, ${cellY}) [${side}]. defaultWallTexture="${defaultWallTexture ?? "none"}"`,
+      `pool:${cellX},${cellY}:${side}:${defaultWallTexture ?? ""}`,
+    );
+  }
+  const pool = hasPool ? wallPool! : [defaultWallTexture ?? "stone"];
   const seed = Math.abs((cellX * 73856093) ^ (cellY * 19349663) ^ (side.charCodeAt(0) * 83492791));
   return pool[seed % pool.length];
 }

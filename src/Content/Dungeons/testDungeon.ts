@@ -1,6 +1,7 @@
 import { DungeonDefinition, dungeonFromAscii } from "../../GameTypes";
 import { ContentRegistry } from "../ContentRegistry";
 import { cryptDungeon } from "./cryptDungeon";
+import { farmhouse } from "./farmhouse";
 
 export const testDungeon: DungeonDefinition = {
   id: "test-dungeon",
@@ -287,4 +288,5 @@ export const testDungeon: DungeonDefinition = {
 export function registerTestDungeon(reg: ContentRegistry) {
   reg.registerDungeon(testDungeon);
   reg.registerDungeon(cryptDungeon);
+  reg.registerDungeon(farmhouse);
 }
