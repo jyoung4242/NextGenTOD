@@ -1,3 +1,4 @@
+// Content/ContentRegistry.ts
 import {
   DungeonDefinition,
   EnemyDefinition,
@@ -6,6 +7,7 @@ import {
   SpellDefinition,
   QuestDefinitionData,
   NPCDefinition,
+  WorldPropDefinition,
 } from "../GameTypes";
 import { CutsceneManifest } from "../Lib/Managers/CutScenes";
 
@@ -18,6 +20,7 @@ export class ContentRegistry {
   readonly cutscenes = new Map<string, CutsceneManifest>();
   readonly spells = new Map<string, SpellDefinition>();
   readonly npcs = new Map<string, NPCDefinition>();
+  readonly worldProps = new Map<string, WorldPropDefinition>();
 
   private register<T extends { id: string }>(registry: Map<string, T>, definition: T, type: string): void {
     if (registry.has(definition.id)) {
@@ -50,6 +53,10 @@ export class ContentRegistry {
 
   registerCutscene(definition: CutsceneManifest): void {
     this.register(this.cutscenes, definition, "cutscene");
+  }
+
+  registerWorldProp(definition: WorldPropDefinition): void {
+    this.register(this.worldProps, definition, "worldProp");
   }
 
   getDungeon(id: string): DungeonDefinition {
@@ -94,7 +101,6 @@ export class ContentRegistry {
     return Array.from(this.skills.values());
   }
 
-  // Add getQuest
   getQuest(id: string): QuestDefinitionData {
     const definition = this.quests.get(id);
 
@@ -112,6 +118,7 @@ export class ContentRegistry {
     }
     return definition;
   }
+
   registerSpell(definition: SpellDefinition): void {
     this.register(this.spells, definition, "spell");
   }
@@ -138,5 +145,17 @@ export class ContentRegistry {
       throw new Error(`Unknown NPC: ${id}`);
     }
     return definition;
+  }
+
+  getWorldProp(id: string): WorldPropDefinition {
+    const definition = this.worldProps.get(id);
+    if (!definition) {
+      throw new Error(`Unknown world prop: ${id}`);
+    }
+    return definition;
+  }
+
+  getAllWorldProps(): WorldPropDefinition[] {
+    return Array.from(this.worldProps.values());
   }
 }

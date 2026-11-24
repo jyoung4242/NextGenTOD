@@ -22,6 +22,7 @@ import { CharacterCreationScene } from "./Scenes/PlayerCreation";
 import { registerFarmNpcs } from "./Content/NPCs/Farmer";
 import { titleEvents, TitleScene } from "./Scenes/Title";
 import { SaveManager } from "./Lib/Managers/SaveLoadManager";
+import { registerWorldProps } from "./Content/Props";
 
 export const INPUT_CONTEXT = {
   Dungeon: "dungeon",
@@ -49,6 +50,7 @@ registerSkills(content);
 registerCutscenes(content);
 registerSpells(content);
 registerFarmNpcs(content);
+registerWorldProps(content);
 
 // Ensure grid connections are processed on the static definition content
 // const definition = content.getDungeon("farmhouse");

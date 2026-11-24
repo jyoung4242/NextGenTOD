@@ -10,6 +10,26 @@ export const farmhouse: DungeonDefinition = {
   wallTextures: ["wood_walls_1", "wood_walls_2"],
   //onEnterCutsceneId: "farm-intro",
   items: [],
+  props: [
+    {
+      id: "player-bedroom-bed",
+      definitionId: "farmhouse_bed",
+      position: { x: 2, y: 5 },
+      facing: "south",
+    },
+    {
+      id: "npc1-bedroom-bed",
+      definitionId: "farmhouse_bed",
+      position: { x: 7, y: 4 },
+      facing: "east",
+    },
+    {
+      id: "npc2-bedroom-bed",
+      definitionId: "farmhouse_bed",
+      position: { x: 11, y: 3 },
+      facing: "east",
+    },
+  ],
 
   cutsceneTriggers: [],
   nodes: {

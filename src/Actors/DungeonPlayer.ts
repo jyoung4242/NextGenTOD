@@ -104,6 +104,7 @@ export class DungeonPlayer {
     }
   }
 
+  // Actors/DungeonPlayer.ts (inside attemptMove)
   private attemptMove(step: number): void {
     const currentX = Math.floor(this.camera.x);
     const currentY = Math.floor(this.camera.y);
@@ -111,28 +112,33 @@ export class DungeonPlayer {
 
     const checkDir = step > 0 ? dir : OPPOSITE_DIRECTIONS[dir];
 
-    if (this.dungeon.canMove(currentX, currentY, checkDir)) {
-      let dx = 0;
-      let dy = 0;
+    let dx = 0;
+    let dy = 0;
 
-      switch (dir) {
-        case "east":
-          dx = step;
-          break;
-        case "west":
-          dx = -step;
-          break;
-        case "south":
-          dy = step;
-          break;
-        case "north":
-          dy = -step;
-          break;
-      }
+    switch (dir) {
+      case "east":
+        dx = step;
+        break;
+      case "west":
+        dx = -step;
+        break;
+      case "south":
+        dy = step;
+        break;
+      case "north":
+        dy = -step;
+        break;
+    }
 
-      const nextX = this.camera.x + dx;
-      const nextY = this.camera.y + dy;
+    const nextX = this.camera.x + dx;
+    const nextY = this.camera.y + dy;
+    const targetTileX = Math.floor(nextX);
+    const targetTileY = Math.floor(nextY);
 
+    const wallOrDoorClear = this.dungeon.canMove(currentX, currentY, checkDir);
+    const propBlockingTarget = this.dungeon.isPropBlockingTile(targetTileX, targetTileY);
+
+    if (wallOrDoorClear && !propBlockingTarget) {
       this.camera.x = nextX;
       this.camera.y = nextY;
       const vpGraph: DungeonViewportGraphic = this.viewport.graphics.current as DungeonViewportGraphic;
@@ -143,7 +149,6 @@ export class DungeonPlayer {
       });
     }
   }
-
   private syncCameraAngle(): void {
     this.camera.angle = CARDINAL_ANGLES[this.currentDirection];
     this.store.set("player.facing", this.currentDirection);

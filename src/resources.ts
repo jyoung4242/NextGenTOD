@@ -42,6 +42,8 @@ import wood_walls_2 from "./Assets/wood-walls_2.png";
 import farm_door from "./Assets/farm-door.png";
 import farm_door_open from "./Assets/farm-door-open.png";
 import bedroll from "./Assets/bedroll.png";
+import farmhouse_bed from "./Assets/farmhouse-bed.png";
+import farmhouse_bed_1 from "./Assets/farmhouse-bed-2.png";
 
 export const Resources = {
   goblin: new ImageSource(goblin),
@@ -86,6 +88,8 @@ export const Resources = {
   farm_door: new ImageSource(farm_door),
   farm_door_open: new ImageSource(farm_door_open),
   bedroll: new ImageSource(bedroll),
+  farmhouse_bed: new ImageSource(farmhouse_bed),
+  farmhouse_bed_1: new ImageSource(farmhouse_bed_1),
 };
 
 export const loader = new Loader();
@@ -158,5 +162,8 @@ export function getLoadedTextures(): Map<string, HTMLImageElement> {
   map.set("farm_door", Resources.farm_door.image);
   map.set("farm_door_open", Resources.farm_door_open.image);
   map.set("bedroll", Resources.bedroll.image);
+  map.set("farmhouse_bed", Resources.farmhouse_bed.image);
+  map.set("farmhouse_bed_1", Resources.farmhouse_bed_1.image);
+
   return map;
 }

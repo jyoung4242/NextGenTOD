@@ -35,6 +35,50 @@ export interface GameState {
 //#endregion gamestate
 
 // ********************************
+// Directional Sprite & Prop Types
+// ********************************
+//#region directionaltypes
+export type PropFacing = Direction; // "north" | "east" | "south" | "west"
+export type DirectionBucketCount = 4 | 8;
+
+export type SpriteViewDirection4 = "front" | "right" | "back" | "left";
+export type SpriteViewDirection8 = "front" | "front_right" | "right" | "back_right" | "back" | "back_left" | "left" | "front_left";
+export type SpriteViewDirection = SpriteViewDirection4 | SpriteViewDirection8;
+
+export interface DirectionalSpriteSet {
+  /** Base key used for convention lookup, e.g. "farmhouse_bed" -> "farmhouse_bed_front" */
+  baseKey: string;
+  /** Optional explicit texture key overrides per view bucket */
+  variants?: Partial<Record<SpriteViewDirection, string>>;
+  /** Mirror horizontally when viewing from the opposite side (e.g. reuse "left" for "right") */
+  mirrorHorizontal?: boolean;
+  /** Number of angular buckets around the object (default: 4) */
+  directions?: DirectionBucketCount;
+}
+
+export interface WorldPropDefinition {
+  id: string;
+  name: string;
+  facing: PropFacing;
+  sprite: DirectionalSpriteSet;
+  /** Vertical scale relative to wall height (e.g., 0.4 for low furniture like a bed) */
+  scale?: number;
+  /** Positive values push the sprite lower toward the floor */
+  yOffset?: number;
+  /** Whether the prop blocks movement/raycasting in its tile */
+  blocksMovement?: boolean;
+}
+
+export interface DungeonPropPlacement {
+  id: string;
+  definitionId: string;
+  position: WorldPosition;
+  /** Optional per-placement facing override */
+  facing?: PropFacing;
+}
+//#endregion directionaltypes
+
+// ********************************
 // Dungeon Types
 // ********************************
 //#region dungeons
@@ -163,6 +207,7 @@ export interface DungeonDefinition {
   grid: DungeonGridDefinition;
   items?: DungeonItemPlacement[];
   enemies?: DungeonEnemyPlacement[];
+  props?: DungeonPropPlacement[];
   cutsceneTriggers?: CutsceneTriggerDefinition[];
   lighting?: DungeonLightingDefinition;
   onEnterCutsceneId?: string;
@@ -337,6 +382,7 @@ export interface EnemyDefinition {
   name: string;
   avatarKey: string;
   textureKey?: string;
+  directionalSprites?: DirectionalSpriteSet;
   tokenKey?: string;
   scale?: number;
   yOffset?: number;
@@ -589,11 +635,13 @@ export interface NPCDefinition {
   id: string;
   name: string;
   position: { x: number; y: number };
+  facing?: Direction | number;
   cutsceneId: string;
   requiredFlag?: string;
   succeedsFlag?: string;
   color?: string;
   textureKey?: string;
+  directionalSprites?: DirectionalSpriteSet;
   avatarKey?: string;
   scale?: number;
   yOffset?: number;
