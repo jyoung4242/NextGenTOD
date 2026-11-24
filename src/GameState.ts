@@ -383,7 +383,7 @@ export function createInitialGameState(): GameState {
         x: 2.5,
         y: 4.5,
       },
-      facing: "north",
+      facing: "south",
       keyring: [],
       skills: {
         unarmed: { level: 1, xp: 10, unlocked: true },

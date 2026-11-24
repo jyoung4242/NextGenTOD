@@ -1,6 +1,7 @@
 import { Graphic, GraphicOptions, ExcaliburGraphicsContext, Vector, ScreenElement, vec } from "excalibur";
 import { DungeonDefinition, DungeonCamera, Direction, DungeonState } from "../GameTypes";
 import { Dungeon } from "../Lib/Managers/DungeonManager";
+import { ContentRegistry } from "../Content/ContentRegistry";
 
 export interface MinimapGraphicOptions extends GraphicOptions {
   dungeon: DungeonDefinition;
@@ -9,6 +10,7 @@ export interface MinimapGraphicOptions extends GraphicOptions {
   camera: DungeonCamera;
   tileSize?: number;
   showMarkers?: boolean;
+  content?: ContentRegistry;
 }
 
 export interface MinimapOptions {
@@ -19,6 +21,7 @@ export interface MinimapOptions {
   position?: Vector;
   tileSize?: number;
   showMarkers?: boolean;
+  content?: ContentRegistry;
 }
 
 export class Minimap extends ScreenElement {
@@ -45,6 +48,7 @@ export class Minimap extends ScreenElement {
       camera: options.camera,
       tileSize: options.tileSize ?? 12,
       showMarkers: options.showMarkers ?? true,
+      content: options.content,
     });
 
     this.graphics.use(this.minimapGraphic);
@@ -174,8 +178,26 @@ export class MinimapGraphic extends Graphic {
       }
     }
 
-    // Render markers (Items, Keys, Enemies) if enabled
+    // Render markers (Props, Items, Keys, Enemies, NPCs) if enabled
     if (this.showMarkers) {
+      // 2b. Render World Props
+      if (this.dungeon.props) {
+        for (const prop of this.dungeon.props) {
+          const propDef = this.options.content?.worldProps.get(prop.definitionId);
+          const pad = ts * 0.15;
+          const bx = prop.position.x * ts + pad;
+          const by = prop.position.y * ts + pad;
+          const size = ts - pad * 2;
+
+          ctx.fillStyle = propDef?.blocksMovement ? "#8b5a2b" : "#5a4d3f";
+          ctx.fillRect(bx, by, size, size);
+
+          ctx.strokeStyle = "#c69c6d";
+          ctx.lineWidth = 1;
+          ctx.strokeRect(bx, by, size, size);
+        }
+      }
+
       // 3. Render Items / Ground Containers
       if (this.dungeon.items) {
         for (const item of this.dungeon.items) {
@@ -196,7 +218,6 @@ export class MinimapGraphic extends Graphic {
         }
       }
 
-      // 4. Render Enemies
       // 4. Render Enemies
       if (currentState.enemies) {
         for (const enemy of Object.values(currentState.enemies)) {

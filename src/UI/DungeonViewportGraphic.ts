@@ -1,6 +1,18 @@
 // UI/DungeonViewportGraphic.ts
 import { ExcaliburGraphicsContext, Graphic } from "excalibur";
-import { DungeonDefinition, DungeonCamera, DungeonState, WallLayer, RaycastHit, NPCDefinition } from "../GameTypes";
+import {
+  DungeonDefinition,
+  DungeonCamera,
+  DungeonState,
+  WallLayer,
+  RaycastHit,
+  NPCDefinition,
+  Direction,
+  DirectionalSpriteSet,
+  SpriteViewDirection4,
+  SpriteViewDirection8,
+  SpriteViewDirection,
+} from "../GameTypes";
 import { DungeonRaycaster } from "./DungeonRaycaster";
 import { ContentRegistry } from "../Content/ContentRegistry";
 
@@ -21,6 +33,78 @@ interface BillboardToRender {
   textureKey: string;
   yOffset: number;
   distanceSq: number;
+  flipHorizontal?: boolean;
+}
+
+const CARDINAL_ANGLES: Record<Direction, number> = {
+  east: 0,
+  south: Math.PI / 2,
+  west: Math.PI,
+  north: (3 * Math.PI) / 2,
+};
+
+function toFacingRadians(facing?: Direction | number): number {
+  if (typeof facing === "number") return facing;
+  return CARDINAL_ANGLES[facing ?? "south"];
+}
+
+function resolveDirectionalSprite(
+  spriteSet: DirectionalSpriteSet,
+  facing: Direction | number | undefined,
+  objX: number,
+  objY: number,
+  camX: number,
+  camY: number,
+): { textureKey: string; flipHorizontal: boolean } {
+  const facingAngle = toFacingRadians(facing);
+  const viewAngle = Math.atan2(camY - objY, camX - objX);
+
+  let delta = viewAngle - facingAngle;
+  while (delta > Math.PI) delta -= Math.PI * 2;
+  while (delta < -Math.PI) delta += Math.PI * 2;
+
+  let bucket: SpriteViewDirection;
+  if (spriteSet.directions === 8) {
+    const octant = Math.round(delta / (Math.PI / 4));
+    const map8: Record<number, SpriteViewDirection8> = {
+      0: "front",
+      1: "front_right",
+      2: "right",
+      3: "back_right",
+      4: "back",
+      [-4]: "back",
+      [-3]: "back_left",
+      [-2]: "left",
+      [-1]: "front_left",
+    };
+    bucket = map8[octant] ?? "front";
+  } else if (delta >= -Math.PI / 4 && delta < Math.PI / 4) {
+    bucket = "front";
+  } else if (delta >= Math.PI / 4 && delta < (3 * Math.PI) / 4) {
+    bucket = "right";
+  } else if (delta >= -(3 * Math.PI) / 4 && delta < -Math.PI / 4) {
+    bucket = "left";
+  } else {
+    bucket = "back";
+  }
+
+  let flipHorizontal = false;
+  let textureKey = spriteSet.variants?.[bucket] ?? `${spriteSet.baseKey}_${bucket}`;
+
+  if (spriteSet.mirrorHorizontal) {
+    const mirrorPairs: Partial<Record<SpriteViewDirection, SpriteViewDirection>> = {
+      right: "left",
+      front_right: "front_left",
+      back_right: "back_left",
+    };
+    const mirrorSource = mirrorPairs[bucket];
+    if (mirrorSource && !spriteSet.variants?.[bucket]) {
+      textureKey = spriteSet.variants?.[mirrorSource] ?? `${spriteSet.baseKey}_${mirrorSource}`;
+      flipHorizontal = true;
+    }
+  }
+
+  return { textureKey, flipHorizontal };
 }
 
 export class DungeonViewportGraphic extends Graphic {
@@ -260,9 +344,38 @@ export class DungeonViewportGraphic extends Graphic {
     }
 
     // -------------------------------------------------------------
-    // 2. Prepare Billboards (Items, Enemies, and NPCs)
+    // 2. Prepare Billboards (Props, Items, Enemies, and NPCs)
     // -------------------------------------------------------------
     const billboards: BillboardToRender[] = [];
+
+    for (const prop of this.dungeon.props ?? []) {
+      const propDef = this.content?.worldProps.get(prop.definitionId);
+      if (!propDef) {
+        this.warnOnce(
+          this.warnedTextureKeys,
+          `prop-def:${prop.definitionId}`,
+          `[Missing PropDefinition] "${prop.definitionId}" not found in ContentRegistry`,
+        );
+        continue;
+      }
+
+      const worldX = prop.position.x + 0.5;
+      const worldY = prop.position.y + 0.5;
+      const dx = worldX - this.camera.x;
+      const dy = worldY - this.camera.y;
+      const facing = prop.facing ?? propDef.facing;
+      const resolved = resolveDirectionalSprite(propDef.sprite, facing, worldX, worldY, this.camera.x, this.camera.y);
+
+      billboards.push({
+        x: worldX,
+        y: worldY,
+        scale: propDef.scale ?? 0.5,
+        textureKey: resolved.textureKey,
+        yOffset: propDef.yOffset ?? 0,
+        distanceSq: dx * dx + dy * dy,
+        flipHorizontal: resolved.flipHorizontal,
+      });
+    }
 
     const uncollectedItems = (this.dungeon.items ?? []).filter(item => {
       const coordKey = `${item.position.x},${item.position.y}`;
@@ -289,7 +402,6 @@ export class DungeonViewportGraphic extends Graphic {
 
     for (const enemy of activeEnemies) {
       const enemyDef = this.content?.getEnemy(enemy.definitionId);
-      const textureKey = enemyDef?.textureKey ?? enemyDef?.avatarKey ?? "goblin";
       const scale = enemyDef?.scale ?? 0.6;
       const yOffset = enemyDef?.yOffset ?? 0.2;
 
@@ -297,6 +409,22 @@ export class DungeonViewportGraphic extends Graphic {
       const worldY = enemy.position.y + 0.5;
       const dx = worldX - this.camera.x;
       const dy = worldY - this.camera.y;
+
+      let textureKey = enemyDef?.textureKey ?? enemyDef?.avatarKey ?? "goblin";
+      let flipHorizontal = false;
+      if (enemyDef?.directionalSprites) {
+        const resolved = resolveDirectionalSprite(
+          enemyDef.directionalSprites,
+          enemy.facing,
+          worldX,
+          worldY,
+          this.camera.x,
+          this.camera.y,
+        );
+        textureKey = resolved.textureKey;
+        flipHorizontal = resolved.flipHorizontal;
+      }
+
       billboards.push({
         x: worldX,
         y: worldY,
@@ -304,6 +432,7 @@ export class DungeonViewportGraphic extends Graphic {
         textureKey,
         yOffset,
         distanceSq: dx * dx + dy * dy,
+        flipHorizontal,
       });
     }
 
@@ -312,7 +441,6 @@ export class DungeonViewportGraphic extends Graphic {
 
     for (const npc of activeNpcs) {
       const npcDef = typeof (this.content as any)?.getNpc === "function" ? (this.content as any).getNpc(npc.id) : undefined;
-      const textureKey = npc.textureKey ?? npcDef?.textureKey ?? npcDef?.avatarKey ?? "npc";
       const scale = npc.scale ?? npcDef?.scale ?? 0.6;
       const yOffset = npc.yOffset ?? npcDef?.yOffset ?? 0.2;
 
@@ -320,6 +448,23 @@ export class DungeonViewportGraphic extends Graphic {
       const worldY = npc.position.y + 0.5;
       const dx = worldX - this.camera.x;
       const dy = worldY - this.camera.y;
+
+      let textureKey = npc.textureKey ?? npcDef?.textureKey ?? npcDef?.avatarKey ?? "npc";
+      let flipHorizontal = false;
+      const directionalSet = npc.directionalSprites ?? npcDef?.directionalSprites;
+      if (directionalSet) {
+        const resolved = resolveDirectionalSprite(
+          directionalSet,
+          npc.facing ?? npcDef?.facing,
+          worldX,
+          worldY,
+          this.camera.x,
+          this.camera.y,
+        );
+        textureKey = resolved.textureKey;
+        flipHorizontal = resolved.flipHorizontal;
+      }
+
       billboards.push({
         x: worldX,
         y: worldY,
@@ -327,6 +472,7 @@ export class DungeonViewportGraphic extends Graphic {
         textureKey,
         yOffset,
         distanceSq: dx * dx + dy * dy,
+        flipHorizontal,
       });
     }
 
@@ -363,7 +509,7 @@ export class DungeonViewportGraphic extends Graphic {
       }
     }
 
-    // Pass 2: Draw Billboards (NPCs / Enemies / Items standing in rooms/doorways)
+    // Pass 2: Draw Billboards (Props / NPCs / Enemies / Items standing in rooms/doorways)
     for (const billboard of billboards) {
       this.renderBillboard(
         ctx,
@@ -374,6 +520,7 @@ export class DungeonViewportGraphic extends Graphic {
         zBuffer,
         projectionPlane,
         billboard.yOffset,
+        billboard.flipHorizontal,
       );
     }
 
@@ -612,6 +759,7 @@ export class DungeonViewportGraphic extends Graphic {
     zBuffer: Float32Array,
     projectionPlane: number,
     yOffset: number = 0,
+    flipHorizontal: boolean = false,
   ): void {
     const { width, height } = this;
 
@@ -640,12 +788,21 @@ export class DungeonViewportGraphic extends Graphic {
     const endX = Math.floor(centerScreenX + spriteSize / 2);
 
     const img = this.textures.get(textureKey);
-    if (img) {
-      for (let col = startX; col <= endX; col++) {
-        if (col >= 0 && col < width && correctedDistance < zBuffer[col]) {
-          const texX = Math.max(0, Math.min(img.width - 1, Math.floor(((col - startX) / spriteSize) * img.width)));
-          ctx.drawImage(img, texX, 0, 1, img.height, col, spriteTop, 1, spriteSize);
-        }
+    if (!img) {
+      this.warnOnce(
+        this.warnedTextureKeys,
+        `billboard:${textureKey}`,
+        `[Missing Billboard Texture] Key "${textureKey}" not found in textures map`,
+      );
+      return;
+    }
+
+    for (let col = startX; col <= endX; col++) {
+      if (col >= 0 && col < width && correctedDistance < zBuffer[col]) {
+        const u = (col - startX) / spriteSize;
+        const normalizedU = flipHorizontal ? 1 - u : u;
+        const texX = Math.max(0, Math.min(img.width - 1, Math.floor(normalizedU * img.width)));
+        ctx.drawImage(img, texX, 0, 1, img.height, col, spriteTop, 1, spriteSize);
       }
     }
   }

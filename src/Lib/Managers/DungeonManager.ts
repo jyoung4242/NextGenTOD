@@ -1,5 +1,7 @@
 // DungeonManager.ts
 
+// DungeonManager.ts
+
 import {
   DungeonState,
   DungeonCellDefinition,
@@ -46,11 +48,11 @@ export class DungeonManager {
     }
 
     // Instantiate the runtime helper class bound to the store
-    this.dungeon = new Dungeon(definition, state);
+    this.dungeon = new Dungeon(definition, state, contentRegistry);
   }
 
-  loadDungeon(definition: DungeonDefinition, state: StateStore<GameState>): void {
-    this.dungeon = new Dungeon(definition, state);
+  loadDungeon(definition: DungeonDefinition, state: StateStore<GameState>, contentRegistry?: ContentRegistry): void {
+    this.dungeon = new Dungeon(definition, state, contentRegistry);
   }
 
   unloadDungeon(): void {
@@ -68,6 +70,7 @@ export class Dungeon {
   constructor(
     readonly definition: DungeonDefinition,
     private readonly store: StateStore<GameState>,
+    private readonly contentRegistry?: ContentRegistry,
   ) {
     this.grid = new DungeonGrid(definition.grid);
   }
@@ -80,25 +83,62 @@ export class Dungeon {
     return this.grid.getWall(x, y, direction);
   }
 
+  public isPropBlockingTile(tileX: number, tileY: number): boolean {
+    if (!this.contentRegistry || !this.definition.props) {
+      return false;
+    }
+
+    for (const prop of this.definition.props) {
+      if (Math.floor(prop.position.x) === tileX && Math.floor(prop.position.y) === tileY) {
+        const propDef = this.contentRegistry.worldProps.get(prop.definitionId);
+        if (propDef?.blocksMovement) {
+          return true;
+        }
+      }
+    }
+
+    return false;
+  }
+
   canMove(x: number, y: number, direction: Direction): boolean {
     const wall = this.getWall(x, y, direction);
 
+    let wallPassable = false;
     switch (wall.type) {
       case "none":
-        return true;
+        wallPassable = true;
+        break;
       case "wall":
-        return false;
+        wallPassable = false;
+        break;
       case "door": {
-        if (!wall.doorId) return false; // Guard against undefined doorId
+        if (!wall.doorId) {
+          wallPassable = false;
+          break;
+        }
 
         // Dynamically fetch state for the currently active dungeon level
         const gameState = this.store.get();
         const activeDungeonId = gameState.dungeon.current;
         const currentDungeonState = gameState.dungeon.registry[activeDungeonId];
 
-        return currentDungeonState?.doors[wall.doorId]?.open === true;
+        wallPassable = currentDungeonState?.doors[wall.doorId]?.open === true;
+        break;
       }
     }
+
+    if (!wallPassable) {
+      return false;
+    }
+
+    let nextX = x;
+    let nextY = y;
+    if (direction === "north") nextY--;
+    if (direction === "south") nextY++;
+    if (direction === "east") nextX++;
+    if (direction === "west") nextX--;
+
+    return !this.isPropBlockingTile(nextX, nextY);
   }
 }
 
@@ -205,8 +245,6 @@ export function createDungeonState(definition: DungeonDefinition, seed = 0, cont
     npcs,
   };
 }
-
-// DungeonManager.ts
 
 export function applyConnectionsToGrid(definition: DungeonDefinition): void {
   for (const conn of definition.connections) {
