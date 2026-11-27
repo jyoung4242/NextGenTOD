@@ -1,7 +1,5 @@
 // DungeonManager.ts
 
-// DungeonManager.ts
-
 import {
   DungeonState,
   DungeonCellDefinition,
@@ -15,6 +13,7 @@ import {
   DoorState,
   EnemyState,
   NPCDefinition,
+  PropRuntimeState,
 } from "../../GameTypes";
 import { StateStore } from "../../GameState";
 import { ContentRegistry } from "../../Content/ContentRegistry";
@@ -200,14 +199,26 @@ export function createDungeonState(definition: DungeonDefinition, seed = 0, cont
       };
     }
   }
-  // 3. Populate runtime enemy instances dynamically from ContentRegistry
+
+  // 3. Seed runtime prop state (lock/open/loot) from prop & placement definitions
+  const props: Record<string, PropRuntimeState> = {};
+  if (definition.props) {
+    for (const prop of definition.props) {
+      const propDef = contentRegistry?.worldProps.get(prop.definitionId);
+      const isLocked = Boolean(prop.containerOverride?.locked ?? propDef?.container?.locked ?? false);
+      props[prop.id] = {
+        locked: isLocked,
+        opened: false,
+        looted: false,
+      };
+    }
+  }
+
+  // 4. Populate runtime enemy instances dynamically from ContentRegistry
   const enemies: Record<string, EnemyState> = {};
   if (definition.enemies) {
     for (const spawn of definition.enemies) {
-      // Lookup the actual enemy definition from content
       const enemyDef = contentRegistry?.getEnemy(spawn.definitionId);
-
-      // Fallback to 100 if the registry isn't passed or definition doesn't exist
       const enemyHealth = enemyDef?.health ?? 100;
 
       enemies[spawn.id] = {
@@ -241,6 +252,7 @@ export function createDungeonState(definition: DungeonDefinition, seed = 0, cont
     visitedNodes: [startNode.id],
     doors,
     containers,
+    props,
     enemies,
     npcs,
   };
@@ -253,12 +265,11 @@ export function applyConnectionsToGrid(definition: DungeonDefinition): void {
       const cell = getDungeonCell(definition.grid, x, y);
 
       if (cell) {
-        // ─── COPY BOTH CLOSED & OPEN TEXTURES HERE ────────────────────────
         cell[direction] = {
           type: "door",
           doorId: conn.id,
           closedTexture: conn.closedTexture,
-          openTexture: conn.openTexture, // <--- Add this line!
+          openTexture: conn.openTexture,
         };
 
         const oppositeDir: Record<Direction, Direction> = {
@@ -281,7 +292,7 @@ export function applyConnectionsToGrid(definition: DungeonDefinition): void {
             type: "door",
             doorId: conn.id,
             closedTexture: conn.closedTexture,
-            openTexture: conn.openTexture, // <--- Add this line here too!
+            openTexture: conn.openTexture,
           };
         }
       }

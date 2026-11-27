@@ -4,16 +4,16 @@ import { ContentRegistry } from "../ContentRegistry";
 
 export const FARM_NPCS: NPCDefinition[] = [
   {
-    position: { x: 7, y: 2 },
-    id: "npc_thomas_mill",
-    name: "Thomas",
-    textureKey: "npc_farmer", // Make sure this key is loaded in your textures Map
-    avatarKey: "npc_farmer",
+    position: { x: 2, y: 8 },
+    id: "aunt_millie",
+    name: "Aunt Millie",
+    textureKey: "npc_farmer_wife",
+    avatarKey: "npc_farmer_wife_avatar",
     scale: 0.6,
     yOffset: 0.2,
-    cutsceneId: "mill-father-talk",
+    cutsceneId: "aunt-millie",
     // requiredFlag: "met_martha_morning", // Optional: gates talk until opening chore/intro flag is set
-    succeedsFlag: "spoke_thomas_mill", // Optional: prevents repeating the initial cutscene
+    //succeedsFlag: "spoke_thomas_mill", // Optional: prevents repeating the initial cutscene
   },
 ];
 

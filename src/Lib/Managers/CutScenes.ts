@@ -27,6 +27,7 @@ import { EncounterPlayer } from "../../Actors/EncounterPlayer";
 import { EncounterEnemy } from "../../Actors/EncounterEnemy";
 import { CinematicController } from "../../UI/Cinematic";
 import { Minimap } from "../../UI/Minimap";
+import { ToastHUD } from "../../UI/ToastManager";
 
 // ==========================================
 // 1. Types & Manifest Interfaces
@@ -350,6 +351,32 @@ export class CutSceneSystem extends System {
       minimap.graphics.isVisible = false;
     });
 
+    this.registerCommand("toast", async (args, ctx) => {
+      const { category = "info", title = "", message = "", duration } = args ?? {};
+
+      if (!message && !title) {
+        console.warn("CutSceneSystem: 'toast' command missing both 'title' and 'message'.", args);
+        return;
+      }
+
+      // Prefer an active scene ToastHUD / ToastGraphic if present, otherwise fall back to ToastHUD.show
+      const scene = ctx.engine.currentScene as any;
+      const sceneToastHUD =
+        scene?.toastHUD ?? scene?.entities?.find?.((e: any) => e instanceof ToastHUD || e?.constructor?.name === "ToastHUD");
+
+      if (sceneToastHUD?.show) {
+        sceneToastHUD.show(category, title, message, duration);
+      } else if (typeof (ToastHUD as any).show === "function") {
+        (ToastHUD as any).show(category, title, message, duration);
+      } else {
+        console.warn("CutSceneSystem: No ToastHUD instance available to display toast.", {
+          category,
+          title,
+          message,
+        });
+      }
+    });
+
     this.registerCommand("show-minimap", async (_args, ctx) => {
       const minimap = (ctx.engine.currentScene as DungeonScene).entities.find(e => e.name === "minimap") as Minimap | undefined;
       if (!minimap) {
@@ -357,6 +384,27 @@ export class CutSceneSystem extends System {
         return;
       }
       minimap.graphics.isVisible = true;
+    });
+
+    this.registerCommand("give-key", async (args, _ctx) => {
+      const keyId = args.key ?? args.keyId;
+      if (!keyId || typeof keyId !== "string") {
+        console.warn("CutSceneSystem: 'give-key' command missing valid 'key' arg.", args);
+        return;
+      }
+      debugger;
+      this.getState().update("player", player => {
+        const keyring = Array.isArray(player?.keyring) ? player.keyring : [];
+        if (keyring.includes(keyId)) {
+          return player;
+        }
+        return {
+          ...player,
+          keyring: [...keyring, keyId],
+        };
+      });
+
+      console.log(`[CutSceneSystem] Granted key '${keyId}' to player keyring.`);
     });
 
     this.registerCommand("encounter_summary", async (args, ctx) => {

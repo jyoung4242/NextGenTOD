@@ -56,6 +56,31 @@ export interface DirectionalSpriteSet {
   directions?: DirectionBucketCount;
 }
 
+export interface ContainerLootEntry {
+  itemId?: string;
+  keyId?: string;
+  quantity: number;
+}
+
+export interface PropContainerDefinition {
+  /** Whether the container starts locked */
+  locked?: boolean;
+  /** Key ID required to unlock (if omitted when locked, can require a skill/flag or stay locked) */
+  requiredKeyId?: string;
+  /** Items or keys contained in the prop */
+  items?: ContainerLootEntry[];
+  /** Optional gold amount granted on open */
+  gold?: number;
+  /** Cutscene ID triggered on interaction (e.g., open, unlock, or inspect) */
+  cutsceneId?: string;
+  /** Optional story flag set after opening/triggering */
+  succeedsFlag?: string;
+  /** Optional open/unlocked sprite variant key or override */
+  openedTextureKey?: string;
+  /** Optional locked sprite variant key or override */
+  lockedTextureKey?: string;
+}
+
 export interface WorldPropDefinition {
   id: string;
   name: string;
@@ -67,6 +92,8 @@ export interface WorldPropDefinition {
   yOffset?: number;
   /** Whether the prop blocks movement/raycasting in its tile */
   blocksMovement?: boolean;
+  /** Present when this prop can act as a container */
+  container?: PropContainerDefinition;
 }
 
 export interface DungeonPropPlacement {
@@ -75,6 +102,7 @@ export interface DungeonPropPlacement {
   position: WorldPosition;
   /** Optional per-placement facing override */
   facing?: PropFacing;
+  containerOverride?: Partial<PropContainerDefinition>;
 }
 //#endregion directionaltypes
 
@@ -117,6 +145,12 @@ export interface Rect {
   height: number;
 }
 
+export interface PropRuntimeState {
+  locked: boolean;
+  opened: boolean;
+  looted: boolean;
+}
+
 export interface DungeonState {
   definitionId: string;
   seed: number;
@@ -125,6 +159,7 @@ export interface DungeonState {
   visitedNodes: string[];
   doors: Record<string, DoorState>;
   containers: Record<string, ContainerState>;
+  props?: Record<string, PropRuntimeState>;
   enemies: Record<string, EnemyState>;
   npcs: Record<string, NPCDefinition>;
 }

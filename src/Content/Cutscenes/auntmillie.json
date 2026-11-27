@@ -1,0 +1,22 @@
+{
+  "id": "aunt_millie",
+  "commands": [
+    {
+      "type": "dialog",
+      "args": { "path": "/public/Dialog/aunt_millie.json" }
+    },
+    {
+      "type": "give-key",
+      "args": { "key": "farmHouseKey" }
+    },
+    {
+      "type": "toast",
+      "args": {
+        "category": "item",
+        "title": "Key Acquired",
+        "message": "Received the Farmhouse Key.",
+        "duration": 3000
+      }
+    }
+  ]
+}
