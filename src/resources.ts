@@ -32,7 +32,9 @@ import lightningBullet from "./Assets/lightning_bullet.png";
 import lightningHit from "./Assets/lightning_impact.png";
 import lightingCharge from "./Assets/lightningCharge.png";
 import farmer from "./Assets/npcFarmer.png"; // replace this
+import farmerwife from "./Assets/npcFarmerWife.png";
 import farmerAvatar from "./Assets/npcFarmerAvatar.png"; // replace this
+import farmerWifeAvatar from "./Assets/npcFarmerWifeAvatar.png";
 import openingCinematic from "./Assets/openCinematic.png"; // replace this
 import wood_floor from "./Assets/wood-floor.png";
 import wood_ceiling from "./Assets/wood-ceiling.png";
@@ -44,6 +46,11 @@ import farm_door_open from "./Assets/farm-door-open.png";
 import bedroll from "./Assets/bedroll.png";
 import farmhouse_bed from "./Assets/farmhouse-bed.png";
 import farmhouse_bed_1 from "./Assets/farmhouse-bed-2.png";
+import stove from "./Assets/stove.png";
+import stove1 from "./Assets/stove_1.png";
+import stove2 from "./Assets/stove_2.png";
+import chest_open from "./Assets/chest_open.png";
+import chest_closed from "./Assets/chest_closed.png";
 
 export const Resources = {
   goblin: new ImageSource(goblin),
@@ -90,6 +97,13 @@ export const Resources = {
   bedroll: new ImageSource(bedroll),
   farmhouse_bed: new ImageSource(farmhouse_bed),
   farmhouse_bed_1: new ImageSource(farmhouse_bed_1),
+  stove: new ImageSource(stove),
+  stove1: new ImageSource(stove1),
+  stove2: new ImageSource(stove2),
+  chestOpen: new ImageSource(chest_open),
+  chestClosed: new ImageSource(chest_closed),
+  npcFarmerWife: new ImageSource(farmerwife),
+  npocFarmerWifeAvatar: new ImageSource(farmerWifeAvatar),
 };
 
 export const loader = new Loader();
@@ -154,6 +168,8 @@ export function getLoadedTextures(): Map<string, HTMLImageElement> {
   map.set("cancel", Resources.cancel.image);
   map.set("npc_farmer", Resources.farmer.image);
   map.set("npc_farmer_avatar", Resources.farmerAvatar.image);
+  map.set("npc_farmer_wife", Resources.npcFarmerWife.image);
+  map.set("npc_farmer_wife_avatar", Resources.npocFarmerWifeAvatar.image);
   map.set("wood_floor", Resources.wood_floor.image);
   map.set("wood_ceiling", Resources.wood_ceiling.image);
   map.set("wood_walls", Resources.wood_walls.image);
@@ -164,6 +180,10 @@ export function getLoadedTextures(): Map<string, HTMLImageElement> {
   map.set("bedroll", Resources.bedroll.image);
   map.set("farmhouse_bed", Resources.farmhouse_bed.image);
   map.set("farmhouse_bed_1", Resources.farmhouse_bed_1.image);
-
+  map.set("stove", Resources.stove.image);
+  map.set("stove1", Resources.stove1.image);
+  map.set("stove2", Resources.stove2.image);
+  map.set("chestOpen", Resources.chestOpen.image);
+  map.set("chestClosed", Resources.chestClosed.image);
   return map;
 }

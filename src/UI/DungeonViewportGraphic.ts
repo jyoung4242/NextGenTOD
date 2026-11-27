@@ -366,14 +366,32 @@ export class DungeonViewportGraphic extends Graphic {
       const facing = prop.facing ?? propDef.facing;
       const resolved = resolveDirectionalSprite(propDef.sprite, facing, worldX, worldY, this.camera.x, this.camera.y);
 
+      const propRuntime = (currentState as { props?: Record<string, { locked?: boolean; opened?: boolean; looted?: boolean }> })
+        .props?.[prop.id];
+      const containerCfg = {
+        ...propDef.container,
+        ...(prop as { containerOverride?: Record<string, unknown> }).containerOverride,
+      };
+
+      let textureKey = resolved.textureKey;
+      let flipHorizontal = resolved.flipHorizontal;
+
+      if (propRuntime?.opened && containerCfg.openedTextureKey) {
+        textureKey = containerCfg.openedTextureKey;
+        flipHorizontal = false;
+      } else if ((propRuntime?.locked ?? containerCfg.locked) && containerCfg.lockedTextureKey) {
+        textureKey = containerCfg.lockedTextureKey;
+        flipHorizontal = false;
+      }
+
       billboards.push({
         x: worldX,
         y: worldY,
         scale: propDef.scale ?? 0.5,
-        textureKey: resolved.textureKey,
+        textureKey,
         yOffset: propDef.yOffset ?? 0,
         distanceSq: dx * dx + dy * dy,
-        flipHorizontal: resolved.flipHorizontal,
+        flipHorizontal,
       });
     }
 

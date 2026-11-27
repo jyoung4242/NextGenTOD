@@ -1,0 +1,51 @@
+{
+  "id": "aunt-millie",
+  "startNodeId": "millie-morning-greeting",
+  "nodes": {
+    "millie-morning-greeting": {
+      "speaker": "Aunt Millie",
+      "portrait": "aunt-millie",
+      "text": "There you are, sleepyhead! Thomas is already out by the mill, and I laid out some supplies for you in the house.",
+      "setsFlag": "met-aunt-millie",
+      "choices": [
+        {
+          "label": "Good morning, Aunt Millie.",
+          "nextNodeId": "millie-give-chest-key"
+        },
+        {
+          "label": "Where are my supplies?",
+          "nextNodeId": "millie-give-chest-key"
+        },
+        {
+          "label": "I already got the key.",
+          "nextNodeId": "millie-chores-reminder",
+          "requiresFlag": "received-chest-key"
+        }
+      ]
+    },
+    "millie-give-chest-key": {
+      "speaker": "Aunt Millie",
+      "portrait": "aunt-millie",
+      "text": "Here, take this chest key. Open the storage chest inside my room and grab everything you need before heading out.",
+      "setsFlag": "received-chest-key",
+      "choices": [
+        {
+          "label": "Thanks! I'll open the chest now.",
+          "nextNodeId": "millie-chores-reminder",
+          "startsQuest": "morning-chores"
+        },
+        {
+          "label": "Got it, thank you.",
+          "nextNodeId": null,
+          "startsQuest": "morning-chores"
+        }
+      ]
+    },
+    "millie-chores-reminder": {
+      "speaker": "Aunt Millie",
+      "portrait": "aunt-millie",
+      "text": "Once you've got your gear from the chest, I hope you'll head outside and take care of your chores. Thomas will be glad for the help.",
+      "autoNextNodeId": null
+    }
+  }
+}

@@ -49,7 +49,7 @@ export class InteractionSystem {
     // 1. Check current cell player stands on (floor items/containers only)
     const currentCell = dungeon.getCell(cellX, cellY);
     if (currentCell) {
-      const currentInteraction = this.handleCellInteraction(cellX, cellY);
+      const currentInteraction = await this.handleCellInteraction(cellX, cellY);
       if (currentInteraction.handled) return currentInteraction;
     }
 
@@ -77,7 +77,7 @@ export class InteractionSystem {
       const targetNpcInteraction = await this.handleNpcInteraction(targetCoords.x, targetCoords.y);
       if (targetNpcInteraction.handled) return targetNpcInteraction;
 
-      const targetInteraction = this.handleCellInteraction(targetCoords.x, targetCoords.y);
+      const targetInteraction = await this.handleCellInteraction(targetCoords.x, targetCoords.y);
       if (targetInteraction.handled) return targetInteraction;
     }
 
@@ -214,22 +214,257 @@ export class InteractionSystem {
     };
   }
 
-  private handleCellInteraction(cellX: number, cellY: number): InteractionResult {
+  private async handlePropContainerInteraction(cellX: number, cellY: number): Promise<InteractionResult | null> {
+    const dungeonDef = this.dungeonManager.current?.definition;
+    const propPlacement = dungeonDef?.props?.find(p => Math.floor(p.position.x) === cellX && Math.floor(p.position.y) === cellY);
+    if (!propPlacement) return null;
+
+    const propDef = this.contentRegistry.worldProps.get(propPlacement.definitionId);
+    const baseContainer = propDef?.container;
+    if (!baseContainer && !propPlacement.containerOverride) return null;
+
+    const cfg = {
+      ...baseContainer,
+      ...propPlacement.containerOverride,
+    };
+
+    const state = this.store.get();
+    const activeDungeonId = state.dungeon.current;
+    const runtimeKey = propPlacement.id;
+    const existingRuntime = state.dungeon.registry[activeDungeonId]?.props?.[runtimeKey];
+
+    let isLocked = existingRuntime?.locked ?? cfg.locked ?? false;
+    const alreadyOpened = existingRuntime?.opened ?? false;
+    const alreadyLooted = existingRuntime?.looted ?? false;
+
+    // 1. If locked, check keyring
+    if (isLocked) {
+      const keyring = state.player.keyring ?? [];
+      const reqKey = cfg.requiredKeyId;
+      const hasKey = Boolean(reqKey && (keyring.includes("master_key") || keyring.includes(reqKey)));
+
+      if (!hasKey) {
+        return {
+          handled: true,
+          type: "container",
+          message: `${propDef?.name ?? "Container"} is locked.`,
+        };
+      }
+
+      isLocked = false;
+    }
+
+    // 2. Grant contents once (if not already looted)
+    if (!alreadyLooted) {
+      const keyring = [...(state.player.keyring ?? [])];
+      let addedAnyKey = false;
+
+      for (const entry of cfg.items ?? []) {
+        const qty = entry.quantity ?? 1;
+        if (entry.keyId) {
+          if (!keyring.includes(entry.keyId)) {
+            keyring.push(entry.keyId);
+            addedAnyKey = true;
+          }
+          this.questManager?.progressObjectives("collect", entry.keyId, 1);
+        } else if (entry.itemId) {
+          const res = this.inventorySystem.addItem(entry.itemId, qty);
+          if (!res.success) {
+            return {
+              handled: true,
+              type: "container",
+              message: "Your inventory is overburdened!",
+            };
+          }
+          this.questManager?.progressObjectives("collect", entry.itemId, qty);
+        }
+      }
+
+      if (addedAnyKey) {
+        this.store.set("player.keyring" as any, keyring);
+      }
+
+      if (cfg.gold && cfg.gold > 0) {
+        this.store.update("player" as any, (player: any) => ({
+          ...player,
+          gold: (player.gold ?? 0) + cfg.gold!,
+        }));
+      }
+    }
+
+    // 3. Persist unlocked + opened + looted state
+    this.store.set(`dungeon.registry.${activeDungeonId}.props.${runtimeKey}` as any, {
+      locked: isLocked,
+      opened: true,
+      looted: true,
+    });
+
+    // 4. Trigger anchored cutscene if present and not blocked by alreadyOpened (or allow replay as desired)
+    if (cfg.cutsceneId && this.cutSceneSystem && !alreadyOpened) {
+      await this.cutSceneSystem.startCutScene(cfg.cutsceneId);
+    }
+
+    if (cfg.succeedsFlag) {
+      this.store.update("storypoints", points => ({
+        ...points,
+        [cfg.succeedsFlag!]: true,
+      }));
+    }
+
+    const graphic = this.viewport.graphics.current as DungeonViewportGraphic;
+    graphic?.flagDirty();
+
+    return {
+      handled: true,
+      type: "container",
+      message: alreadyOpened ? `Checked ${propDef?.name ?? "container"}.` : `Opened ${propDef?.name ?? "container"}!`,
+    };
+  }
+
+  private async handleCellInteraction(cellX: number, cellY: number): Promise<InteractionResult> {
     const coordKey = `${cellX},${cellY}`;
     const state = this.store.get();
     const activeDungeonId = state.dungeon.current;
-    const activeDungeonState = state.dungeon.registry[activeDungeonId] as DungeonState;
+    const activeDungeonState = state.dungeon.registry[activeDungeonId] as DungeonState & {
+      props?: Record<string, { locked: boolean; opened: boolean; looted: boolean }>;
+    };
 
     if (!activeDungeonState) {
       return { handled: false, type: "none", message: "Active dungeon state not found." };
     }
 
+    const dungeonDef = this.dungeonManager.current?.definition;
+
+    // -------------------------------------------------------------
+    // 1. Check WorldProp container at (cellX, cellY) first
+    // -------------------------------------------------------------
+    const propPlacement = dungeonDef?.props?.find(p => Math.floor(p.position.x) === cellX && Math.floor(p.position.y) === cellY);
+
+    if (propPlacement) {
+      const propDef = this.contentRegistry.worldProps.get(propPlacement.definitionId);
+      const containerCfg =
+        propDef?.container || (propPlacement as { containerOverride?: Record<string, unknown> }).containerOverride
+          ? {
+              ...(propDef?.container ?? {}),
+              ...((propPlacement as { containerOverride?: Record<string, unknown> }).containerOverride ?? {}),
+            }
+          : undefined;
+
+      if (containerCfg) {
+        const propRuntime = activeDungeonState.props?.[propPlacement.id];
+        let isLocked = propRuntime?.locked ?? Boolean(containerCfg.locked);
+        const alreadyOpened = propRuntime?.opened ?? false;
+        const alreadyLooted = propRuntime?.looted ?? false;
+
+        // Check lock state against player keyring
+        if (isLocked) {
+          const keyring = state.player.keyring ?? [];
+          const reqKey = containerCfg.requiredKeyId as string | undefined;
+          const hasKey = Boolean(reqKey && (keyring.includes("master_key") || keyring.includes(reqKey)));
+
+          if (!hasKey) {
+            return {
+              handled: true,
+              type: "container",
+              message: `${propDef?.name ?? "Container"} is locked.`,
+            };
+          }
+
+          isLocked = false;
+        }
+
+        // Grant keys, items, and gold once if not yet looted
+        if (!alreadyLooted) {
+          const keyring = [...(state.player.keyring ?? [])];
+          let keyringChanged = false;
+
+          const entries = (containerCfg.items ?? []) as Array<{
+            itemId?: string;
+            keyId?: string;
+            quantity?: number;
+          }>;
+
+          for (const entry of entries) {
+            const qty = entry.quantity ?? 1;
+
+            if (entry.keyId) {
+              if (!keyring.includes(entry.keyId)) {
+                keyring.push(entry.keyId);
+                keyringChanged = true;
+              }
+              this.questManager?.progressObjectives("collect", entry.keyId, 1);
+            } else if (entry.itemId) {
+              const addResult = this.inventorySystem.addItem(entry.itemId, qty);
+              if (!addResult.success) {
+                return {
+                  handled: true,
+                  type: "container",
+                  message: "Your inventory is overburdened!",
+                };
+              }
+              this.questManager?.progressObjectives("collect", entry.itemId, qty);
+            }
+          }
+
+          const goldAmount = (containerCfg.gold as number | undefined) ?? 0;
+
+          this.store.batch(ctx => {
+            if (keyringChanged) {
+              ctx.set("player.keyring", keyring);
+            }
+            if (goldAmount > 0) {
+              ctx.update("player" as any, (player: any) => ({
+                ...player,
+                gold: (player?.gold ?? 0) + goldAmount,
+              }));
+            }
+            ctx.set(`dungeon.registry.${activeDungeonId}.props.${propPlacement.id}` as any, {
+              locked: isLocked,
+              opened: true,
+              looted: true,
+            });
+          });
+        } else {
+          this.store.set(`dungeon.registry.${activeDungeonId}.props.${propPlacement.id}` as any, {
+            locked: isLocked,
+            opened: true,
+            looted: true,
+          });
+        }
+
+        // Trigger anchored cutscene if configured
+        const cutsceneId = containerCfg.cutsceneId as string | undefined;
+        if (cutsceneId && this.cutSceneSystem && !alreadyOpened) {
+          await this.cutSceneSystem.startCutScene(cutsceneId);
+        }
+
+        const succeedsFlag = containerCfg.succeedsFlag as string | undefined;
+        if (succeedsFlag) {
+          this.store.update("storypoints", points => ({
+            ...points,
+            [succeedsFlag]: true,
+          }));
+        }
+
+        const graphic = this.viewport.graphics.current as DungeonViewportGraphic;
+        graphic?.flagDirty();
+
+        return {
+          handled: true,
+          type: "container",
+          message: alreadyOpened ? `Checked ${propDef?.name ?? "container"}.` : `Opened ${propDef?.name ?? "container"}!`,
+        };
+      }
+    }
+
+    // -------------------------------------------------------------
+    // 2. Existing floor container / item pickup fallback
+    // -------------------------------------------------------------
     const containerState = activeDungeonState.containers?.[coordKey];
     if (containerState?.opened) {
       return { handled: false, type: "none", message: "Already collected." };
     }
 
-    const dungeonDef = this.dungeonManager.current?.definition;
     const itemPlacement = dungeonDef?.items?.find(i => i.position.x === cellX && i.position.y === cellY);
 
     const keyId = containerState?.keyId ?? itemPlacement?.keyId;

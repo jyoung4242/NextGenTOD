@@ -29,6 +29,18 @@ export const farmhouse: DungeonDefinition = {
       position: { x: 11, y: 3 },
       facing: "east",
     },
+    {
+      id: "npc2-chest",
+      definitionId: "chest",
+      position: { x: 10, y: 5 },
+      facing: "north",
+    },
+    {
+      id: "kitchen-stove",
+      definitionId: "stove",
+      position: { x: 14, y: 9 },
+      facing: "east",
+    },
   ],
 
   cutsceneTriggers: [],
@@ -104,7 +116,14 @@ export const farmhouse: DungeonDefinition = {
       openTexture: "farm_door_open",
     },
   ],
-
+  npcs: [
+    {
+      id: "aunt_millie",
+      name: "Aunt Millie",
+      position: { x: 2, y: 7 },
+      cutsceneId: "aunt_millie",
+    },
+  ],
   lighting: {
     ambientLight: 1.0,
     maxLightingDistance: 16,
