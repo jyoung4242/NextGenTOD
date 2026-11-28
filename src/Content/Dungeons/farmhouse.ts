@@ -48,30 +48,81 @@ export const farmhouse: DungeonDefinition = {
     playerBedroom: {
       id: "playerBedroom",
       type: "entrance",
-      bounds: { x: 1, y: 2, width: 3, height: 4 },
-      exits: ["hall1"],
+      bounds: {
+        x: 1,
+        y: 2,
+        width: 3,
+        height: 4,
+      },
+      exits: ["hall1", "hall2", "livingRoom"],
     },
-    npcBedroom1: {
+    npcbd1: {
       id: "npcbd1",
       type: "room",
-      bounds: { x: 5, y: 2, width: 3, height: 4 },
+      bounds: {
+        x: 5,
+        y: 2,
+        width: 3,
+        height: 4,
+      },
       exits: ["hall1"],
     },
-    npcBedroom2: {
+    npcbd2: {
       id: "npcbd2",
       type: "room",
-      bounds: { x: 9, y: 2, width: 3, height: 4 },
+      bounds: {
+        x: 9,
+        y: 2,
+        width: 3,
+        height: 4,
+      },
       exits: ["hall1"],
     },
-
     hall1: {
       id: "hall1",
       type: "room",
-      bounds: { x: 1, y: 1, width: 13, height: 1 },
+      bounds: {
+        x: 1,
+        y: 1,
+        width: 14,
+        height: 1,
+      },
       exits: [],
     },
+    hall2: {
+      id: "hall2",
+      type: "room",
+      bounds: {
+        x: 13,
+        y: 2,
+        width: 2,
+        height: 5,
+      },
+      exits: ["hall1", "kitchen", "playerBedroom"],
+    },
+    kitchen: {
+      id: "kitchen",
+      type: "room",
+      bounds: {
+        x: 9,
+        y: 7,
+        width: 6,
+        height: 4,
+      },
+      exits: [],
+    },
+    livingRoom: {
+      id: "livingRoom",
+      type: "room",
+      bounds: {
+        x: 1,
+        y: 7,
+        width: 7,
+        height: 4,
+      },
+      exits: ["kitchen", "playerBedroom"],
+    },
   },
-
   connections: [
     {
       id: "bedroom-to-hall",
@@ -83,7 +134,6 @@ export const farmhouse: DungeonDefinition = {
         y: 2,
         direction: "north",
       },
-
       closedTexture: "farm_door",
       openTexture: "farm_door_open",
     },
@@ -97,7 +147,6 @@ export const farmhouse: DungeonDefinition = {
         y: 2,
         direction: "north",
       },
-
       closedTexture: "farm_door",
       openTexture: "farm_door_open",
     },
@@ -111,9 +160,26 @@ export const farmhouse: DungeonDefinition = {
         y: 2,
         direction: "north",
       },
-
       closedTexture: "farm_door",
       openTexture: "farm_door_open",
+    },
+    {
+      id: "conn_4",
+      from: "hall2",
+      to: "hall1",
+      type: "open",
+    },
+    {
+      id: "conn_5",
+      from: "hall2",
+      to: "kitchen",
+      type: "open",
+    },
+    {
+      id: "conn_6",
+      from: "livingRoom",
+      to: "kitchen",
+      type: "open",
     },
   ],
   npcs: [
